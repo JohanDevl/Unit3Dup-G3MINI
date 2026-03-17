@@ -34,8 +34,8 @@ cd /opt/unit3dup
 ### Créer un environnement virtuel et installer
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
 
@@ -152,7 +152,7 @@ git pull
 Pas besoin de réinstaller grâce au mode `-e`. Si des nouvelles dépendances ont été ajoutées :
 
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 pip install -e .
 ```
 
