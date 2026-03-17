@@ -155,11 +155,19 @@ class MediaFile:
         """Get available languages from audio and subtitle tracks"""
         languages = set()
 
-        for track in self.audio_track:  # + self.subtitle_track:
+        for track in self.audio_track:
             lang = track.get("language", "Unknown")
-            if lang != "Unknown":
-                languages.add(ManageTitles.convert_iso(lang))
-        return list(languages) if len(languages) > 0 else ["not found"]
+            # zxx = "No linguistic content" (film muet) → on skip
+            if lang in ("Unknown", "zxx"):
+                continue
+            converted = ManageTitles.convert_iso(lang)
+            # convert_iso peut retourner une str ou une list
+            if isinstance(converted, list):
+                languages.update(converted)
+            else:
+                languages.add(converted)
+
+        return list(languages) if languages else ["not found"]
 
     @property
     def file_size(self) -> str:
