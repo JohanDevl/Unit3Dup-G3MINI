@@ -24,15 +24,16 @@ class UploadBot:
         self.tracker = Unit3d(tracker_name=tracker_name)
 
     def normalize_release_name(self, release_name: str) -> str:
-        """
-        Normalise le nom de la release selon les conventions G3MINI Tracker.
-        Délègue au module release_normalizer (portage complet du script g3mini_rename.sh).
-        """
         mediainfo_text: str | None = None
+        is_silent: bool = False
+
         if self.content.mediafile and hasattr(self.content.mediafile, 'info'):
             mediainfo_text = self.content.mediafile.info or None
 
-        return _normalize_release_name(release_name, mediainfo_text)
+        if self.content.mediafile and hasattr(self.content.mediafile, 'is_silent'):
+            is_silent = self.content.mediafile.is_silent
+
+        return _normalize_release_name(release_name, mediainfo_text, is_silent)
 
     def _check_personal_release_by_tag(self, release_name: str) -> int:
         """

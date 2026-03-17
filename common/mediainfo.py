@@ -201,3 +201,12 @@ class MediaFile:
 
             return f"{guess_title}.web-dl.{video_format}.{resolution}.{audio_format}.{file_ext}"
         return None
+        
+    @property
+    def is_silent(self) -> bool:
+        """True si toutes les pistes audio sont zxx (film muet)."""
+        audio = self.audio_track
+        if not audio:
+            return False
+        langs = [t.get("language", "") for t in audio]
+        return bool(langs) and all(l == "zxx" for l in langs)

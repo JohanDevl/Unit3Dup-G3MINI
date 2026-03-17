@@ -179,6 +179,24 @@ def _get_subfr_from_mediainfo(mi: str) -> str:
             return "yes"
     return "no"
 
+def _is_silent_from_mediainfo(mi: str) -> bool:
+    """Retourne True si toutes les pistes audio ont Language: zxx (film muet).
+    zxx est le code ISO 639-2 pour 'No linguistic content'."""
+    if not mi:
+        return False
+    in_audio = False
+    audio_langs = []
+    for line in mi.splitlines():
+        if re.match(r'^Audio\s*$|^Audio #', line):
+            in_audio = True
+        elif re.match(r'^(Video|Text|Menu|General)', line):
+            in_audio = False
+        if in_audio:
+            m = re.search(r'Language\s*:\s*(\S+)', line, re.IGNORECASE)
+            if m:
+                audio_langs.append(m.group(1).strip().lower())
+    return bool(audio_langs) and all(l == 'zxx' for l in audio_langs)    
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  CONSTANTES DE PARSING
@@ -262,7 +280,7 @@ _SOURCE_QUAL_LIST = ["4KLight", "HDLight", "mHD"]
 #  PARSER PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _parse_release(original: str, mi: Optional[str] = None) -> str:
+def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = False) -> str:
     name = original
 
     # ── 1. Extension ─────────────────────────────────────────────────────────
@@ -436,7 +454,9 @@ def _parse_release(original: str, mi: Optional[str] = None) -> str:
             lang = mi_lang  # VFF, VFQ, VF2, VFB...
 
     # ── 9c. Fallback mediainfo : lang vide ou MULTi plain ─────────────────────
-    if (not lang or lang == "MULTi") and mi:
+    if (not lang or lang == "MULTi") and (is_silent or (mi and _is_silent_from_mediainfo(mi))):
+        lang = "MUET"
+    elif (not lang or lang == "MULTi") and mi:
         mi_lang = _get_lang_from_mediainfo(mi)
         lang = f"MULTi.{mi_lang}" if mi_lang else "MULTi.VFF"
 
@@ -594,6 +614,10 @@ def _parse_release(original: str, mi: Optional[str] = None) -> str:
     # Channel tokens orphelins résiduels
     name = re.sub(r'(?:^|\s)[0-9][.][0-9](?:\s|$)', ' ', name)
 
+    # Film muet : on vide le codec audio
+    if lang == "MUET":
+        audio_parts = []
+
     audio = '.'.join(audio_parts)
 
     # ── 14. Codec vidéo ───────────────────────────────────────────────────────
@@ -662,19 +686,6 @@ def _parse_release(original: str, mi: Optional[str] = None) -> str:
 def normalize_release_name(
     release_name: str,
     mediainfo_text: Optional[str] = None,
+    is_silent: bool = False,
 ) -> str:
-    """
-    Normalise un nom de release selon les conventions G3MINI Tracker.
-
-    Aucun fichier n'est modifié — seul le nom est retourné propre.
-
-    Args:
-        release_name   : Nom brut de la release (séparateurs points, espaces ou underscores).
-        mediainfo_text : Sortie texte brute de MediaInfo (optionnelle).
-                         Utilisée en fallback pour détecter codec, langue et sous-titres.
-
-    Returns:
-        Le nom normalisé, ex. :
-          "Le.Film.2023.MULTi.VFF.1080p.BluRay.DDP5.1.x265-TEAM"
-    """
-    return _parse_release(release_name, mediainfo_text)
+    return _parse_release(release_name, mediainfo_text, is_silent)

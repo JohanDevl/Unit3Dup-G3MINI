@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import hashlib
 import os.path
+import re
 
 import diskcache
 
@@ -46,6 +47,35 @@ class Video:
     def hash_key(key: str) -> str:
         """ Generate a hashkey for the cache index """
         return hashlib.md5(key.encode('utf-8')).hexdigest()
+
+    @staticmethod
+    def generate_nfo_file(media_info: MediaFile, output_path: str) -> bool:
+        """Génère un fichier NFO avec la sortie brute de Mediainfo.
+
+        - Utilise `media_info.info` (texte brut de Mediainfo)
+        - Remplace le chemin complet par juste le nom du fichier dans "Complete name"
+        """
+        try:
+            mediainfo_output = media_info.info
+
+            # Pattern pour trouver "Complete name" suivi du chemin complet
+            pattern = r'(Complete name\s+:\s+)(.+[/\\])([^/\\]+\.\w+)'
+
+            def replace_path(match: re.Match) -> str:
+                # Garder seulement le nom de fichier
+                return match.group(1) + match.group(3)
+
+            # Appliquer le remplacement
+            mediainfo_output = re.sub(pattern, replace_path, mediainfo_output)
+
+            # Écrire le fichier NFO avec la sortie modifiée
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(mediainfo_output)
+
+            return True
+        except Exception as e:
+            custom_console.bot_warning_log(f"[NFO] Erreur lors de la génération du NFO: {e}")
+            return False
 
     def build_info(self):
         """Build the information to send to the tracker"""
