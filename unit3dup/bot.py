@@ -171,29 +171,36 @@ class Bot:
 
                         ok = single_bot.run()
 
+                        # In dry-run mode (-noup / -noseed), don't persist state
+                        # so next real run will process everything normally
+                        dry_run = self.cli.noup or self.cli.noseed
+
                         if ok and single_bot.upload_count > 0:
-                            watcher_state.mark_uploaded(
-                                source_path=str(src),
-                                torrent_name=src.name,
-                                trackers=self.trackers_name_list,
-                            )
+                            if not dry_run:
+                                watcher_state.mark_uploaded(
+                                    source_path=str(src),
+                                    torrent_name=src.name,
+                                    trackers=self.trackers_name_list,
+                                )
                             custom_console.bot_log(f"[Watcher] Uploaded -> {src.name}")
                         elif single_bot.skip_reasons:
                             reasons = ", ".join(sorted(set(s["reason"] for s in single_bot.skip_reasons)))
-                            watcher_state.mark_skipped(
-                                source_path=str(src),
-                                torrent_name=src.name,
-                                reason=reasons,
-                            )
+                            if not dry_run:
+                                watcher_state.mark_skipped(
+                                    source_path=str(src),
+                                    torrent_name=src.name,
+                                    reason=reasons,
+                                )
                             custom_console.bot_warning_log(
                                 f"[Watcher] Skipped -> {src.name} ({reasons})"
                             )
                         else:
-                            watcher_state.mark_skipped(
-                                source_path=str(src),
-                                torrent_name=src.name,
-                                reason="no_processable_media",
-                            )
+                            if not dry_run:
+                                watcher_state.mark_skipped(
+                                    source_path=str(src),
+                                    torrent_name=src.name,
+                                    reason="no_processable_media",
+                                )
                             custom_console.bot_warning_log(
                                 f"[Watcher] Skipped -> {src.name} (no_processable_media)"
                             )
