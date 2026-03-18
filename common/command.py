@@ -44,6 +44,8 @@ class CommandLine:
         parser.add_argument("-personal", "--personal", action="store_true", help="Set to personal release")
         parser.add_argument("-confirm", "--confirm", action="store_true",
                             help="Demande une validation manuelle du release_name avant chaque upload")
+        parser.add_argument("-skipval", "--skip_validation", action="store_true",
+                            help="Skip tracker rule validation checks")
 
         parser.add_argument("-ftp", "--ftp", action="store_true", help="Connect to FTP")
 

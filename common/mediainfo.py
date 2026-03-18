@@ -30,6 +30,7 @@ class MediaFile:
         if not self._general_track:
             for track in self.media_info.to_data().get("tracks", []):
                 if track.get("track_type") == "General":
+                    self._general_track = track
                     return self._general_track
             self._general_track = {}
         return self._general_track
@@ -210,3 +211,93 @@ class MediaFile:
             return False
         langs = [t.get("language", "") for t in audio]
         return bool(langs) and all(l == "zxx" for l in langs)
+
+    # ── Propriétés ajoutées pour les validators ────────────────────────────
+
+    @property
+    def encoding_settings(self) -> str | None:
+        """Chaîne encoding_settings du premier track vidéo (options x264/x265)."""
+        video = self.video_track
+        if video:
+            return video[0].get("encoding_settings", None)
+        return None
+
+    @property
+    def writing_library(self) -> str | None:
+        """Writing library du premier track vidéo."""
+        video = self.video_track
+        if video:
+            return video[0].get("writing_library", None)
+        return None
+
+    @property
+    def video_format(self) -> str | None:
+        """Format vidéo (AVC, HEVC, AV1, etc.)."""
+        video = self.video_track
+        if video:
+            return video[0].get("format", None)
+        return None
+
+    @property
+    def color_primaries(self) -> str | None:
+        """Color primaries (BT.601, BT.709, BT.2020, etc.)."""
+        video = self.video_track
+        if video:
+            return video[0].get("color_primaries", None)
+        return None
+
+    @property
+    def transfer_characteristics(self) -> str | None:
+        """Transfer characteristics (PQ / SMPTE ST 2084, HLG, etc.)."""
+        video = self.video_track
+        if video:
+            return video[0].get("transfer_characteristics", None)
+        return None
+
+    @property
+    def hdr_format(self) -> str | None:
+        """HDR format string (Dolby Vision, HDR10, HDR10+, etc.)."""
+        video = self.video_track
+        if video:
+            return video[0].get("hdr_format", None)
+        return None
+
+    @property
+    def container_format(self) -> str:
+        """Extension du fichier (container)."""
+        _, ext = os.path.splitext(self.file_path)
+        return ext.lower()
+
+    @property
+    def multiview_count(self) -> int | None:
+        """Nombre de vues pour contenu 3D."""
+        video = self.video_track
+        if video:
+            val = video[0].get("multiview_count", None)
+            return int(val) if val else None
+        return None
+
+    @property
+    def audio_formats(self) -> list[dict]:
+        """Liste des formats et canaux de chaque piste audio."""
+        result = []
+        for track in self.audio_track:
+            result.append({
+                "format": track.get("format", ""),
+                "channels": track.get("channel_s", 0),
+                "service_kind": track.get("service_kind", ""),
+                "delay": track.get("delay_relative_to_video", None),
+                "language": track.get("language", ""),
+            })
+        return result
+
+    @property
+    def subtitle_formats(self) -> list[dict]:
+        """Liste des formats de chaque piste sous-titre."""
+        result = []
+        for track in self.subtitle_track:
+            result.append({
+                "format": track.get("format", ""),
+                "language": track.get("language", ""),
+            })
+        return result

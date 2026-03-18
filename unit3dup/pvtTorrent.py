@@ -37,10 +37,23 @@ class Mytorrent:
         self.mytorr.created_by = "https://github.com/31December99/Unit3Dup"
         self.mytorr.private = True
         self.mytorr.source= trackers_api_data[trackers_list[0]]['source']
-        self.mytorr.segments = 16 * 1024 * 1024
+        # Piece size set dynamically in hash() based on content size
 
+    @staticmethod
+    def _compute_piece_size(size_bytes: int) -> int:
+        """Compute optimal piece size based on total content size (upload.md rules)."""
+        size_mb = size_bytes / (1024 * 1024)
+        size_gb = size_bytes / (1024 ** 3)
+        if size_gb > 20:    return 16 * 1024 * 1024   # 16 MB
+        if size_gb > 8:     return  8 * 1024 * 1024   #  8 MB
+        if size_gb > 4:     return  4 * 1024 * 1024   #  4 MB
+        if size_gb > 2:     return  2 * 1024 * 1024   #  2 MB
+        if size_gb > 1:     return  1 * 1024 * 1024   #  1 MB
+        if size_mb > 500:   return    512 * 1024       # 512 KB
+        return 256 * 1024                              # 256 KB
 
     def hash(self):
+        self.mytorr.segments = self._compute_piece_size(self.mytorr.size)
         # Calculate the torrent size
         size = round(self.mytorr.size / (1024 ** 3), 2)
         # Print a message for the user

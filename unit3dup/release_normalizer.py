@@ -209,10 +209,11 @@ _TAGS = (
     r'|2160p|1080p|1080i|720p|576p|480p|4K|UHD'
     r'|HDR10P|HDR10|SDR|DV|HLG|PQ10|HDR'
     r'|x265|x264|H265|H264|HEVC|AVC|AV1|VP9|VC1'
-    r'|DTS-HDMA|DTS-HD|DTS|AC3|DDP|TrueHD|Atmos|AAC'
+    r'|DTS-HDMA|DTS-HDHRA|DTS-HD|DTS|AC3|DDP|TrueHD|Atmos|AAC'
     r'|MULTi|VFF|VFQ|VF2|VFB|VOSTFR|SUBFRENCH|VOF|VOQ|VOB|FRENCH'
     r'|EXTENDED|PROPER|REPACK|UNRATED|UNCUT|REMASTERED|INTERNAL|NoTAG|iNTEGRALE'
     r'|8bit|10bit|12bit'
+    r'|3D|SBS|HSBS|TAB|HTAB|MVC|AD|CUSTOM|NoGRP'
 )
 
 # Du plus spécifique au moins spécifique
@@ -242,6 +243,9 @@ _EXTRAS_MAP = {
     'LIMITED':       'LIMITED',
     'IMAX EDITION':  'IMAX.EDITION',
     'IMAX':          'IMAX',
+    'AD':             'AD',
+    'CUSTOM':         'CUSTOM',
+    'NOGRP':          'NoGRP',
 }
 
 _CODEC_LIST = [
@@ -335,7 +339,7 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     name = re.sub(r'TRUE[\s._-]*HD',                        'TrueHD',   name, flags=re.IGNORECASE)
     name = re.sub(r'TRUEFRENCH',                            'VFF',      name, flags=re.IGNORECASE)
     name = re.sub(r'DTS[\s_-]*HD[\s_-]*MA',                'DTS-HDMA', name, flags=re.IGNORECASE)
-    name = re.sub(r'DTS[\s_-]*HD[\s_-]*RA',                'DTS-HDMA', name, flags=re.IGNORECASE)
+    name = re.sub(r'DTS[\s_-]*HD[\s_-]*(?:H?RA)',           'DTS-HDHRA', name, flags=re.IGNORECASE)
     name = re.sub(r'WEB-Rip',                               'WEBRip',   name, flags=re.IGNORECASE)
     # 4KLight (variable separators) → 4KLight
     name = re.sub(r'4K[\s._-]*LIGHT',                       '4KLight',  name, flags=re.IGNORECASE)
@@ -476,6 +480,19 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     elif hybrid:
         hdr = "Hybrid"
 
+    # ── 10b. 3D type ──────────────────────────────────────────────────────
+    type_3d = ""
+    is_3d = False
+    if re.search(r'(?:^|\s)3D(?:\s|$)', name, re.IGNORECASE):
+        is_3d = True
+        name = _remove_token(name, "3D")
+    for t3d in ("HSBS", "HTAB", "SBS", "TAB", "MVC"):
+        if re.search(rf'(?:^|\s){t3d}(?:\s|$)', name, re.IGNORECASE):
+            type_3d = t3d
+            is_3d = True
+            name = _remove_token(name, t3d)
+            break
+
     # ── 11. Résolution ────────────────────────────────────────────────────────
     res = ""
     for r in ("2160p", "4K", "1080p", "1080i", "720p", "576p", "480p"):
@@ -547,6 +564,15 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         if mo:
             name = re.sub(r'(?:^|\s)[0-9][.][0-9](?:\s|$)', ' ', name)
         audio_parts.append(f"DTS-HD.MA{dts_ch}")
+
+    elif re.search(r'DTS-HDHRA|DTS[-. ]?HD[-. ]?HRA', name, re.IGNORECASE):
+        name = re.sub(r'DTS-HDHRA|DTS[-. ]?HD[-. ]?HRA', ' ', name, flags=re.IGNORECASE)
+        name = _ws(name)
+        mo = re.search(r'(?:^|\s)([0-9][.][0-9])(?:\s|$)', name)
+        dts_ch = f".{mo.group(1)}" if mo else ""
+        if mo:
+            name = re.sub(r'(?:^|\s)[0-9][.][0-9](?:\s|$)', ' ', name)
+        audio_parts.append(f"DTS-HD.HRA{dts_ch}")
 
     elif re.search(r'(?:^|\s)DTS-HD(?:\s|$)', name, re.IGNORECASE):
         name = _remove_token(name, "DTS-HD")
@@ -663,6 +689,8 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     # ── Reconstruction ────────────────────────────────────────────────────────
     new = title
     if year:        new += f".{year}"
+    if is_3d:       new += ".3D"
+    if type_3d:     new += f".{type_3d}"
     if extras:      new += extras        # commence déjà par '.'
     if lang:        new += f".{lang}"
     if res:         new += f".{res}"
