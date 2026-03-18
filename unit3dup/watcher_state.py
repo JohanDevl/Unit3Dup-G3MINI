@@ -16,8 +16,8 @@ class WatcherState:
     Docker restarts (mounted volume).
     """
 
-    def __init__(self, state_dir: str):
-        self.state_file = os.path.join(state_dir, "watcher_state.json")
+    def __init__(self, state_dir: str, filename: str = "watcher_state.json"):
+        self.state_file = os.path.join(state_dir, filename)
         self._state = self._load()
 
     def _load(self) -> dict:
