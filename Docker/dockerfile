@@ -6,6 +6,7 @@ FROM python:3.11-slim
 ARG USERNAME=pc
 
 # environment
+ENV HOME=/home/$USERNAME
 ENV VIRTUAL_ENV=/home/$USERNAME/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 

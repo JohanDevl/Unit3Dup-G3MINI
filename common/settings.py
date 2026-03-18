@@ -637,10 +637,6 @@ class Load:
     @staticmethod
     def load_config():
 
-        if not WATCHER_DESTINATION_PATH.exists():
-            print(f"Create default destination watcher path: {WATCHER_DESTINATION_PATH}")
-            os.makedirs(WATCHER_DESTINATION_PATH)
-
         if not WATCHER_PATH.exists():
             print(f"Create default watcher path: {WATCHER_PATH}")
             os.makedirs(WATCHER_PATH)
