@@ -119,6 +119,8 @@ class CustomConsole(Console):
         try:
             self.bot_error_log(message=message)
             input("> ")
+        except EOFError:
+            pass
         except KeyboardInterrupt:
             self.bot_error_log("\nOperation cancelled.Please update your config file")
             exit(0)
@@ -131,6 +133,9 @@ class CustomConsole(Console):
                 if user_tmdb_id.isdigit():
                     user_tmdb_id = int(user_tmdb_id)
                     return user_tmdb_id if user_tmdb_id < 9999999 else 0
+        except EOFError:
+            self.bot_warning_log("No interactive input available, skipping (returning 0)")
+            return 0
         except KeyboardInterrupt:
             self.bot_error_log("\nOperation cancelled. Bye !")
             exit(0)
@@ -141,6 +146,9 @@ class CustomConsole(Console):
                 self.bot_input_log(message=message)
                 user_ = input()
                 return user_ if user_ else '0'
+        except EOFError:
+            self.bot_warning_log("No interactive input available, skipping")
+            return '0'
         except KeyboardInterrupt:
             self.bot_error_log("\nOperation cancelled. Bye !")
             exit(0)

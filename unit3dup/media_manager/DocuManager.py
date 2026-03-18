@@ -54,7 +54,15 @@ class DocuManager:
 
             # Don't upload if -noup is set to True
             if self.cli.noup:
-                custom_console.bot_warning_log(f"No Upload active. Done.")
+                custom_console.bot_warning_log(f"[DRY-RUN] No upload → {content.display_name}")
+                bittorrent_list.append(
+                    BittorrentData(
+                        tracker_response=None,
+                        torrent_response=torrent_response,
+                        content=content,
+                        tracker_message="dry-run",
+                        archive_path=torrent_filepath,
+                    ))
                 continue
 
             # Get the cover image

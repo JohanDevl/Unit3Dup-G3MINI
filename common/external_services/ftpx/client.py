@@ -255,7 +255,11 @@ class Client:
 
     def user_input_search(self):
         custom_console.print("Search '->' ", end='', style='violet bold')
-        keyword = input()
+        try:
+            keyword = input()
+        except EOFError:
+            custom_console.bot_warning_log("No interactive input available, skipping search")
+            return
         for item in self.page.get_items():
             if keyword.lower() in item.name.lower():
                 custom_console.bot_question_log(

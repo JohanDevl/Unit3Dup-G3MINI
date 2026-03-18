@@ -40,7 +40,11 @@ class Extractor:
 
             # Ask user for each file
             while manual_mode:
-                delete_choice = input("Delete the old file ? (Y/N/All) Q=quit ")
+                try:
+                    delete_choice = input("Delete the old file ? (Y/N/All) Q=quit ")
+                except EOFError:
+                    custom_console.bot_warning_log("No interactive input available, keeping file")
+                    break
                 # Wait for an answer
                 if delete_choice:
                     # Only letters

@@ -70,17 +70,21 @@ class IGDBViewer:
 
     @staticmethod
     def input_manager(input_message: str) -> int | None:
-        while True:
-            custom_console.print(input_message, end='', style='violet bold')
-            user_choice = input()
-            if user_choice.upper() == "Q":
-                exit(1)
-            if user_choice.upper() == "S":
-                return None
-            if user_choice.isdigit():
-                user_choice = int(user_choice)
-                if user_choice < 999999:
-                    return user_choice
+        try:
+            while True:
+                custom_console.print(input_message, end='', style='violet bold')
+                user_choice = input()
+                if user_choice.upper() == "Q":
+                    exit(1)
+                if user_choice.upper() == "S":
+                    return None
+                if user_choice.isdigit():
+                    user_choice = int(user_choice)
+                    if user_choice < 999999:
+                        return user_choice
+        except EOFError:
+            custom_console.bot_warning_log("No interactive input available, skipping")
+            return None
 
 
 class IGDBClient:

@@ -389,7 +389,10 @@ def main():
         print("\n" + "="*80)
         
         # Option pour sauvegarder dans un fichier
-        save = input("\nVoulez-vous sauvegarder dans un fichier? (o/n): ").lower()
+        try:
+            save = input("\nVoulez-vous sauvegarder dans un fichier? (o/n): ").lower()
+        except EOFError:
+            save = "n"
         if save == 'o':
             from common import config_settings
             save_dir = str(config_settings.user_preferences.CACHE_PATH)

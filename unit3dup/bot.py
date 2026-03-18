@@ -177,7 +177,7 @@ class Bot:
 
                         ok = single_bot.run()
 
-                        # Target state: real file in normal mode, preview file in dry-run
+                        # In dry-run, only write to the preview file (not the main state)
                         target_state = dryrun_state if dry_run else watcher_state
 
                         if ok and single_bot.upload_count > 0:
@@ -186,7 +186,8 @@ class Bot:
                                 torrent_name=src.name,
                                 trackers=self.trackers_name_list,
                             )
-                            custom_console.bot_log(f"[Watcher] Uploaded -> {src.name}")
+                            label = "[Watcher] DRY-RUN uploaded" if dry_run else "[Watcher] Uploaded"
+                            custom_console.bot_log(f"{label} -> {src.name}")
                         elif single_bot.skip_reasons:
                             reasons = ", ".join(sorted(set(s["reason"] for s in single_bot.skip_reasons)))
                             target_state.mark_skipped(
