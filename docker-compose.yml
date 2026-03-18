@@ -15,14 +15,12 @@ services:
     # command: ["-scan", "/home/pc/data"]  # Scan mode: analyze files only
 
     volumes:
-      # Config (persists Unit3Dbot.json, cache, torrent archive)
+      # Config (persists Unit3Dbot.json, cache, torrent archive,
+      # watcher_state.json and watcher_dryrun.json)
       - ./config:/home/pc/Unit3Dup_config
 
       # Media input (files/folders to upload)
       - /path/to/media:/home/pc/data
-
-      # Media output (processed files moved here after upload)
-      - /path/to/done:/home/pc/done
 
     # Torrent client: if running on the host, use host IP instead of localhost
     # network_mode: host  # Alternative: use host networking directly
@@ -42,7 +40,10 @@ services:
     #        Note: use host IP (not localhost) for services running on the host
     #      - Set paths (use container paths):
     #          WATCHER_PATH: /home/pc/data
-    #          WATCHER_DESTINATION_PATH: /home/pc/done
+    #
+    #    Watcher state is stored in ./config/:
+    #      - watcher_state.json: tracks uploaded/skipped entries (not modified in dry-run)
+    #      - watcher_dryrun.json: preview of what would happen (dry-run only)
     #
     # 4. Start watcher:
     #      docker compose up -d
