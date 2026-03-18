@@ -38,7 +38,8 @@ RUN python3 -m venv $VIRTUAL_ENV && \
 # Copy source and install from source
 COPY --chown=$USERNAME:$USERNAME . /home/$USERNAME/app
 WORKDIR /home/$USERNAME/app
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir . && \
+    chmod -R o+rX $VIRTUAL_ENV
 WORKDIR /home/$USERNAME
 
 # Set the entry point ( see pyproject.toml)
