@@ -70,6 +70,33 @@ class UploadBot:
 
         return personal_release
 
+    @staticmethod
+    def is_excluded_tag(release_name: str) -> bool:
+        """
+        Vérifie si le tag d'équipe de la release est dans la liste d'exclusion.
+
+        Même logique d'extraction que _check_personal_release_by_tag :
+          - Extrait le tag après le dernier '-'
+          - Compare (insensible à la casse) avec EXCLUDED_TAGS
+          - Retourne True si le tag est exclu
+        """
+        excluded_tags: list[str] = [
+            t.upper()
+            for t in getattr(config_settings.uploader_tag, 'EXCLUDED_TAGS', [])
+        ]
+
+        if not excluded_tags:
+            return False
+
+        parts = release_name.rsplit('-', 1)
+        if len(parts) == 2:
+            tag = parts[1].strip().upper()
+            # Retirer l'extension éventuelle (.mkv, .mp4, etc.)
+            tag = re.sub(r'\.\w{2,4}$', '', tag).upper()
+            return tag in excluded_tags
+
+        return False
+
     def message(self,tracker_response: requests.Response, torrent_archive: str) -> (requests, dict):
 
         name_error = ''

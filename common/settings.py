@@ -155,6 +155,7 @@ class ConsoleOptions(BaseModel):
 class UploaderTag(BaseModel):
     """Tags d'équipe autorisés à marquer un upload comme personal_release."""
     TAGS_TEAM: list[str] = []
+    EXCLUDED_TAGS: list[str] = []
 
 
 class Validate:
@@ -366,7 +367,7 @@ class Config(BaseModel):
     def set_default_uploader_tag(cls, v):
         """Fournit uploader_tag par défaut pour les JSON qui ne l'ont pas encore."""
         if 'uploader_tag' not in v or v['uploader_tag'] is None:
-            v['uploader_tag'] = {'TAGS_TEAM': []}
+            v['uploader_tag'] = {'TAGS_TEAM': [], 'EXCLUDED_TAGS': []}
         return v
 
     @model_validator(mode='before')
@@ -623,6 +624,7 @@ class Load:
             },
             "uploader_tag": {
                 "TAGS_TEAM": [],
+                "EXCLUDED_TAGS": [],
             },
         }
 
@@ -700,7 +702,7 @@ class JsonConfig:
         self.options_config = self.file_config_data["options"]
         self.console_options_config = self.file_config_data["console_options"]
         # uploader_tag peut être absent des anciens JSON → fallback sur valeur par défaut
-        self.uploader_tag_config = self.file_config_data.get("uploader_tag", {"TAGS_TEAM": []})
+        self.uploader_tag_config = self.file_config_data.get("uploader_tag", {"TAGS_TEAM": [], "EXCLUDED_TAGS": []})
 
         # New tracker attribute
         self.tracker_diff_keys = self.tracker_config.keys() ^ TrackerConfig.__annotations__.keys()\
@@ -776,7 +778,7 @@ class JsonConfig:
         elif self.uploader_tag_diff_keys:
             self.updated = True
             missing_keys_dict = {
-                key: ([] if key == 'TAGS_TEAM' else '')
+                key: ([] if key in ('TAGS_TEAM', 'EXCLUDED_TAGS') else '')
                 for key in self.uploader_tag_diff_keys
             }
             self.uploader_tag_config.update(missing_keys_dict)
