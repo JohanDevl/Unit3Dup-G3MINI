@@ -13,3 +13,4 @@ class BittorrentData:
     tracker_message: dict | str
     archive_path: str
     release_name: str = ""
+    qbit_category: str | None = None

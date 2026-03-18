@@ -24,13 +24,13 @@ class Bot:
 
     Methods:
         run(): Starts the media processing and torrent handling tasks
-        watcher(duration: int, watcher_path: str): Monitors a folder for changes and processes files
+        watcher(duration: int, watcher_folders: list): Monitors multiple folders for changes and processes files
         ftp(): Connects to a remote FTP server and processes files
     """
 
     # Bot Manager
     def __init__(self, path: str, cli: argparse.Namespace, trackers_name_list: list, mode="man",
-                 torrent_archive_path = None):
+                 torrent_archive_path=None, qbit_category: str | None = None):
         """
         Initializes the Bot instance with path, command-line interface object, and mode
 
@@ -41,6 +41,7 @@ class Bot:
         """
         self.trackers_name_list = trackers_name_list
         self.torrent_archive_path = torrent_archive_path
+        self.qbit_category = qbit_category
         self.content_manager = None
         self.path = path.strip()
         self.cli = cli
@@ -96,7 +97,7 @@ class Bot:
             return False
 
         # Instance a new run
-        torrent_manager = TorrentManager(cli=self.cli, tracker_archive=self.torrent_archive_path)
+        torrent_manager = TorrentManager(cli=self.cli, tracker_archive=self.torrent_archive_path, qbit_category=self.qbit_category)
         # Process the torrents content (files)
         torrent_manager.process(contents=contents)
 
@@ -113,22 +114,32 @@ class Bot:
         return True
 
 
-    def watcher(self, duration: int, watcher_path: str, state_dir: str) -> bool:
+    def watcher(self, duration: int, watcher_folders: list, state_dir: str) -> bool:
         """
-        Monitors the watcher path for new files/folders, uploads them one-by-one.
+        Monitors multiple watcher folders for new files/folders, uploads them one-by-one.
+        Each folder can have its own qBittorrent category.
         Uses a persistent JSON state file to skip already-processed entries.
 
         Args:
             duration (int): The time duration in seconds for the watchdog to wait before checking again
-            watcher_path (str): The path to the folder being monitored for new files
+            watcher_folders (list[WatcherFolder]): List of folder configs to monitor
             state_dir (str): Directory where the watcher_state.json is stored (config dir)
         """
         from unit3dup.watcher_state import WatcherState
 
         try:
-            # Return if the watcher path doesn't exist
-            if not os.path.exists(watcher_path):
-                custom_console.bot_error_log("Watcher path does not exist or is not configured\n")
+            # Validate folders at startup
+            valid_folders = []
+            for wf in watcher_folders:
+                if os.path.exists(wf.path):
+                    cat_info = f" (category: {wf.category})" if wf.category else ""
+                    custom_console.bot_log(f"[Watcher] Monitoring: {wf.path}{cat_info}")
+                    valid_folders.append(wf)
+                else:
+                    custom_console.bot_warning_log(f"[Watcher] Path does not exist, skipping: {wf.path}")
+
+            if not valid_folders:
+                custom_console.bot_error_log("[Watcher] No valid watcher folders found\n")
                 return False
 
             dry_run = self.cli.noup or self.cli.noseed
@@ -145,12 +156,19 @@ class Bot:
 
             # Watchdog loop
             while True:
-                watcher_root = Path(watcher_path)
+                for watcher_folder in valid_folders:
+                    watcher_path = watcher_folder.path
+                    folder_category = watcher_folder.category
 
-                # Skip if there are no files in the watcher folder
-                if not os.listdir(watcher_path):
-                    custom_console.bot_log("There are no files in the Watcher folder\n")
-                else:
+                    if not os.path.exists(watcher_path):
+                        continue
+
+                    watcher_root = Path(watcher_path)
+
+                    # Skip if there are no files in this watcher folder
+                    if not os.listdir(watcher_path):
+                        continue
+
                     entries = sorted(
                         [p for p in watcher_root.iterdir() if p.name and not p.name.startswith(".")],
                         key=lambda p: p.name.lower(),
@@ -161,7 +179,7 @@ class Bot:
                             continue
 
                         # Check watcher state BEFORE any heavy processing
-                        status = watcher_state.is_known(str(src))
+                        status = watcher_state.is_known(str(src), folder_path=watcher_path)
                         if status:
                             continue
 
@@ -175,6 +193,7 @@ class Bot:
                             trackers_name_list=self.trackers_name_list,
                             mode=mode,
                             torrent_archive_path=self.torrent_archive_path,
+                            qbit_category=folder_category,
                         )
 
                         ok = single_bot.run()
@@ -189,6 +208,8 @@ class Bot:
                                 source_path=str(src),
                                 torrent_name=release_name,
                                 trackers=self.trackers_name_list,
+                                folder_path=watcher_path,
+                                category=folder_category,
                             )
                             label = "[Watcher] DRY-RUN uploaded" if dry_run else "[Watcher] Uploaded"
                             custom_console.bot_log(f"{label} -> {release_name}")
@@ -198,6 +219,8 @@ class Bot:
                                 source_path=str(src),
                                 torrent_name=src.name,
                                 reason=reasons,
+                                folder_path=watcher_path,
+                                category=folder_category,
                             )
                             custom_console.bot_warning_log(
                                 f"[Watcher] Skipped -> {src.name} ({reasons})"
@@ -207,15 +230,17 @@ class Bot:
                                 source_path=str(src),
                                 torrent_name=src.name,
                                 reason="no_processable_media",
+                                folder_path=watcher_path,
+                                category=folder_category,
                             )
                             custom_console.bot_warning_log(
                                 f"[Watcher] Skipped -> {src.name} (no_processable_media)"
                             )
 
-                # Nettoyer les fichiers .nfo isolés dans le dossier watcher après avoir traité tous les fichiers du cycle
-                self._cleanup_orphaned_nfo_files(watcher_path)
+                    # Clean orphaned NFO files for this folder
+                    self._cleanup_orphaned_nfo_files(watcher_path)
 
-                # Attendre avant le prochain cycle
+                # Wait before next cycle
                 print()
                 start_time = time.perf_counter()
                 end_time = start_time + duration

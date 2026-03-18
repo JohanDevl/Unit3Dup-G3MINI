@@ -229,6 +229,7 @@ class UserContent:
                         torrent=bittorrent_file.torrent_response,
                         content=bittorrent_file.content,
                         archive_path=archive_path_to_use,
+                        category=bittorrent_file.qbit_category,
                     )
                     
                     # Nettoyer le fichier temporaire après utilisation

@@ -16,18 +16,20 @@ from view import custom_console
 
 class VideoManager:
 
-    def __init__(self, contents: list[Media], cli: argparse.Namespace):
+    def __init__(self, contents: list[Media], cli: argparse.Namespace, qbit_category: str | None = None):
         """
         Initialize the VideoManager with the given contents
 
         Args:
             contents (list): List of content media objects
             cli (argparse.Namespace): user flag Command line
+            qbit_category (str | None): qBittorrent category to assign to uploaded torrents
         """
 
         self.torrent_found:bool = False
         self.contents: list[Media] = contents
         self.cli: argparse = cli
+        self.qbit_category = qbit_category
 
     def process(self, selected_tracker: str, tracker_name_list: list, tracker_archive: str) -> tuple[list[BittorrentData], list[dict]]:
         """
@@ -166,6 +168,7 @@ class VideoManager:
                             tracker_message="dry-run",
                             archive_path=torrent_filepath,
                             release_name=release_name,
+                            qbit_category=self.qbit_category,
                         ))
                     continue
 
@@ -279,6 +282,7 @@ class VideoManager:
                         tracker_message=tracker_message,
                         archive_path=torrent_filepath,
                         release_name=unit3d_up.tracker.data.get("name", content.display_name),
+                        qbit_category=self.qbit_category,
                     ))
 
         # // end content

@@ -2,7 +2,7 @@
 
 from common.torrent_clients import TransmissionClient, QbittorrentClient, RTorrentClient
 from common.command import CommandLine
-from common.settings import Load,DEFAULT_JSON_PATH
+from common.settings import Load, DEFAULT_JSON_PATH, get_watcher_folders
 
 from unit3dup.torrent import View
 from unit3dup import pvtTracker
@@ -23,7 +23,13 @@ def main():
     custom_console.bot_log(f"[Configuration] '{DEFAULT_JSON_PATH}'")
     custom_console.bot_log(f"[*.torrent Archive] '{config.user_preferences.TORRENT_ARCHIVE_PATH}'")
     custom_console.bot_log(f"[Images,Tmdb cache] '{config.user_preferences.CACHE_PATH}'")
-    custom_console.bot_log(f"[Watcher] '{config.user_preferences.WATCHER_PATH}'")
+    watcher_folders = get_watcher_folders(config.user_preferences)
+    if watcher_folders:
+        for wf in watcher_folders:
+            cat_info = f" (category: {wf.category})" if wf.category else ""
+            custom_console.bot_log(f"[Watcher] '{wf.path}'{cat_info}")
+    else:
+        custom_console.bot_log(f"[Watcher] (not configured)")
     print()
 
     # /// Initialize command line interface
@@ -118,11 +124,15 @@ def main():
 
     # Watcher
     if cli.args.watcher:
+        if not watcher_folders:
+            custom_console.bot_error_log("No watcher folders configured. Set WATCHER_PATHS or WATCHER_PATH in config.")
+            return
+
         bot = Bot(path='', cli=cli.args, mode="auto", trackers_name_list=tracker_name_list,
                   torrent_archive_path=tracker_archive)
 
         bot.watcher(duration=config.user_preferences.WATCHER_INTERVAL,
-                    watcher_path=config.user_preferences.WATCHER_PATH,
+                    watcher_folders=watcher_folders,
                     state_dir=str(DEFAULT_JSON_PATH.parent))
 
     # ftp and upload

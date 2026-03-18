@@ -14,10 +14,11 @@ from view import custom_console
 
 class DocuManager:
 
-    def __init__(self, contents: list[Media], cli: argparse.Namespace):
+    def __init__(self, contents: list[Media], cli: argparse.Namespace, qbit_category: str | None = None):
         self._my_tmdb = None
         self.contents: list['Media'] = contents
         self.cli: argparse = cli
+        self.qbit_category = qbit_category
 
     def process(self, selected_tracker: str, tracker_name_list: list, tracker_archive: str) -> tuple[list[BittorrentData], list[dict]]:
 
@@ -63,6 +64,7 @@ class DocuManager:
                         tracker_message="dry-run",
                         archive_path=torrent_filepath,
                         release_name=content.display_name,
+                        qbit_category=self.qbit_category,
                     ))
                 continue
 
@@ -96,6 +98,7 @@ class DocuManager:
                     tracker_message=tracker_message,
                     archive_path=torrent_filepath,
                     release_name=unit3d_up.tracker.data.get("name", content.display_name),
+                    qbit_category=self.qbit_category,
                 ))
 
         return bittorrent_list, skip_reasons

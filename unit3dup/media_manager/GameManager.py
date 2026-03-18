@@ -14,16 +14,18 @@ from view import custom_console
 
 class GameManager:
 
-    def __init__(self, contents: list["Media"], cli: argparse.Namespace):
+    def __init__(self, contents: list["Media"], cli: argparse.Namespace, qbit_category: str | None = None):
         """
         Initialize the GameManager with the given contents
 
         Args:
             contents (list): List of content media objects
             cli (argparse.Namespace): user flag Command line
+            qbit_category (str | None): qBittorrent category to assign to uploaded torrents
         """
         self.contents: list[Media] = contents
         self.cli: argparse = cli
+        self.qbit_category = qbit_category
         self.igdb = IGDBClient()
 
     def process(self, selected_tracker: str, tracker_name_list: list,  tracker_archive: str) -> tuple[list[BittorrentData], list[dict]]:
@@ -109,6 +111,7 @@ class GameManager:
                         tracker_message="dry-run",
                         archive_path=torrent_filepath,
                         release_name=release_name,
+                        qbit_category=self.qbit_category,
                     ))
                 continue
 
@@ -123,6 +126,7 @@ class GameManager:
                     tracker_message=tracker_message,
                     archive_path=torrent_filepath,
                     release_name=unit3d_up.tracker.data.get("name", content.display_name),
+                    qbit_category=self.qbit_category,
                 ))
         return bittorrent_list, skip_reasons
 

@@ -43,13 +43,15 @@ class MyQbittorrent(QBClient):
         )
 
     # Force savepath properly via qBittorrent WebAPI (torrents/add)
-    def add_torrent_file(self, file_buffer, savepath: str, tags: str | None = None):
+    def add_torrent_file(self, file_buffer, savepath: str, tags: str | None = None, category: str | None = None):
         data = {
             "savepath": savepath,
             "autoTMM": "false",  # prevents categories/templates from overriding savepath (as much as possible)
         }
         if tags:
             data["tags"] = tags
+        if category:
+            data["category"] = category
 
         files = {"torrents": file_buffer}
         return self._post("torrents/add", data=data, files=files)
@@ -64,7 +66,7 @@ class TorrClient(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def send_to_client(self, tracker_data_response: str, torrent: Mytorrent | None, content: Media, archive_path: str):
+    def send_to_client(self, tracker_data_response: str, torrent: Mytorrent | None, content: Media, archive_path: str, category: str | None = None):
         raise NotImplementedError
 
     @staticmethod
@@ -99,7 +101,7 @@ class TransmissionClient(TorrClient):
             custom_console.bot_error_log(f"{self.__class__.__name__} Please verify your configuration")
         return None
 
-    def send_to_client(self, tracker_data_response: str, torrent: Mytorrent | None, content: Media, archive_path: str):
+    def send_to_client(self, tracker_data_response: str, torrent: Mytorrent | None, content: Media, archive_path: str, category: str | None = None):
         # Transmission "shared path"
         if config_settings.torrent_client_config.SHARED_QBIT_PATH:
             torr_location = config_settings.torrent_client_config.SHARED_QBIT_PATH
@@ -161,7 +163,7 @@ class QbittorrentClient(TorrClient):
             custom_console.bot_error_log(f"{self.__class__.__name__} Please verify your configuration")
         return None
 
-    def send_to_client(self, tracker_data_response: str, torrent: Mytorrent | None, content: Media, archive_path: str):
+    def send_to_client(self, tracker_data_response: str, torrent: Mytorrent | None, content: Media, archive_path: str, category: str | None = None):
         # qBittorrent "shared path"
         if config_settings.torrent_client_config.SHARED_QBIT_PATH:
             torr_location = config_settings.torrent_client_config.SHARED_QBIT_PATH
@@ -204,6 +206,7 @@ class QbittorrentClient(TorrClient):
                 file_buffer=file_buffer,
                 savepath=str(torr_location),
                 tags=config_settings.torrent_client_config.TAG,
+                category=category,
             )
 
         # Optional: enforce tags via addTags as well
@@ -213,13 +216,14 @@ class QbittorrentClient(TorrClient):
             # not fatal
             pass
 
-    def send_file_to_client(self, torrent_path: str, media_location: str):
+    def send_file_to_client(self, torrent_path: str, media_location: str, category: str | None = None):
         # Keep a simple path-based call for manual usage
         with open(torrent_path, "rb") as fb:
             self.client.add_torrent_file(
                 file_buffer=fb,
                 savepath=str(os.path.normpath(media_location)),
                 tags=config_settings.torrent_client_config.TAG,
+                category=category,
             )
 
 
@@ -262,7 +266,7 @@ class RTorrentClient(TorrClient):
                 custom_console.bot_error_log(f"{self.__class__.__name__} Socket connection error or wrong OS platform")
                 exit()
 
-    def send_to_client(self, tracker_data_response: str, torrent: Mytorrent | None, content: Media, archive_path: str):
+    def send_to_client(self, tracker_data_response: str, torrent: Mytorrent | None, content: Media, archive_path: str, category: str | None = None):
         if config_settings.torrent_client_config.SHARED_RTORR_PATH:
             torr_location = config_settings.torrent_client_config.SHARED_RTORR_PATH
         else:

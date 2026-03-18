@@ -21,7 +21,7 @@ from view import custom_console
 
 
 class TorrentManager:
-    def __init__(self, cli: argparse.Namespace, tracker_archive: str):
+    def __init__(self, cli: argparse.Namespace, tracker_archive: str, qbit_category: str | None = None):
 
         self.preferred_lang = my_language(config_settings.user_preferences.PREFERRED_LANG)
         self.tracker_archive = tracker_archive
@@ -29,6 +29,7 @@ class TorrentManager:
         self.games: list[Media] = []
         self.doc: list[Media] = []
         self.cli = cli
+        self.qbit_category = qbit_category
         self.upload_count = 0
         self.skip_reasons: list[dict] = []
         self.release_names: list[str] = []
@@ -88,7 +89,7 @@ class TorrentManager:
             # Build the torrent file and upload each GAME to the tracker
             if self.games:
                 game_manager = GameManager(contents=self.games[:self.fast_load],
-                                           cli=self.cli)
+                                           cli=self.cli, qbit_category=self.qbit_category)
                 game_process_results, game_skips = game_manager.process(selected_tracker=selected_tracker,
                                                             tracker_name_list=trackers_name_list,
                                                             tracker_archive=self.tracker_archive)
@@ -99,7 +100,7 @@ class TorrentManager:
             # Build the torrent file and upload each VIDEO to the trackers
             if self.videos:
                 video_manager = VideoManager(contents=self.videos[:self.fast_load],
-                                             cli=self.cli)
+                                             cli=self.cli, qbit_category=self.qbit_category)
                 video_process_results, video_skips = video_manager.process(selected_tracker=selected_tracker,
                                                               tracker_name_list=trackers_name_list,
                                                               tracker_archive=self.tracker_archive)
@@ -110,7 +111,7 @@ class TorrentManager:
             # Build the torrent file and upload each DOC to the tracker
             if self.doc and not self.cli.reseed:
                 docu_manager = DocuManager(contents=self.doc[:self.fast_load],
-                                           cli=self.cli)
+                                           cli=self.cli, qbit_category=self.qbit_category)
                 docu_process_results, docu_skips = docu_manager.process(selected_tracker=selected_tracker,
                                                             tracker_name_list=trackers_name_list,
                                                             tracker_archive=self.tracker_archive)

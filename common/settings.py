@@ -93,6 +93,20 @@ class TorrentClientConfig(BaseModel):
 
 
 
+class WatcherFolder(BaseModel):
+    path: str
+    category: str | None = None
+
+
+def get_watcher_folders(prefs) -> list[WatcherFolder]:
+    """Return resolved list of WatcherFolder from config (new or legacy format)."""
+    if prefs.WATCHER_PATHS:
+        return prefs.WATCHER_PATHS
+    if prefs.WATCHER_PATH and "no_path" not in str(prefs.WATCHER_PATH).lower():
+        return [WatcherFolder(path=prefs.WATCHER_PATH)]
+    return []
+
+
 class UserPreferences(BaseModel):
     PTSCREENS_PRIORITY: int = 0
     LENSDUMP_PRIORITY: int = 1
@@ -112,6 +126,7 @@ class UserPreferences(BaseModel):
     SIZE_TH: int = 50
     WATCHER_INTERVAL: int = 60
     WATCHER_PATH: str | None = None
+    WATCHER_PATHS: list[WatcherFolder] | None = None
     WATCHER_DESTINATION_PATH: str | None = None
     TORRENT_ARCHIVE_PATH: str | None = None
     CACHE_PATH: str | None = None
@@ -585,6 +600,7 @@ class Load:
                 "SIZE_TH": 10,
                 "WATCHER_INTERVAL": 60,
                 "WATCHER_PATH": "no_path",
+                "WATCHER_PATHS": [],
                 "WATCHER_DESTINATION_PATH": "no_path",
                 "TORRENT_ARCHIVE_PATH": "no_path",
                 "CACHE_PATH": "no_path",
@@ -747,7 +763,8 @@ class JsonConfig:
         # Add the new attributes in 'user preferences'
         if self.user_preferences_diff_keys:
             self.updated = True
-            missing_keys_dict = {key: '' for key in self.user_preferences_diff_keys}
+            list_fields = {"WATCHER_PATHS"}
+            missing_keys_dict = {key: ([] if key in list_fields else '') for key in self.user_preferences_diff_keys}
             self.user_preferences_config.update(missing_keys_dict)
 
 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import tests
+from common.settings import get_watcher_folders
 # /* ----------------------------------------------------------------------------------------------- */
 force_media = 0
 
@@ -27,7 +28,8 @@ def test_cli_watcher():
         mode="auto",
         trackers_name_list= ['Gemini']
     )
+    watcher_folders = get_watcher_folders(tests.config.user_preferences)
     assert bot.watcher(duration=tests.config.user_preferences.WATCHER_INTERVAL,
-                       watcher_path=tests.config.user_preferences.WATCHER_PATH,
+                       watcher_folders=watcher_folders,
                        state_dir=str(tests.DEFAULT_JSON_PATH.parent)) == True
 
