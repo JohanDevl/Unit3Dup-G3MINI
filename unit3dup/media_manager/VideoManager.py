@@ -101,6 +101,13 @@ class VideoManager:
                 unit3d_up.data(show_id=db.video_id, imdb_id=db.imdb_id, show_keywords_list=db.keywords_list,
                                video_info=video_info)
 
+                # ── Exclusion par tag d'équipe ────────────────────────────────
+                release_name_check = unit3d_up.tracker.data.get("name", "")
+                if UploadBot.is_excluded_tag(release_name_check):
+                    tag = release_name_check.rsplit('-', 1)[-1] if '-' in release_name_check else "?"
+                    custom_console.bot_warning_log(f"Tag '{tag}' exclu (EXCLUDED_TAGS). Skip: {release_name_check}")
+                    continue
+
                 # ── Validation des règles tracker ─────────────────────────────
                 if not getattr(self.cli, 'skip_validation', False):
                     from unit3dup.validators import ValidationRunner, create_default_validators

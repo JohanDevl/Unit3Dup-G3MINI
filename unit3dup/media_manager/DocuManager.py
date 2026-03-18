@@ -65,6 +65,13 @@ class DocuManager:
             # Upload
             unit3d_up.data_docu(document_info=docu_info)
 
+            # Exclusion par tag d'équipe
+            release_name_check = unit3d_up.tracker.data.get("name", "")
+            if UploadBot.is_excluded_tag(release_name_check):
+                tag = release_name_check.rsplit('-', 1)[-1] if '-' in release_name_check else "?"
+                custom_console.bot_warning_log(f"Tag '{tag}' exclu (EXCLUDED_TAGS). Skip: {release_name_check}")
+                continue
+
             # Get the data
             tracker_response, tracker_message = unit3d_up.send(torrent_archive=torrent_filepath)
 

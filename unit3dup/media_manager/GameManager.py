@@ -85,6 +85,13 @@ class GameManager:
             # Get the data
             unit3d_up.data_game(igdb=game_data_results)
 
+            # Exclusion par tag d'équipe
+            release_name_check = unit3d_up.tracker.data.get("name", "")
+            if UploadBot.is_excluded_tag(release_name_check):
+                tag = release_name_check.rsplit('-', 1)[-1] if '-' in release_name_check else "?"
+                custom_console.bot_warning_log(f"Tag '{tag}' exclu (EXCLUDED_TAGS). Skip: {release_name_check}")
+                continue
+
             # Don't upload if -noup is set to True
             if self.cli.noup:
                 custom_console.bot_warning_log(f"No Upload active. Done.")
