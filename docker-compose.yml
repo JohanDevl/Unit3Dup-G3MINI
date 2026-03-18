@@ -1,0 +1,54 @@
+services:
+  unit3dup:
+    image: johandevl/unit3dup:latest
+    container_name: unit3dup
+    user: "1000:1000"
+
+    # Change to 'restart: unless-stopped' after successful configuration
+    restart: "no"
+
+    # Watcher mode: monitors input folder, auto-uploads new files
+    command: ["-watcher"]
+
+    volumes:
+      # Config (persists Unit3Dbot.json, cache, torrent archive)
+      - ./config:/home/pc/Unit3Dup_config
+
+      # Media input (files/folders to upload)
+      - /path/to/media:/home/pc/data
+
+      # Media output (processed files moved here after upload)
+      - /path/to/done:/home/pc/done
+
+    # Torrent client: if running on the host, use host IP instead of localhost
+    # network_mode: host  # Alternative: use host networking directly
+
+    # ── First-run setup ──────────────────────────────────────────────
+    #
+    # 1. Create config directory:
+    #      mkdir -p ./config
+    #
+    # 2. Generate default config (will exit with error — this is expected):
+    #      docker compose run --rm unit3dup
+    #
+    # 3. Edit ./config/Unit3Dbot.json:
+    #      - Set tracker URL (Gemini_URL) and API key (Gemini_APIKEY)
+    #      - Set TMDB API key (TMDB_APIKEY)
+    #      - Set torrent client config (QBIT_HOST, QBIT_USER, etc.)
+    #        Note: use host IP (not localhost) for services running on the host
+    #      - Set paths (use container paths):
+    #          WATCHER_PATH: /home/pc/data
+    #          WATCHER_DESTINATION_PATH: /home/pc/done
+    #
+    # 4. Start watcher:
+    #      docker compose up -d
+    #
+    # 5. Once running, update restart policy:
+    #      Change 'restart: "no"' to 'restart: unless-stopped'
+    #
+    # ── One-off commands ─────────────────────────────────────────────
+    #
+    #   docker compose run --rm unit3dup -u /home/pc/data/MyMovie
+    #   docker compose run --rm unit3dup -f /home/pc/data/MyFolder
+    #   docker compose run --rm unit3dup -scan /home/pc/data
+    #
