@@ -24,7 +24,6 @@ def main():
     custom_console.bot_log(f"[*.torrent Archive] '{config.user_preferences.TORRENT_ARCHIVE_PATH}'")
     custom_console.bot_log(f"[Images,Tmdb cache] '{config.user_preferences.CACHE_PATH}'")
     custom_console.bot_log(f"[Watcher] '{config.user_preferences.WATCHER_PATH}'")
-    custom_console.bot_log(f"[Watcher] '{config.user_preferences.WATCHER_DESTINATION_PATH}'")
     print()
 
     # /// Initialize command line interface
@@ -122,8 +121,9 @@ def main():
         bot = Bot(path='', cli=cli.args, mode="auto", trackers_name_list=tracker_name_list,
                   torrent_archive_path=tracker_archive)
 
-        bot.watcher(duration=config.user_preferences.WATCHER_INTERVAL, watcher_path=config.user_preferences.WATCHER_PATH,
-                    destination_path = config.user_preferences.WATCHER_DESTINATION_PATH)
+        bot.watcher(duration=config.user_preferences.WATCHER_INTERVAL,
+                    watcher_path=config.user_preferences.WATCHER_PATH,
+                    state_dir=str(DEFAULT_JSON_PATH.parent))
 
     # ftp and upload
     if cli.args.ftp:

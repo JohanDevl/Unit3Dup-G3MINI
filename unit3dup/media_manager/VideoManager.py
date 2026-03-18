@@ -29,12 +29,12 @@ class VideoManager:
         self.contents: list[Media] = contents
         self.cli: argparse = cli
 
-    def process(self, selected_tracker: str, tracker_name_list: list, tracker_archive: str) -> list[BittorrentData]:
+    def process(self, selected_tracker: str, tracker_name_list: list, tracker_archive: str) -> tuple[list[BittorrentData], list[dict]]:
         """
            Process the video contents to filter duplicates and create torrents
 
            Returns:
-               list: List of Bittorrent objects created for each content
+               tuple: (list of Bittorrent objects, list of skip reasons dicts)
         """
 
         # -multi : no announce_list . One announce for multi tracker
@@ -43,6 +43,7 @@ class VideoManager:
 
         #  Init the torrent list
         bittorrent_list = []
+        skip_reasons = []
         for content in self.contents :
 
             # get the archive path
@@ -56,6 +57,7 @@ class VideoManager:
                 if self.cli.watcher:
                     if os.path.exists(torrent_filepath):
                         custom_console.bot_log(f"Watcher Active.. skip the old upload '{content.file_name}'")
+                        skip_reasons.append({"torrent_name": content.torrent_name, "reason": "already_in_archive"})
                         continue
 
                 torrent_response = UserContent.torrent(content=content, tracker_name_list=tracker_name_list,
@@ -65,6 +67,7 @@ class VideoManager:
                 if (self.cli.duplicate or config_settings.user_preferences.DUPLICATE_ON
                         and UserContent.is_duplicate(content=content, tracker_name=selected_tracker,
                                                      cli=self.cli)):
+                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "duplicate_on_tracker"})
                     continue
 
                 # Search for VIDEO ID
@@ -73,6 +76,7 @@ class VideoManager:
 
                 # If it is 'None' we skipped the imdb search (-notitle)
                 if not db:
+                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "no_tmdb_result"})
                     continue
 
                 # Update display name with Serie Title when requested by the user (-notitle)
@@ -106,6 +110,7 @@ class VideoManager:
                 if UploadBot.is_excluded_tag(release_name_check):
                     tag = release_name_check.rsplit('-', 1)[-1] if '-' in release_name_check else "?"
                     custom_console.bot_warning_log(f"Tag '{tag}' exclu (EXCLUDED_TAGS). Skip: {release_name_check}")
+                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "excluded_tag"})
                     continue
 
                 # ── Validation des règles tracker ─────────────────────────────
@@ -122,6 +127,7 @@ class VideoManager:
                         runner.print_report(custom_console)
                         if runner.has_errors():
                             custom_console.bot_error_log("Validation errors found. Skipping upload. Use -skipval to bypass.")
+                            skip_reasons.append({"torrent_name": content.torrent_name, "reason": "validation_error"})
                             continue
 
                 # ── Confirmation interactive (-confirm) ───────────────────────
@@ -262,4 +268,4 @@ class VideoManager:
                     ))
 
         # // end content
-        return bittorrent_list
+        return bittorrent_list, skip_reasons

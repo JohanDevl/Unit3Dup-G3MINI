@@ -29,6 +29,8 @@ class TorrentManager:
         self.games: list[Media] = []
         self.doc: list[Media] = []
         self.cli = cli
+        self.upload_count = 0
+        self.skip_reasons: list[dict] = []
         self.fast_load = config_settings.user_preferences.FAST_LOAD
         if self.fast_load < 1 or self.fast_load > 150:
             # full list
@@ -86,25 +88,31 @@ class TorrentManager:
             if self.games:
                 game_manager = GameManager(contents=self.games[:self.fast_load],
                                            cli=self.cli)
-                game_process_results = game_manager.process(selected_tracker=selected_tracker,
+                game_process_results, game_skips = game_manager.process(selected_tracker=selected_tracker,
                                                             tracker_name_list=trackers_name_list,
                                                             tracker_archive=self.tracker_archive)
+                self.upload_count += len(game_process_results)
+                self.skip_reasons.extend(game_skips)
 
             # Build the torrent file and upload each VIDEO to the trackers
             if self.videos:
                 video_manager = VideoManager(contents=self.videos[:self.fast_load],
                                              cli=self.cli)
-                video_process_results = video_manager.process(selected_tracker=selected_tracker,
+                video_process_results, video_skips = video_manager.process(selected_tracker=selected_tracker,
                                                               tracker_name_list=trackers_name_list,
                                                               tracker_archive=self.tracker_archive)
+                self.upload_count += len(video_process_results)
+                self.skip_reasons.extend(video_skips)
 
             # Build the torrent file and upload each DOC to the tracker
             if self.doc and not self.cli.reseed:
                 docu_manager = DocuManager(contents=self.doc[:self.fast_load],
                                            cli=self.cli)
-                docu_process_results = docu_manager.process(selected_tracker=selected_tracker,
+                docu_process_results, docu_skips = docu_manager.process(selected_tracker=selected_tracker,
                                                             tracker_name_list=trackers_name_list,
                                                             tracker_archive=self.tracker_archive)
+                self.upload_count += len(docu_process_results)
+                self.skip_reasons.extend(docu_skips)
 
             # No seeding
             if self.cli.noseed or self.cli.noup:

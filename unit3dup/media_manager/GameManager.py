@@ -26,12 +26,12 @@ class GameManager:
         self.cli: argparse = cli
         self.igdb = IGDBClient()
 
-    def process(self, selected_tracker: str, tracker_name_list: list,  tracker_archive: str) -> list[BittorrentData]:
+    def process(self, selected_tracker: str, tracker_name_list: list,  tracker_archive: str) -> tuple[list[BittorrentData], list[dict]]:
         """
         Process the game contents to filter duplicates and create torrents
 
         Returns:
-            list: List of Bittorrent objects created for each content
+            tuple: (list of Bittorrent objects, list of skip reasons dicts)
         """
 
         login = self.igdb.connect()
@@ -44,11 +44,12 @@ class GameManager:
 
         if self.cli.upload:
             custom_console.bot_error_log("Game upload works only with the '-f' flag.You need to specify a folder name.")
-            return []
+            return [], []
 
 
         #  Init the torrent list
         bittorrent_list = []
+        skip_reasons = []
         for content in self.contents:
             # get the archive path
             archive = os.path.join(tracker_archive, selected_tracker)
@@ -57,9 +58,10 @@ class GameManager:
 
             # Filter contents based on existing torrents or duplicates
             if self.cli.watcher:
-                if os.path.exists(content.torrent_path):
+                if os.path.exists(torrent_filepath):
                     custom_console.bot_log(f"Watcher Active.. skip the old upload '{content.file_name}'")
-                continue
+                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "already_in_archive"})
+                    continue
 
             torrent_response = UserContent.torrent(content=content, tracker_name_list=tracker_name_list,
                                                        selected_tracker=selected_tracker, this_path=torrent_filepath)
@@ -68,6 +70,7 @@ class GameManager:
             # Skip if it is a duplicate
             if ((self.cli.duplicate or config_settings.user_preferences.DUPLICATE_ON)
                     and UserContent.is_duplicate(content=content, tracker_name=selected_tracker, cli=self.cli)):
+                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "duplicate_on_tracker"})
                 continue
 
             # Search for the game on IGDB using the content's title and platform tags
@@ -77,6 +80,7 @@ class GameManager:
 
             # Skip the upload if there is no valid IGDB
             if not game_data_results:
+                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "no_igdb_result"})
                 continue
 
             # Tracker instance
@@ -90,6 +94,7 @@ class GameManager:
             if UploadBot.is_excluded_tag(release_name_check):
                 tag = release_name_check.rsplit('-', 1)[-1] if '-' in release_name_check else "?"
                 custom_console.bot_warning_log(f"Tag '{tag}' exclu (EXCLUDED_TAGS). Skip: {release_name_check}")
+                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "excluded_tag"})
                 continue
 
             # Don't upload if -noup is set to True
@@ -108,5 +113,5 @@ class GameManager:
                     tracker_message=tracker_message,
                     archive_path = torrent_filepath,
                 ))
-        return bittorrent_list
+        return bittorrent_list, skip_reasons
 

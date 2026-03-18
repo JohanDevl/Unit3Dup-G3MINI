@@ -45,6 +45,8 @@ class Bot:
         self.path = path.strip()
         self.cli = cli
         self.mode = mode
+        self.upload_count = 0
+        self.skip_reasons: list[dict] = []
 
 
     def contents(self) -> bool | list[Media]:
@@ -103,37 +105,44 @@ class Bot:
         else:
             # otherwise run the torrents creations and the upload process
             torrent_manager.run(trackers_name_list=self.trackers_name_list)
+
+        self.upload_count = torrent_manager.upload_count
+        self.skip_reasons = torrent_manager.skip_reasons
         return True
 
 
-    def watcher(self, duration: int, watcher_path: str,  destination_path: str)-> bool:
+    def watcher(self, duration: int, watcher_path: str, state_dir: str) -> bool:
         """
-        Monitors the watcher path for new files/folders, uploads them one-by-one,
-        then moves successfully processed items to the destination folder.
+        Monitors the watcher path for new files/folders, uploads them one-by-one.
+        Uses a persistent JSON state file to skip already-processed entries.
 
         Args:
             duration (int): The time duration in seconds for the watchdog to wait before checking again
             watcher_path (str): The path to the folder being monitored for new files
-            destination_path: Where to move items AFTER a successful upload
+            state_dir (str): Directory where the watcher_state.json is stored (config dir)
         """
+        from unit3dup.watcher_state import WatcherState
+
         try:
             # Return if the watcher path doesn't exist
             if not os.path.exists(watcher_path):
                 custom_console.bot_error_log("Watcher path does not exist or is not configured\n")
                 return False
 
+            watcher_state = WatcherState(state_dir=state_dir)
+            custom_console.bot_log(
+                f"[Watcher] State file: {watcher_state.state_file} "
+                f"({len(watcher_state.uploaded)} uploaded, {len(watcher_state.skipped)} skipped)"
+            )
+
             # Watchdog loop
             while True:
-                # Traiter immédiatement les fichiers au démarrage et à chaque cycle
                 watcher_root = Path(watcher_path)
-                done_root = Path(destination_path)
-                done_root.mkdir(parents=True, exist_ok=True)
 
                 # Skip if there are no files in the watcher folder
                 if not os.listdir(watcher_path):
-                    custom_console.bot_log("The are no files in the Watcher folder\n")
+                    custom_console.bot_log("There are no files in the Watcher folder\n")
                 else:
-                    # Process top-level entries one-by-one to avoid moving everything at once.
                     entries = sorted(
                         [p for p in watcher_root.iterdir() if p.name and not p.name.startswith(".")],
                         key=lambda p: p.name.lower(),
@@ -141,6 +150,11 @@ class Bot:
 
                     for src in entries:
                         if not src.exists():
+                            continue
+
+                        # Check watcher state BEFORE any heavy processing
+                        status = watcher_state.is_known(str(src))
+                        if status:
                             continue
 
                         # Upload this single item (folder or file)
@@ -156,11 +170,34 @@ class Bot:
                         )
 
                         ok = single_bot.run()
-                        if not ok:
-                            custom_console.bot_warning_log(
-                                f"[Watcher] Upload failed/skipped, leaving in place -> {src}"
+
+                        if ok and single_bot.upload_count > 0:
+                            watcher_state.mark_uploaded(
+                                source_path=str(src),
+                                torrent_name=src.name,
+                                trackers=self.trackers_name_list,
                             )
-                
+                            custom_console.bot_log(f"[Watcher] Uploaded -> {src.name}")
+                        elif single_bot.skip_reasons:
+                            reasons = ", ".join(sorted(set(s["reason"] for s in single_bot.skip_reasons)))
+                            watcher_state.mark_skipped(
+                                source_path=str(src),
+                                torrent_name=src.name,
+                                reason=reasons,
+                            )
+                            custom_console.bot_warning_log(
+                                f"[Watcher] Skipped -> {src.name} ({reasons})"
+                            )
+                        else:
+                            watcher_state.mark_skipped(
+                                source_path=str(src),
+                                torrent_name=src.name,
+                                reason="no_processable_media",
+                            )
+                            custom_console.bot_warning_log(
+                                f"[Watcher] Skipped -> {src.name} (no_processable_media)"
+                            )
+
                 # Nettoyer les fichiers .nfo isolés dans le dossier watcher après avoir traité tous les fichiers du cycle
                 self._cleanup_orphaned_nfo_files(watcher_path)
 

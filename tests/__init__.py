@@ -7,7 +7,7 @@ from common.external_services.igdb.client import IGDBClient
 from common.trackers.trackers import TRACKData
 from common.mediainfo import MediaFile
 from common.command import CommandLine
-from common.settings import Load
+from common.settings import Load, DEFAULT_JSON_PATH
 from common.utility import System
 
 

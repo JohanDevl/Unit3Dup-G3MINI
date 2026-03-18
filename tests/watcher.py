@@ -29,5 +29,5 @@ def test_cli_watcher():
     )
     assert bot.watcher(duration=tests.config.user_preferences.WATCHER_INTERVAL,
                        watcher_path=tests.config.user_preferences.WATCHER_PATH,
-                       destination_path=tests.config.user_preferences.WATCHER_DESTINATION_PATH) == True
+                       state_dir=str(tests.DEFAULT_JSON_PATH.parent)) == True
 
