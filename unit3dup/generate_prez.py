@@ -391,7 +391,9 @@ def main():
         # Option pour sauvegarder dans un fichier
         save = input("\nVoulez-vous sauvegarder dans un fichier? (o/n): ").lower()
         if save == 'o':
-            filename = f"prez_{tmdb_id}.txt"
+            from common import config_settings
+            save_dir = str(config_settings.user_preferences.CACHE_PATH)
+            filename = os.path.join(save_dir, f"prez_{tmdb_id}.txt")
             with open(filename, 'w', encoding='utf-8') as f:
                 f.write(prez)
             print(f"Présentation sauvegardée dans {filename}")

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 from urllib.parse import urljoin
 from common.external_services.sessions.session import MyHttp
 from common import config_settings
@@ -31,10 +32,11 @@ class IGDBapi:
             custom_console.bot_question_log("No IGDB_ID_SECRET provided\n")
             return False
 
+        cache_dir = str(os.path.join(config_settings.user_preferences.CACHE_PATH, "http_cache"))
         self.http_client = MyHttp({
             "User-Agent": "Unit3D-up/0.0 (Linux 5.10.0-23-amd64)",
             "Accept": "application/json",
-        })
+        }, cache_dir=cache_dir)
 
 
         response = self.http_client.post(self.oauth, params = {

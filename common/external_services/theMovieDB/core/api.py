@@ -119,7 +119,8 @@ class TmdbAPI(MyHttp):
         Initialize the Api instance with an HTTP client
         """
         headers = Agent.headers()
-        super().__init__(headers)
+        cache_dir = str(os.path.join(config_settings.user_preferences.CACHE_PATH, "http_cache"))
+        super().__init__(headers, cache_dir=cache_dir)
         self.http_client = self.session
 
     def _search(self, query: str, category: str) -> list[T] | None:
