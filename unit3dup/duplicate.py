@@ -199,6 +199,9 @@ class Duplicate:
                 # Skip this media
                 if "s" == user_answer.lower():
                     return True
+        except EOFError:
+            custom_console.bot_warning_log("No interactive input available, skipping duplicate")
+            return True
         except KeyboardInterrupt:
             custom_console.bot_error_log("\nOperation cancelled. Bye !")
             exit(1)

@@ -211,7 +211,10 @@ class View(Torrent):
                 custom_console.bot_question_log(
                     f"\n Prossima Pagina '{page}' - Premi un tasto per continuare, Q(quit) - "
                 )
-                if input().lower() == "q":
+                try:
+                    if input().lower() == "q":
+                        break
+                except EOFError:
                     break
             else:
                 # otherwise wait for 2 seconds ( 30 request/ 60sec max) dirty

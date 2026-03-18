@@ -141,6 +141,9 @@ class VideoManager:
                     )
                     try:
                         answer = input().strip().lower()
+                    except EOFError:
+                        custom_console.bot_warning_log("No interactive input available, skipping confirmation")
+                        continue
                     except KeyboardInterrupt:
                         custom_console.bot_error_log("\nOpération annulée par l'utilisateur.")
                         break
