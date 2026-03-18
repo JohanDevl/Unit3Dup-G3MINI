@@ -62,6 +62,7 @@ class DocuManager:
                         content=content,
                         tracker_message="dry-run",
                         archive_path=torrent_filepath,
+                        release_name=content.display_name,
                     ))
                 continue
 
@@ -94,6 +95,7 @@ class DocuManager:
                     content=content,
                     tracker_message=tracker_message,
                     archive_path=torrent_filepath,
+                    release_name=unit3d_up.tracker.data.get("name", content.display_name),
                 ))
 
         return bittorrent_list, skip_reasons

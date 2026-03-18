@@ -165,6 +165,7 @@ class VideoManager:
                             content=content,
                             tracker_message="dry-run",
                             archive_path=torrent_filepath,
+                            release_name=release_name,
                         ))
                     continue
 
@@ -275,8 +276,9 @@ class VideoManager:
                         tracker_response=tracker_response,
                         torrent_response=torrent_response,
                         content=content,
-                        tracker_message = tracker_message,
+                        tracker_message=tracker_message,
                         archive_path=torrent_filepath,
+                        release_name=unit3d_up.tracker.data.get("name", content.display_name),
                     ))
 
         # // end content

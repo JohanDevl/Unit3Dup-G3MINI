@@ -31,6 +31,7 @@ class TorrentManager:
         self.cli = cli
         self.upload_count = 0
         self.skip_reasons: list[dict] = []
+        self.release_names: list[str] = []
         self.fast_load = config_settings.user_preferences.FAST_LOAD
         if self.fast_load < 1 or self.fast_load > 150:
             # full list
@@ -92,6 +93,7 @@ class TorrentManager:
                                                             tracker_name_list=trackers_name_list,
                                                             tracker_archive=self.tracker_archive)
                 self.upload_count += len(game_process_results)
+                self.release_names.extend(r.release_name for r in game_process_results if r.release_name)
                 self.skip_reasons.extend(game_skips)
 
             # Build the torrent file and upload each VIDEO to the trackers
@@ -102,6 +104,7 @@ class TorrentManager:
                                                               tracker_name_list=trackers_name_list,
                                                               tracker_archive=self.tracker_archive)
                 self.upload_count += len(video_process_results)
+                self.release_names.extend(r.release_name for r in video_process_results if r.release_name)
                 self.skip_reasons.extend(video_skips)
 
             # Build the torrent file and upload each DOC to the tracker
@@ -112,6 +115,7 @@ class TorrentManager:
                                                             tracker_name_list=trackers_name_list,
                                                             tracker_archive=self.tracker_archive)
                 self.upload_count += len(docu_process_results)
+                self.release_names.extend(r.release_name for r in docu_process_results if r.release_name)
                 self.skip_reasons.extend(docu_skips)
 
             # No seeding

@@ -47,6 +47,7 @@ class Bot:
         self.mode = mode
         self.upload_count = 0
         self.skip_reasons: list[dict] = []
+        self.release_names: list[str] = []
 
 
     def contents(self) -> bool | list[Media]:
@@ -108,6 +109,7 @@ class Bot:
 
         self.upload_count = torrent_manager.upload_count
         self.skip_reasons = torrent_manager.skip_reasons
+        self.release_names = torrent_manager.release_names
         return True
 
 
@@ -181,13 +183,15 @@ class Bot:
                         target_state = dryrun_state if dry_run else watcher_state
 
                         if ok and single_bot.upload_count > 0:
+                            # Use the normalized release name if available
+                            release_name = single_bot.release_names[0] if single_bot.release_names else src.name
                             target_state.mark_uploaded(
                                 source_path=str(src),
-                                torrent_name=src.name,
+                                torrent_name=release_name,
                                 trackers=self.trackers_name_list,
                             )
                             label = "[Watcher] DRY-RUN uploaded" if dry_run else "[Watcher] Uploaded"
-                            custom_console.bot_log(f"{label} -> {src.name}")
+                            custom_console.bot_log(f"{label} -> {release_name}")
                         elif single_bot.skip_reasons:
                             reasons = ", ".join(sorted(set(s["reason"] for s in single_bot.skip_reasons)))
                             target_state.mark_skipped(

@@ -12,3 +12,4 @@ class BittorrentData:
     content: Media
     tracker_message: dict | str
     archive_path: str
+    release_name: str = ""

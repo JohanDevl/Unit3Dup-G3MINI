@@ -36,7 +36,7 @@ class WatcherState:
             json.dump(self._state, f, indent=4, ensure_ascii=False)
 
     def is_known(self, source_path: str) -> str | None:
-        """Check if a source entry is already tracked.
+        """Check if a source entry is already tracked (by source name or release name).
 
         Returns:
             "uploaded", "skipped", or None if unknown.
@@ -47,6 +47,7 @@ class WatcherState:
         if name in self._state["skipped"]:
             return "skipped"
         return None
+
 
     def mark_uploaded(self, source_path: str, torrent_name: str, trackers: list[str]):
         """Record a successfully uploaded entry."""
