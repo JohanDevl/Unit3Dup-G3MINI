@@ -335,6 +335,8 @@ class Media:
             if self.category in {
                 System.category_list.get(System.MOVIE),
                 System.category_list.get(System.TV_SHOW),
+                System.category_list.get(System.ANIMATION),
+                System.category_list.get(System.TV_ANIMATION),
             }:
                 # Read from the current video file the height field
                 file_path = os.path.join(self.folder, self.file_name)

@@ -49,6 +49,7 @@ class Bot:
         self.upload_count = 0
         self.skip_reasons: list[dict] = []
         self.release_names: list[str] = []
+        self.content_categories: list[str] = []
 
 
     def contents(self) -> bool | list[Media]:
@@ -111,6 +112,7 @@ class Bot:
         self.upload_count = torrent_manager.upload_count
         self.skip_reasons = torrent_manager.skip_reasons
         self.release_names = torrent_manager.release_names
+        self.content_categories = torrent_manager.content_categories
         return True
 
 
@@ -201,6 +203,8 @@ class Bot:
                         # In dry-run, only write to the preview file (not the main state)
                         target_state = dryrun_state if dry_run else watcher_state
 
+                        content_cat = single_bot.content_categories[0] if single_bot.content_categories else None
+
                         if ok and single_bot.upload_count > 0:
                             # Use the normalized release name if available
                             release_name = single_bot.release_names[0] if single_bot.release_names else src.name
@@ -210,6 +214,7 @@ class Bot:
                                 trackers=self.trackers_name_list,
                                 folder_path=watcher_path,
                                 category=folder_category,
+                                content_category=content_cat,
                             )
                             label = "[Watcher] DRY-RUN uploaded" if dry_run else "[Watcher] Uploaded"
                             custom_console.bot_log(f"{label} -> {release_name}")
@@ -221,6 +226,7 @@ class Bot:
                                 reason=reasons,
                                 folder_path=watcher_path,
                                 category=folder_category,
+                                content_category=content_cat,
                             )
                             custom_console.bot_warning_log(
                                 f"[Watcher] Skipped -> {src.name} ({reasons})"
@@ -232,6 +238,7 @@ class Bot:
                                 reason="no_processable_media",
                                 folder_path=watcher_path,
                                 category=folder_category,
+                                content_category=content_cat,
                             )
                             custom_console.bot_warning_log(
                                 f"[Watcher] Skipped -> {src.name} (no_processable_media)"

@@ -3,7 +3,8 @@
 gemini_data = {
     "CATEGORY":{ "movie": 1,
                  "tv": 2,
-                 "edicola": 6,
+                 "animation": 7,
+                 "tv_animation": 6,
                  "game": 4},
 
     "FREELECH":{ "size20": 100,

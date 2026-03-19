@@ -4,7 +4,7 @@ import os
 
 from common.external_services.theMovieDB.core.api import DbOnline
 from common.bittorrent import BittorrentData
-from common.utility import ManageTitles
+from common.utility import ManageTitles, System
 
 from unit3dup.media_manager.common import UserContent
 from unit3dup.upload import UploadBot
@@ -80,6 +80,15 @@ class VideoManager:
                 if not db:
                     skip_reasons.append({"torrent_name": content.torrent_name, "reason": "no_tmdb_result"})
                     continue
+
+                # Override category for animated content based on TMDB genre
+                if db.is_animation():
+                    if content.category == System.category_list[System.MOVIE]:
+                        content.category = System.category_list[System.ANIMATION]
+                        custom_console.bot_log("Category → 'animation' (TMDB genre)")
+                    elif content.category == System.category_list[System.TV_SHOW]:
+                        content.category = System.category_list[System.TV_ANIMATION]
+                        custom_console.bot_log("Category → 'tv_animation' (TMDB genre)")
 
                 # Update display name with Serie Title when requested by the user (-notitle)
                 if self.cli.notitle:

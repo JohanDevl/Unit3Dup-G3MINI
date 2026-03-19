@@ -120,7 +120,9 @@ class CommandLine:
             if self.args.force.lower() not in [ System.category_list[System.MOVIE],
                                         System.category_list[System.GAME],
                                         System.category_list[System.TV_SHOW],
-                                        System.category_list[System.DOCUMENTARY]]:
+                                        System.category_list[System.DOCUMENTARY],
+                                        System.category_list[System.ANIMATION],
+                                        System.category_list[System.TV_ANIMATION]]:
                 self.args.force = None
                 print("Invalid -force category")
                 exit()
