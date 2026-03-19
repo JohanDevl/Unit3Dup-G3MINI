@@ -212,7 +212,7 @@ _TAGS = (
     r'|2160p|1080p|1080i|720p|576p|480p|4K|UHD'
     r'|HDR10P|HDR10|SDR|DV|HLG|PQ10|HDR'
     r'|x265|x264|H265|H264|HEVC|AVC|AV1|VP9|VC1'
-    r'|DTS-HDMA|DTS-HDHRA|DTS-HD|DTS|AC3|DDP|TrueHD|Atmos|AAC'
+    r'|DTS-HDMA|DTS-HDHRA|DTS-HD|DTS|AC3|DDP|TrueHD|Atmos|AAC|OPUS'
     r'|MULTi|VFF|VFQ|VF2|VFB|VOSTFR|SUBFRENCH|VOF|VOQ|VOB|FRENCH'
     r'|EXTENDED|PROPER|REPACK|UNRATED|UNCUT|REMASTERED|INTERNAL|NoTAG|iNTEGRALE'
     r'|8bit|10bit|12bit'
@@ -328,6 +328,8 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     name = re.sub(r'(?<!\d)(5) (1)(?!\d)', '5.1', name)
     name = re.sub(r'(?<!\d)(2) (0)(?!\d)', '2.0', name)
     name = re.sub(r'(?<!\d)(1) (0)(?!\d)', '1.0', name)
+    name = re.sub(r'(?<!\d)(4) (0)(?!\d)', '4.0', name)
+    name = re.sub(r'(?<!\d)(6) (1)(?!\d)', '6.1', name)
 
     # ── 4. [Crochets] → contenu conservé, parenthèses de titre gardées ────────
     name = re.sub(r'\[([^\]]*)\]', r'\1', name)
@@ -339,6 +341,10 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     name = re.sub(r'DOLBY[\s._-]*VISION',                   'DV',       name, flags=re.IGNORECASE)
     name = re.sub(r'DD\+',                                  'DDP',      name, flags=re.IGNORECASE)
     name = re.sub(r'E-?AC-?3',                              'DDP',      name, flags=re.IGNORECASE)
+    # DD avec canal (DD5.1, DD7.1) → AC3 + canal
+    name = re.sub(r'(?<!\w)DD(\d[.]\d)',                    r'AC3 \1',  name, flags=re.IGNORECASE)
+    # DD seul → AC3 (mais pas DD+, DDP, DTS)
+    name = re.sub(r'(?<!\w)DD(?=\s|$)',                     'AC3',      name, flags=re.IGNORECASE)
     name = re.sub(r'TRUE[\s._-]*HD',                        'TrueHD',   name, flags=re.IGNORECASE)
     name = re.sub(r'TRUEFRENCH',                            'VFF',      name, flags=re.IGNORECASE)
     name = re.sub(r'DTS[\s_-]*HD[\s_-]*MA',                'DTS-HDMA', name, flags=re.IGNORECASE)
@@ -365,10 +371,17 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         name = re.sub(f'({_TAGS})({_TAGS})', r'\1 \2', name, flags=re.IGNORECASE)
     name = _ws(name)
 
-    # ── 5d. Bit depth (10bit/8bit/12bit) : on le retire du nom ───────────────
-    # Conventions G3MINI: on ne garde pas "10bit" dans le release_name final.
-    name = re.sub(r'(?:^|\s)(?:8|10|12)[- ]?bit(?:\s|$)', ' ', name, flags=re.IGNORECASE)
+    # ── 5d. Bit depth : 8bit retiré (défaut), 10bit/12bit conservés ──────────
+    # 8bit est le défaut et n'apporte pas d'information → retiré
+    name = re.sub(r'(?:^|\s)8[- ]?bit(?:\s|$)', ' ', name, flags=re.IGNORECASE)
     name = _ws(name)
+    # 10bit/12bit extraits pour reconstruction (entre résolution et HDR)
+    bit_depth = ""
+    m_bd = re.search(r'(?:^|\s)(10|12)[- ]?bit(?:\s|$)', name, re.IGNORECASE)
+    if m_bd:
+        bit_depth = f"{m_bd.group(1)}bit"
+        name = re.sub(r'(?:^|\s)(?:10|12)[- ]?bit(?:\s|$)', ' ', name, flags=re.IGNORECASE)
+        name = _ws(name)
 
     # ── 5c. SAISON N → S0N ────────────────────────────────────────────────────
     while True:
@@ -566,7 +579,7 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         dts_ch = f".{mo.group(1)}" if mo else ""
         if mo:
             name = re.sub(r'(?:^|\s)[0-9][.][0-9](?:\s|$)', ' ', name)
-        audio_parts.append(f"DTS-HD.MA{dts_ch}")
+        audio_parts.append(f"DTS-HDMA{dts_ch}")
 
     elif re.search(r'DTS-HDHRA|DTS[-. ]?HD[-. ]?HRA', name, re.IGNORECASE):
         name = re.sub(r'DTS-HDHRA|DTS[-. ]?HD[-. ]?HRA', ' ', name, flags=re.IGNORECASE)
@@ -640,6 +653,20 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         audio_parts.append("AAC")
         name = _remove_token(name, "AAC")
 
+    # Famille OPUS
+    if re.search(r'(?:^|\s)OPUS\s*7\.1(?:\s|$)', name, re.IGNORECASE):
+        audio_parts.append("OPUS7.1")
+        name = re.sub(r'(?:^|\s)OPUS\s*7\.1(?:\s|$)', ' ', name, flags=re.IGNORECASE)
+    elif re.search(r'(?:^|\s)OPUS\s*5\.1(?:\s|$)', name, re.IGNORECASE):
+        audio_parts.append("OPUS5.1")
+        name = re.sub(r'(?:^|\s)OPUS\s*5\.1(?:\s|$)', ' ', name, flags=re.IGNORECASE)
+    elif re.search(r'(?:^|\s)OPUS\s*2\.0(?:\s|$)', name, re.IGNORECASE):
+        audio_parts.append("OPUS2.0")
+        name = re.sub(r'(?:^|\s)OPUS\s*2\.0(?:\s|$)', ' ', name, flags=re.IGNORECASE)
+    elif re.search(r'(?:^|\s)OPUS(?:\s|$)', name, re.IGNORECASE):
+        audio_parts.append("OPUS")
+        name = _remove_token(name, "OPUS")
+
     # Channel tokens orphelins résiduels
     name = re.sub(r'(?:^|\s)[0-9][.][0-9](?:\s|$)', ' ', name)
 
@@ -664,26 +691,29 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         codec = _get_codec_from_mediainfo(mi)
 
     # ── 16. Adaptation codec selon source (convention G3MINI) ─────────────────
-    #   REMUX        → HEVC / AVC
-    #   WEB          → H265 / H264  (sauf si MI confirme un vrai encode x264/x265)
+    #   REMUX              → HEVC / AVC
+    #   WEB / HDTV         → H.265 / H.264  (sauf si MI confirme un vrai encode)
     #   WEBRip/BDRip/TVRip → x265 / x264
-    #   BluRay/HDLight/DVDRip → inchangé
+    #   BluRay/DVDRip      → inchangé
     if codec:
         is265 = bool(re.fullmatch(r'x265|HEVC|H\.?265', codec, re.IGNORECASE))
         is264 = bool(re.fullmatch(r'x264|AVC|H\.?264',  codec, re.IGNORECASE))
         # Détermine la source "nue" pour la logique de codec (sans le qualificatif)
         base_source = source.split('.')[-1] if source else ""
+        # HDLight/4KLight sont des encodes (variantes BDRip) → convention encode
+        if source_qual in ("4KLight", "HDLight", "mHD") and base_source in ("BluRay", "", "4KLight", "HDLight", "mHD"):
+            base_source = "BDRip"
         # Si le MI confirme un encode via writing library (x264/x265), on ne
-        # remplace pas par H264/H265 même sur source WEB.
+        # remplace pas par H.264/H.265 même sur source WEB/HDTV.
         mi_is_encode = _has_encode_library(mi) if mi else False
         if is265:
-            if remux == "REMUX":                                codec = "HEVC"
-            elif base_source == "WEB" and not mi_is_encode:    codec = "H265"
-            elif base_source in ("WEBRip", "BDRip", "TVRip"):  codec = "x265"
+            if remux == "REMUX":                                     codec = "HEVC"
+            elif base_source in ("WEB", "HDTV") and not mi_is_encode: codec = "H.265"
+            elif base_source in ("WEBRip", "BDRip", "TVRip"):       codec = "x265"
         elif is264:
-            if remux == "REMUX":                                codec = "AVC"
-            elif base_source == "WEB" and not mi_is_encode:    codec = "H264"
-            elif base_source in ("WEBRip", "BDRip", "TVRip"):  codec = "x264"
+            if remux == "REMUX":                                     codec = "AVC"
+            elif base_source in ("WEB", "HDTV") and not mi_is_encode: codec = "H.264"
+            elif base_source in ("WEBRip", "BDRip", "TVRip"):       codec = "x264"
 
     # ── 17. Titre = résidu ────────────────────────────────────────────────────
     name = re.sub(r'\([^)]*\)', '', name)
@@ -697,6 +727,7 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     if extras:      new += extras        # commence déjà par '.'
     if lang:        new += f".{lang}"
     if res:         new += f".{res}"
+    if bit_depth:   new += f".{bit_depth}"
     if hdr:         new += f".{hdr}"
     if source:      new += f".{source}"
     if full_disc:   new += f".{full_disc}"

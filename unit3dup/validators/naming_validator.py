@@ -24,6 +24,7 @@ class NamingValidator(BaseValidator):
         - Check 1: 3D content detection
         - Check 2: Audio Description detection
         - Check 3: CUSTOM tag suggestion
+        - Check 4: NoGRP/NoTAG for unknown teams
         """
         results: list[ValidationResult] = []
 
@@ -36,6 +37,9 @@ class NamingValidator(BaseValidator):
 
             # Check 3: CUSTOM tag suggestion
             results.extend(self._check_custom_tag(mediafile, release_name))
+
+            # Check 4: NoGRP/NoTAG for unknown teams
+            results.extend(self._check_nogrp_tag(release_name))
 
         except Exception:
             # Wrap all checks in try/except to be safe
@@ -161,3 +165,22 @@ class NamingValidator(BaseValidator):
             )
 
         return results
+
+    # Suffixes audio hyphenés qui ne sont PAS des tags de team
+    _AUDIO_HYPHEN_SUFFIXES = {"HDMA", "HDHRA", "HD", "AC3"}
+
+    def _check_nogrp_tag(self, release_name: str) -> list[ValidationResult]:
+        """Check 4: Releases without team should have NoGRP or NoTAG."""
+        name_no_ext = re.sub(r'\.(mkv|mp4|avi|ts|m2ts|iso)$', '', release_name, flags=re.IGNORECASE)
+        m = re.search(r'-([A-Za-z0-9]{2,})$', name_no_ext)
+        has_team = bool(m) and m.group(1).upper() not in self._AUDIO_HYPHEN_SUFFIXES
+        has_nogrp = bool(re.search(r'(?:^|[\s.])(?:NoGRP|NoTAG)(?:[\s.]|$)', release_name, re.IGNORECASE))
+
+        if not has_team and not has_nogrp:
+            return [ValidationResult(
+                rule="naming.nogrp_tag",
+                severity="WARNING",
+                message="No team tag found — unknown releases must be tagged NoGRP or NoTAG",
+                source_doc="upload",
+            )]
+        return []
