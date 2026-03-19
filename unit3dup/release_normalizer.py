@@ -7,6 +7,7 @@ Ne renomme aucun fichier — agit uniquement sur le champ release_name.
 """
 
 import re
+import unicodedata
 from typing import Optional
 
 
@@ -57,6 +58,8 @@ def _normalize_source(raw: str) -> str:
 def _clean_title(t: str) -> str:
     t = t.strip()
     t = t.replace(" ", ".")
+    t = unicodedata.normalize('NFD', t)
+    t = ''.join(c for c in t if unicodedata.category(c) != 'Mn')
     t = re.sub(r'[^a-zA-Z0-9._-]', '', t)
     t = re.sub(r'\.{2,}', '.', t)
     t = t.strip('.')
