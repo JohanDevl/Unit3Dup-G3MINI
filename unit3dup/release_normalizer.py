@@ -43,6 +43,7 @@ def _normalize_source(raw: str) -> str:
     r = raw.upper()
     if r in ("BLURAY", "BLU-RAY"):          return "BluRay"
     if r == "BDRIP":                        return "BDRip"
+    if r == "BRRIP":                        return "BRRip"
     if r == "4KLIGHT":                      return "4KLight"
     if r in ("HDLIGHT", "MHD"):             return "HDLight"
     if r == "WEBRIP":                       return "WEBRip"
@@ -61,6 +62,8 @@ def _clean_title(t: str) -> str:
     t = unicodedata.normalize('NFD', t)
     t = ''.join(c for c in t if unicodedata.category(c) != 'Mn')
     t = re.sub(r'[^a-zA-Z0-9._-]', '', t)
+    # Remove isolated dashes: ".-." or leading/trailing dashes
+    t = re.sub(r'\.?-\.?', '.', t)
     t = re.sub(r'\.{2,}', '.', t)
     t = t.strip('.')
     return t
@@ -208,7 +211,7 @@ def _is_silent_from_mediainfo(mi: str) -> bool:
 # Séparateurs utilisés en step 5b pour décoller les tokens collés.
 # Ordre important : plus long avant plus court dans chaque famille.
 _TAGS = (
-    r'BluRay|BDRip|WEBRip|WEB|4KLight|HDLight|HDRip|TVRip|DVDRip|HDTV|REMUX|CAM'
+    r'BluRay|BDRip|BRRip|WEBRip|WEB|4KLight|HDLight|HDRip|TVRip|DVDRip|HDTV|REMUX|CAM'
     r'|2160p|1080p|1080i|720p|576p|480p|4K|UHD'
     r'|HDR10P|HDR10|SDR|DV|HLG|PQ10|HDR'
     r'|x265|x264|H265|H264|HEVC|AVC|AV1|VP9|VC1'
@@ -216,7 +219,7 @@ _TAGS = (
     r'|MULTi|VFF|VFQ|VF2|VFB|VOSTFR|SUBFRENCH|VOF|VOQ|VOB|FRENCH'
     r'|EXTENDED|PROPER|REPACK|UNRATED|UNCUT|REMASTERED|INTERNAL|NoTAG|iNTEGRALE'
     r'|8bit|10bit|12bit'
-    r'|3D|SBS|HSBS|TAB|HTAB|MVC|AD|CUSTOM|NoGRP'
+    r'|3D|SBS|HSBS|TAB|HTAB|MVC|CUSTOM|NoGRP'
 )
 
 # Du plus spécifique au moins spécifique
@@ -246,7 +249,6 @@ _EXTRAS_MAP = {
     'LIMITED':       'LIMITED',
     'IMAX EDITION':  'IMAX.EDITION',
     'IMAX':          'IMAX',
-    'AD':             'AD',
     'CUSTOM':         'CUSTOM',
     'NOGRP':          'NoGRP',
 }
@@ -272,11 +274,17 @@ _CODEC_LIST = [
 _SOURCE_LIST = [
     "UHD BluRay",
     "BluRay", "Blu-Ray",
-    "BDRip",
+    "BDRip", "BRRip",
     "WEB-DL", "WEBRip",
     "HDTV", "HDRip", "TVRip",
     "WEB", "DVDRip", "DVD",
 ]
+
+# Codecs connus — utilisés pour exclure les faux positifs team tag
+_CODEC_NAMES = frozenset({
+    "X264", "X265", "H264", "H265", "HEVC", "AVC", "AV1", "VP9", "VC1",
+    "MPEG2", "MPEG-2",
+})
 
 # Qualificatifs de source : peuvent coexister avec une source principale.
 # Ex: "4KLight BluRay" → source = "4KLight.BluRay"
@@ -302,17 +310,20 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     # name_team = nom sans les parens de fin (ex: "(58 minutes pour vivre)")
     team = ""
     name_team = re.sub(r'\s*\([^)]*\)\s*$', '', name)
-    m = re.search(r'-([A-Za-z0-9@_]+)$', name_team)
+    # Supporte les teams composées : -Tsundere-Raws, -PSA-BATGirl, -Team1&Team2
+    m = re.search(r'-([A-Za-z0-9@_&]+(?:-[A-Za-z0-9@_&]+)*)$', name_team)
     if m:
         raw_team = m.group(1)
-        team = re.sub(r'[^a-zA-Z0-9]', '', raw_team)  # préserve la casse
+        team = re.sub(r'[^a-zA-Z0-9&-]', '', raw_team)  # préserve la casse, & et -
         # Suppression globale via replace (couvre le cas avec parens après le tag)
         name = name.replace(f'-{raw_team}', '')
     else:
         m = re.search(r'\.([A-Za-z0-9]{2,12})$', name_team)
         if m:
             suffix = m.group(1)
-            if not re.match(r'^(COM|NET|ORG|IO|FR|MKV|MP4|AVI|MP3|AAC)$', suffix, re.IGNORECASE):
+            # Exclure les codecs connus et extensions courantes des faux team tags
+            if not re.match(r'^(COM|NET|ORG|IO|FR|MKV|MP4|AVI|MP3|AAC)$', suffix, re.IGNORECASE) \
+               and suffix.upper() not in _CODEC_NAMES:
                 team = suffix
                 # Coupe au niveau de name_team (avant les éventuelles parens de fin)
                 cut_pos = name_team.rfind(f'.{suffix}')
@@ -331,8 +342,11 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     name = re.sub(r'(?<!\d)(4) (0)(?!\d)', '4.0', name)
     name = re.sub(r'(?<!\d)(6) (1)(?!\d)', '6.1', name)
 
-    # ── 4. [Crochets] → contenu conservé, parenthèses de titre gardées ────────
+    # ── 4. [Crochets] → contenu conservé ────────────────────────────────────────
     name = re.sub(r'\[([^\]]*)\]', r'\1', name)
+    # Parenthèses non-année : supprimer tôt pour éviter que leur contenu pollue
+    # les étapes suivantes. On garde uniquement les parens contenant une année.
+    name = re.sub(r'\((?![12][0-9]{3}\))[^)]*\)', '', name)
     name = _ws(name)
 
     # ── 5. Pré-normalisation : aliases symboliques et textuels ────────────────
@@ -340,7 +354,13 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     name = re.sub(r'HDR10PLUS',                             'HDR10P',   name, flags=re.IGNORECASE)
     name = re.sub(r'DOLBY[\s._-]*VISION',                   'DV',       name, flags=re.IGNORECASE)
     name = re.sub(r'DD\+',                                  'DDP',      name, flags=re.IGNORECASE)
-    name = re.sub(r'E-?AC-?3',                              'DDP',      name, flags=re.IGNORECASE)
+    # EAC3/E-AC3 avec canaux → DDP + canaux préservés
+    name = re.sub(r'E-?AC-?3\s*(\d[.]\d)',                   r'DDP \1',  name, flags=re.IGNORECASE)
+    name = re.sub(r'E-?AC-?3',                               'DDP',      name, flags=re.IGNORECASE)
+    # HE-AAC → AAC (variante haute efficacité, normalisée à AAC)
+    name = re.sub(r'HE-AAC',                                 'AAC',      name, flags=re.IGNORECASE)
+    # AC3@640Kbps et similaires → AC3 (supprimer le bitrate)
+    name = re.sub(r'AC3@\d+[Kk]bps',                        'AC3',      name, flags=re.IGNORECASE)
     # DD avec canal (DD5.1, DD7.1) → AC3 + canal
     name = re.sub(r'(?<!\w)DD(\d[.]\d)',                    r'AC3 \1',  name, flags=re.IGNORECASE)
     # DD seul → AC3 (mais pas DD+, DDP, DTS)
@@ -357,8 +377,8 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
                   lambda mo: f'MULTi.{mo.group(1).upper()}',            name, flags=re.IGNORECASE)
     # VFI → VFF (case-insensitive, word-boundary)
     name = re.sub(r'(?<!\w)VFI(?!\w)',                      'VFF',      name, flags=re.IGNORECASE)
-    # FR-ENG-... → MULTi.VFF
-    name = re.sub(r'(^|\s)FR-[A-Za-z]+(?:-[A-Za-z]+)+(\s|$)',
+    # FR-EN, FR-ENG-JAP, ... → MULTi.VFF (un ou plusieurs segments après FR-)
+    name = re.sub(r'(^|\s)FR-[A-Za-z]+(?:-[A-Za-z]+)*(\s|$)',
                   r'\1MULTi.VFF\2',                                     name, flags=re.IGNORECASE)
     # FR seul → FRENCH
     name = re.sub(r'(^|\s)FR(\s|$)',                        r'\1FRENCH\2', name, flags=re.IGNORECASE)
@@ -373,14 +393,15 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
 
     # ── 5d. Bit depth : 8bit retiré (défaut), 10bit/12bit conservés ──────────
     # 8bit est le défaut et n'apporte pas d'information → retiré
-    name = re.sub(r'(?:^|\s)8[- ]?bit(?:\s|$)', ' ', name, flags=re.IGNORECASE)
+    name = re.sub(r'(?:^|\s)8[- ]?bits?(?:\s|$)', ' ', name, flags=re.IGNORECASE)
     name = _ws(name)
     # 10bit/12bit extraits pour reconstruction (entre résolution et HDR)
+    # Supporte 10bit, 10Bit, 10bits, 10 bit etc.
     bit_depth = ""
-    m_bd = re.search(r'(?:^|\s)(10|12)[- ]?bit(?:\s|$)', name, re.IGNORECASE)
+    m_bd = re.search(r'(?:^|\s)(10|12)[- ]?bits?(?:\s|$)', name, re.IGNORECASE)
     if m_bd:
         bit_depth = f"{m_bd.group(1)}bit"
-        name = re.sub(r'(?:^|\s)(?:10|12)[- ]?bit(?:\s|$)', ' ', name, flags=re.IGNORECASE)
+        name = re.sub(r'(?:^|\s)(?:10|12)[- ]?bits?(?:\s|$)', ' ', name, flags=re.IGNORECASE)
         name = _ws(name)
 
     # ── 5c. SAISON N → S0N ────────────────────────────────────────────────────
@@ -421,6 +442,11 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     elif re.search(r'(?:^|\s)DC(?:\s|$)', name):
         extras += '.DIRECTORS.CUT'
         name = _remove_token(name, 'DC')
+    # AD (audio-description) : extraire seulement si l'année a été trouvée
+    # (indique que AD est en position extras, pas en début de titre comme "Ad Vitam")
+    if year and re.search(r'(?:^|\s)AD(?:\s|$)', name):
+        extras += '.AD'
+        name = _remove_token(name, 'AD')
 
     # ── 8a. Normalisation casse MULTi ─────────────────────────────────────────
     name = re.sub(
@@ -455,6 +481,14 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
             if matched.upper() == "FRENCH":
                 lang_from_french = True
             break
+
+    # Nettoyer les tokens de langue restants pour éviter les doublons (ex: VOF + FRENCH)
+    for p in _LANG_PATTERNS:
+        while True:
+            m2 = re.search(r'(?:^|\s)(' + p + r')(?:\s|$)', name, re.IGNORECASE)
+            if not m2:
+                break
+            name = _remove_token(name, m2.group(1))
 
     # ── 9b. VFF-ENG composé : MULTi.VFF seulement si ST français présents ─────
     if lang == "MULTi.VFF" and lang_compound and mi:
@@ -565,8 +599,25 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         name = _remove_token(name, "REMUX")
 
     for leftover in ("Netflix", "hdlight", "mHD", "NF", "AMZN", "DSNP", "HULU", "ATVP", "PCOK",
-                     "Disney", "AppleTV", "Paramount", "MAX", "HBO"):
+                     "Disney", "AppleTV", "Paramount", "HMAX", "HBO",
+                     "READNFO", "DUAL", "CR", "Sub", "DOC"):
         name = _remove_token(name, leftover)
+
+    # Langues étrangères non-FR orphelines (mHDgz style: "FR EN" → FR traité, EN reste)
+    # Note: pas DE (conflit avec "de" français), ni IT (conflit avec titres)
+    for foreign_lang in ("EN", "KO", "JA", "ES", "PT", "RU", "ZH", "NL"):
+        name = _remove_token(name, foreign_lang)
+
+    # NCH (2CH, 6CH, 8CH) → extraire comme info audio si pas encore de codec audio
+    # Les règles G3MINI les listent comme formats de canaux valides
+    nch_match = re.search(r'(?:^|\s)(\d+CH)(?:\s|$)', name, re.IGNORECASE)
+    if nch_match:
+        nch_val = nch_match.group(1).upper()
+        name = _remove_token(name, nch_match.group(1))
+        # Stocké temporairement, sera ajouté à l'audio en step 13 si pas de codec audio
+        _nch_token = nch_val
+    else:
+        _nch_token = ""
 
     # ── 13. Audio — par famille indépendante (multi-codec possible) ───────────
     audio_parts = []
@@ -674,6 +725,10 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     if lang == "MUET":
         audio_parts = []
 
+    # Si NCH détecté et pas de codec audio, l'ajouter comme info canal
+    if _nch_token and not audio_parts:
+        audio_parts.append(_nch_token)
+
     audio = '.'.join(audio_parts)
 
     # ── 14. Codec vidéo ───────────────────────────────────────────────────────
@@ -685,6 +740,11 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
             name = re.sub(rf'(?:^|\s){c_pat}(?:\s|$)', ' ', name, flags=re.IGNORECASE)
             name = _ws(name)
             break
+
+    # Nettoyage codecs redondants (ex: x265 + HEVC dans le même nom)
+    for c_pat, _ in _CODEC_LIST:
+        name = re.sub(rf'(?:^|\s){c_pat}(?:\s|$)', ' ', name, flags=re.IGNORECASE)
+    name = _ws(name)
 
     # ── 15. Fallback mediainfo si codec manquant ──────────────────────────────
     if not codec and mi:
