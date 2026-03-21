@@ -244,13 +244,11 @@ _EXTRAS_MAP = {
     'UNCUT':         'UNCUT',
     'REMASTERED':    'REMASTERED',
     'INTERNAL':      'INTERNAL',
-    'NOTAG':         'NoTAG',
     'INTEGRALE':     'iNTEGRALE',
     'LIMITED':       'LIMITED',
     'IMAX EDITION':  'IMAX.EDITION',
     'IMAX':          'IMAX',
     'CUSTOM':         'CUSTOM',
-    'NOGRP':          'NoGRP',
 }
 
 _CODEC_LIST = [
@@ -305,6 +303,15 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         ext = "." + m.group(1)
         name = name[:-len(ext)]
 
+    # ── 1b. Pré-nettoyage : séparateurs et bruit ────────────────────────────
+    # " - " ou ".-." → espace (évite les artefacts .-.-. dans le titre)
+    name = re.sub(r'[.\s]+-[.\s]+', ' ', name)
+    # @bitrate (ex: AC3@640Kbps) → supprimer le suffixe @bitrate
+    name = re.sub(r'@\d+[kKmM]bps', '', name, flags=re.IGNORECASE)
+    # Bitrates standalone (384kbps, 2Mbps…) : bruit sans valeur pour le nommage
+    name = re.sub(r'-?\d+[kKmM]bps', '', name, flags=re.IGNORECASE)
+    name = name.strip()
+
     # ── 2. Team ───────────────────────────────────────────────────────────────
     # Extrait avant la normalisation des séparateurs.
     # name_team = nom sans les parens de fin (ex: "(58 minutes pour vivre)")
@@ -329,6 +336,9 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
                 cut_pos = name_team.rfind(f'.{suffix}')
                 if cut_pos >= 0:
                     name = name[:cut_pos] + name[cut_pos + len(suffix) + 1:]
+
+    if not team:
+        team = "NoTag"
 
     # ── 3. Normalisation séparateurs : points & underscores → espaces ─────────
     name = name.replace('.', ' ').replace('_', ' ')
@@ -447,6 +457,10 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     if year and re.search(r'(?:^|\s)AD(?:\s|$)', name):
         extras += '.AD'
         name = _remove_token(name, 'AD')
+
+    # NoTAG/NoGRP : gérés comme team suffix, pas extras — nettoyer les résidus
+    for _notag in ('NoTAG', 'NoGRP'):
+        name = _remove_token(name, _notag)
 
     # ── 8a. Normalisation casse MULTi ─────────────────────────────────────────
     name = re.sub(
