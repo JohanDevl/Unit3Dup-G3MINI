@@ -82,6 +82,9 @@ class EncodingValidator(BaseValidator):
     ) -> list[ValidationResult]:
         results: list[ValidationResult] = []
 
+        # Upscale tag check — runs for ALL source types
+        results.extend(self._check_upscale_tag(release_name))
+
         try:
             source_type = _detect_source_type(release_name)
             codec = _detect_codec(release_name)
@@ -354,7 +357,20 @@ class EncodingValidator(BaseValidator):
 
         return []
 
-    # ── Check 9: Upscale detection ─────────────────────────────────────────
+    # ── Check 9: Upscale tag in release name ────────────────────────────────
+
+    @staticmethod
+    def _check_upscale_tag(release_name: str) -> list[ValidationResult]:
+        if re.search(r'UpScal', release_name, re.IGNORECASE):
+            return [ValidationResult(
+                rule="encoding.upscale_forbidden",
+                severity="ERROR",
+                message="Contenu upscale interdit — aucun upscale autorise",
+                source_doc="encodage",
+            )]
+        return []
+
+    # ── Check 10: Upscale detection (height-based) ──────────────────────────
 
     @staticmethod
     def _check_upscale(mediafile, resolution: str) -> list[ValidationResult]:

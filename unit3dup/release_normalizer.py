@@ -249,6 +249,7 @@ _EXTRAS_MAP = {
     'IMAX EDITION':  'IMAX.EDITION',
     'IMAX':          'IMAX',
     'CUSTOM':         'CUSTOM',
+    'UPSCALED':       'UpScaled',
 }
 
 _CODEC_LIST = [
