@@ -761,7 +761,10 @@ class JsonConfig:
         # Add the new attributes in 'torrent client'
         if self.torrent_diff_keys:
             self.updated = True
-            missing_keys_dict = {key: '' for key in self.torrent_diff_keys}
+            missing_keys_dict = {}
+            for key in self.torrent_diff_keys:
+                field = TorrentClientConfig.model_fields.get(key)
+                missing_keys_dict[key] = field.default if field and field.default is not None else ''
             self.torrent_config.update(missing_keys_dict)
 
 
