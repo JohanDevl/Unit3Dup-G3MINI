@@ -167,7 +167,7 @@ class UploadBot:
         self.tracker.data["sd"] = video_info.is_hd
         effective_resolution = self.content.screen_size or self.content.resolution
         self.tracker.data["type_id"] = self.tracker_data.filter_type(
-            self.content.file_name, resolution=effective_resolution
+            self.content.title, resolution=effective_resolution
         )
         self.tracker.data["season_number"] = self.content.guess_season
         self.tracker.data["episode_number"] = (self.content.guess_episode if not self.content.torrent_pack else 0)
@@ -198,7 +198,7 @@ class UploadBot:
         self.tracker.data["category_id"] = self.tracker_data.category.get(self.content.category)
         self.tracker.data["anonymous"] = int(config_settings.user_preferences.ANON)
         self.tracker.data["description"] = document_info.description
-        self.tracker.data["type_id"] = self.tracker_data.filter_type(self.content.file_name)
+        self.tracker.data["type_id"] = self.tracker_data.filter_type(self.content.title)
         self.tracker.data["resolution_id"] = ""
         self.tracker.data["personal_release"] = self._check_personal_release_by_tag(release_name)
         return self.tracker
