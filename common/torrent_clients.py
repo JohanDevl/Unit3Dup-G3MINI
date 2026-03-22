@@ -42,12 +42,8 @@ class MyQbittorrent(QBClient):
             },
         )
 
-    # Force savepath properly via qBittorrent WebAPI (torrents/add)
-    def add_torrent_file(self, file_buffer, savepath: str, tags: str | None = None, category: str | None = None):
-        data = {
-            "savepath": savepath,
-            "autoTMM": "false",  # prevents categories/templates from overriding savepath (as much as possible)
-        }
+    def add_torrent_file(self, file_buffer, tags: str | None = None, category: str | None = None):
+        data = {}
         if tags:
             data["tags"] = tags
         if category:
@@ -164,36 +160,6 @@ class QbittorrentClient(TorrClient):
         return None
 
     def send_to_client(self, tracker_data_response: str, torrent: Mytorrent | None, content: Media, archive_path: str, category: str | None = None):
-        # qBittorrent "shared path"
-        if config_settings.torrent_client_config.SHARED_QBIT_PATH:
-            torr_location = config_settings.torrent_client_config.SHARED_QBIT_PATH
-        else:
-            # content.torrent_path is the most reliable: file or folder release
-            # Convert to absolute path first to ensure proper detection
-            base = os.path.abspath(content.torrent_path) if content.torrent_path else None
-            
-            if not base:
-                # Fallback: try to use content.file_name
-                base = os.path.abspath(content.file_name) if content.file_name else None
-            
-            if base:
-                if os.path.isfile(base):
-                    # It's a single file release, use the parent directory (where the file is located)
-                    torr_location = os.path.dirname(base)
-                elif os.path.isdir(base):
-                    # It's a folder release (dossier avec fichier vidéo dedans)
-                    # Pour -u avec un dossier, pointer vers le dossier parent du dossier de release
-                    torr_location = os.path.dirname(base)
-                else:
-                    # Path doesn't exist, try to get parent directory anyway
-                    torr_location = os.path.dirname(base)
-            else:
-                # No valid path found, use current directory as fallback
-                torr_location = os.getcwd()
-
-        torr_location = os.path.normpath(torr_location)
-        custom_console.bot_warning_log(f"[QbittorrentClient] Forced savepath: {torr_location}")
-
         # Compute infohash (for tagging)
         with open(archive_path, "rb") as file_buffer:
             torrent_data = file_buffer.read()
@@ -201,10 +167,9 @@ class QbittorrentClient(TorrClient):
             info_hash = hashlib.sha1(bencode2.bencode(info)).hexdigest()
             file_buffer.seek(0)
 
-            # ✅ IMPORTANT: use torrents/add with autoTMM=false and savepath
+            # Let qBittorrent category handle the save path automatically
             self.client.add_torrent_file(
                 file_buffer=file_buffer,
-                savepath=str(torr_location),
                 tags=config_settings.torrent_client_config.TAG,
                 category=category,
             )
@@ -216,12 +181,10 @@ class QbittorrentClient(TorrClient):
             # not fatal
             pass
 
-    def send_file_to_client(self, torrent_path: str, media_location: str, category: str | None = None):
-        # Keep a simple path-based call for manual usage
+    def send_file_to_client(self, torrent_path: str, category: str | None = None):
         with open(torrent_path, "rb") as fb:
             self.client.add_torrent_file(
                 file_buffer=fb,
-                savepath=str(os.path.normpath(media_location)),
                 tags=config_settings.torrent_client_config.TAG,
                 category=category,
             )
