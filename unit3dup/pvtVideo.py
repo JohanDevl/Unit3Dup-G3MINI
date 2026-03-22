@@ -1,21 +1,16 @@
 # -*- coding: utf-8 -*-
 import hashlib
-import os.path
 import re
 
-import diskcache
-
-from common.external_services.imageHost import Build
 from common.mediainfo import MediaFile
-from common.frames import VideoFrame
+from unit3dup.prez import generate_prez
 
 from view import custom_console
-from unit3dup import config_settings
 from unit3dup.media import Media
 
 
 class Video:
-    """ Build a description for the torrent page: screenshots, mediainfo, trailers, metadata """
+    """ Build a description for the torrent page: prez BBCode, mediainfo, metadata """
 
     def __init__(self, media: Media,  tmdb_id: int, trailer_key=None):
         self.file_name: str = media.file_name
@@ -23,20 +18,6 @@ class Video:
 
         self.tmdb_id: int = tmdb_id
         self.trailer_key: int = trailer_key
-        self.cache = diskcache.Cache(str(config_settings.user_preferences.CACHE_PATH))
-
-        # Create a cache key for tmdb_id
-        self.key = f"{self.tmdb_id}.{self.display_name}"
-        self.cache_key = self.hash_key(self.key)
-
-        # Load the video frames
-        # if web_enabled is off set the number of screenshots to an even number
-        if not config_settings.user_preferences.WEBP_ENABLED:
-            if config_settings.user_preferences.NUMBER_OF_SCREENSHOTS % 2 != 0:
-                config_settings.user_preferences.NUMBER_OF_SCREENSHOTS += 1
-
-        samples_n = max(2, min(config_settings.user_preferences.NUMBER_OF_SCREENSHOTS, 10))
-        self.video_frames: VideoFrame = VideoFrame(self.file_name, num_screenshots=samples_n)
 
         # Init
         self.is_hd: int = 0
@@ -84,40 +65,12 @@ class Video:
         media_info = MediaFile(self.file_name)
         self.mediainfo = media_info.info
 
-        if config_settings.user_preferences.CACHE_SCR:
-            description = self.cache.get(self.cache_key)
-            if description:
-                custom_console.bot_warning_log(f"\n<> Using cached images for '{self.key}'")
-                self.description = description.get('description', '')
-                self.is_hd = description.get('is_hd', 0)
+        # Generate prez BBCode description
+        self.description = generate_prez(media_info)
 
-        if not self.description:
-            # If no description found generate it
-            custom_console.bot_log(f"\n[GENERATING IMAGES..] [HD {'ON' if self.is_hd == 0 else 'OFF'}]")
-            # Extract the frames
-            extracted_frames, is_hd = self.video_frames.create()
-            # Create a webp file if it's enabled in the config json
-            extracted_frames_webp = []
-            if config_settings.user_preferences.WEBP_ENABLED:
-                extracted_frames_webp = self.video_frames.create_webp_from_video(
-                    video_path=self.file_name,
-                    start_time=90,
-                    duration=10,
-                    output_path=os.path.join(config_settings.user_preferences.CACHE_PATH, "file.webp"),
-                )
-            custom_console.bot_log("Done.")
-
-            # Build the description
-            build_description = Build(extracted_frames=extracted_frames_webp + extracted_frames, filename=self.display_name)
-            self.description = build_description.description()
-
-            if self.trailer_key:
-                self.description += (
-                    f"[b][spoiler=Spoiler: PLAY TRAILER][center][youtube]{self.trailer_key}[/youtube]"
-                    f"[/center][/spoiler][/b]"
-                )
-            self.is_hd = is_hd
-
-        # Caching
-        if config_settings.user_preferences.CACHE_SCR:
-            self.cache[self.cache_key] = {'tmdb_id': self.tmdb_id, 'description': self.description, 'is_hd': self.is_hd}
+        # Determine SD flag: 0 = HD (>=720p), 1 = SD
+        try:
+            height = int(media_info.video_height) if media_info.video_height else 0
+        except (ValueError, TypeError):
+            height = 0
+        self.is_hd = 0 if height >= 720 else 1
