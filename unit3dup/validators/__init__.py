@@ -103,6 +103,13 @@ class ValidationRunner:
             f"[cyan]{infos} info(s)[/cyan]"
         )
 
+    def to_dicts(self) -> list[dict]:
+        """Serialize results to plain dicts for JSON storage."""
+        return [
+            {"severity": r.severity, "rule": r.rule, "message": r.message, "doc": r.source_doc}
+            for r in self._results
+        ]
+
 
 def create_default_validators() -> list[BaseValidator]:
     """Factory : retourne la liste de tous les validators actifs."""

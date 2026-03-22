@@ -30,6 +30,7 @@ class VideoManager:
         self.contents: list[Media] = contents
         self.cli: argparse = cli
         self.qbit_category = qbit_category
+        self.validation_reports: dict[str, list[dict]] = {}
 
     def process(self, selected_tracker: str, tracker_name_list: list, tracker_archive: str) -> tuple[list[BittorrentData], list[dict]]:
         """
@@ -138,8 +139,11 @@ class VideoManager:
                         runner.print_report(custom_console)
                         if runner.has_errors():
                             custom_console.bot_error_log("Validation errors found. Skipping upload. Use -skipval to bypass.")
-                            skip_reasons.append({"torrent_name": content.torrent_name, "reason": "validation_error"})
+                            skip_reasons.append({"torrent_name": content.torrent_name, "reason": "validation_error",
+                                                 "validation_report": runner.to_dicts()})
                             continue
+                        # Store warnings/infos for uploaded entries (keyed by normalized release name)
+                        self.validation_reports[release_name_check] = runner.to_dicts()
 
                 # ── Confirmation interactive (-confirm) ───────────────────────
                 if getattr(self.cli, 'confirm', False):

@@ -34,6 +34,7 @@ class TorrentManager:
         self.skip_reasons: list[dict] = []
         self.release_names: list[str] = []
         self.content_categories: list[str] = []
+        self.validation_reports: dict[str, list[dict]] = {}
         self.fast_load = config_settings.user_preferences.FAST_LOAD
         if self.fast_load < 1 or self.fast_load > 150:
             # full list
@@ -115,6 +116,8 @@ class TorrentManager:
                 self.release_names.extend(r.release_name for r in video_process_results if r.release_name)
                 self.content_categories.extend(r.content.category for r in video_process_results if r.content)
                 self.skip_reasons.extend(video_skips)
+                # Validation reports are video-only (Game/Doc don't run ValidationRunner)
+                self.validation_reports.update(video_manager.validation_reports)
 
             # Build the torrent file and upload each DOC to the tracker
             if self.doc and not self.cli.reseed:
