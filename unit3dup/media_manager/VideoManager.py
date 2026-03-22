@@ -57,7 +57,7 @@ class VideoManager:
             # Filter contents based on existing torrents or duplicates
             if UserContent.is_preferred_language(content=content):
 
-                if self.cli.watcher:
+                if self.cli.watcher and not self.cli.noup:
                     if os.path.exists(torrent_filepath):
                         custom_console.bot_log(f"Watcher Active.. skip the old upload '{content.file_name}'")
                         skip_reasons.append({"torrent_name": content.torrent_name, "reason": "already_in_archive",
