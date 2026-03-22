@@ -94,6 +94,7 @@ class TorrentClientConfig(BaseModel):
     SHARED_RTORR_PATH: str | None = None
     TORRENT_CLIENT: str | None = None
     TAG: str | None = None
+    QBIT_SKIP_HASH_CHECK: bool = False
 
 
 
@@ -585,6 +586,7 @@ class Load:
                 "SHARED_RTORR_PATH": "no_path",
                 "TORRENT_CLIENT": "qbittorrent",
                 "TAG": "ADDED TORRENTS",
+                "QBIT_SKIP_HASH_CHECK": false,
             },
             "user_preferences": {
                 "PTSCREENS_PRIORITY": 0,

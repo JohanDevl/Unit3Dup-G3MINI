@@ -42,12 +42,14 @@ class MyQbittorrent(QBClient):
             },
         )
 
-    def add_torrent_file(self, file_buffer, tags: str | None = None, category: str | None = None):
+    def add_torrent_file(self, file_buffer, tags: str | None = None, category: str | None = None, skip_checking: bool = False):
         data = {}
         if tags:
             data["tags"] = tags
         if category:
             data["category"] = category
+        if skip_checking:
+            data["skip_checking"] = "true"
 
         files = {"torrents": file_buffer}
         return self._post("torrents/add", data=data, files=files)
@@ -172,6 +174,7 @@ class QbittorrentClient(TorrClient):
                 file_buffer=file_buffer,
                 tags=config_settings.torrent_client_config.TAG,
                 category=category,
+                skip_checking=config_settings.torrent_client_config.QBIT_SKIP_HASH_CHECK,
             )
 
         # Optional: enforce tags via addTags as well
@@ -187,6 +190,7 @@ class QbittorrentClient(TorrClient):
                 file_buffer=fb,
                 tags=config_settings.torrent_client_config.TAG,
                 category=category,
+                skip_checking=config_settings.torrent_client_config.QBIT_SKIP_HASH_CHECK,
             )
 
 
