@@ -41,6 +41,9 @@ class NamingValidator(BaseValidator):
             # Check 4: NoGRP/NoTAG for unknown teams
             results.extend(self._check_nogrp_tag(release_name))
 
+            # Check 5: Reject releases with invalid team (NoTag, NoGRP, or year)
+            results.extend(self._check_invalid_team(release_name))
+
         except Exception:
             # Wrap all checks in try/except to be safe
             pass
@@ -168,6 +171,38 @@ class NamingValidator(BaseValidator):
 
     # Suffixes audio hyphenés qui ne sont PAS des tags de team
     _AUDIO_HYPHEN_SUFFIXES = {"HDMA", "HDHRA", "HD", "AC3"}
+
+    # Placeholder teams that indicate no real release group
+    _INVALID_TEAMS = {"NOTAG", "NOGRP"}
+
+    def _check_invalid_team(self, release_name: str) -> list[ValidationResult]:
+        """Check 5: Reject releases whose team is a placeholder (NoTag/NoGRP) or a year."""
+        name_no_ext = re.sub(r'\.(mkv|mp4|avi|ts|m2ts|iso)$', '', release_name, flags=re.IGNORECASE)
+        m = re.search(r'-([A-Za-z0-9]{2,})$', name_no_ext)
+        if not m:
+            return []
+
+        team = m.group(1)
+        if team.upper() in self._AUDIO_HYPHEN_SUFFIXES:
+            return []
+
+        if team.upper() in self._INVALID_TEAMS:
+            return [ValidationResult(
+                rule="naming.invalid_team",
+                severity="ERROR",
+                message=f"Release has no real team (tagged {team}) — uploads without a release group are rejected",
+                source_doc="upload",
+            )]
+
+        if re.fullmatch(r'(?:19|20)\d{2}', team):
+            return [ValidationResult(
+                rule="naming.invalid_team",
+                severity="ERROR",
+                message=f"Release team appears to be a year ({team}) — missing release group",
+                source_doc="upload",
+            )]
+
+        return []
 
     def _check_nogrp_tag(self, release_name: str) -> list[ValidationResult]:
         """Check 4: Releases without team should have NoGRP or NoTAG."""
