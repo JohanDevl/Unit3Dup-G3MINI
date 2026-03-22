@@ -27,20 +27,27 @@ class TRACKData:
             codec=tracker_data.get("CODEC"),
         )
 
-    def filter_type(self, file_name: str) -> int:
+    def filter_type(self, file_name: str, resolution: str | None = None) -> int:
 
         file_name = ManageTitles.clean(file_name)
-        # >Clean the releaser sign
         file_name = file_name.replace("-", " ")
         word_list = file_name.lower().strip().split(" ")
 
-        # Caso 1: Cerca un TYPE_ID nel nome del file
+        # Case 1: Explicit TYPE_ID keyword in filename
         for word in word_list:
             if word in self.type_id:
                 return self.type_id[word]
 
-        # Caso 2: Se non trova un TYPE_ID, cerca un codec e ritorna 'encode'
+        # Case 2: Codec found → infer source from resolution
         for word in word_list:
             if word in self.codec:
+                if resolution:
+                    res_digits = ''.join(c for c in resolution if c.isdigit())
+                    if res_digits:
+                        res_value = int(res_digits)
+                        if res_value >= 720:
+                            return self.type_id.get("bdrip", self.type_id.get("encode", -1))
+                        else:
+                            return self.type_id.get("dvdrip", self.type_id.get("encode", -1))
                 return self.type_id.get("encode", -1)
         return self.type_id.get("altro", -1)
