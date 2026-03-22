@@ -136,11 +136,29 @@ def _normalize_sub_format(fmt: str | None) -> str:
     return SUB_FORMAT_NORMALIZE.get(fmt.upper().strip(), fmt.upper().strip())
 
 
-def _quality_label(height) -> str:
+def _quality_label(width, height) -> str:
+    """Determine quality label from video dimensions, preferring width."""
     try:
-        h = int(height)
+        w = int(width) if width else 0
     except (ValueError, TypeError):
+        w = 0
+    try:
+        h = int(height) if height else 0
+    except (ValueError, TypeError):
+        h = 0
+
+    if not w and not h:
         return ""
+
+    # Width-based (primary) — matches Mediatorr logic
+    if w >= 3800:
+        return "UHD 2160p"
+    if w >= 1900:
+        return "HD 1080p"
+    if w >= 1200:
+        return "HD 720p"
+
+    # Height-based fallback (if width unavailable)
     if h >= 2160:
         return "UHD 2160p"
     if h >= 1080:
@@ -168,7 +186,7 @@ def generate_prez(media_file: MediaFile) -> str:
     codec = _codec_label(media_file.video_format)
     bit_depth_raw = media_file.video_bit_depth
     bit_depth = f"{bit_depth_raw} bits" if bit_depth_raw and bit_depth_raw != "Unknown" else ""
-    quality = _quality_label(media_file.video_height)
+    quality = _quality_label(media_file.video_width, media_file.video_height)
 
     badges = []
     if codec:
