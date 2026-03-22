@@ -441,6 +441,10 @@ class Config(BaseModel):
                 if field in ['SHARED_TRASM_PATH', 'SHARED_QBIT_PATH', 'SHARED_RTORR_PATH']:
                     section[field] = Validate.shared_path(path=section[field], field_name=field)
 
+                if field in ['QBIT_SKIP_HASH_CHECK']:
+                    if isinstance(section[field], str):
+                        section[field] = section[field].lower() in ('true', '1', 'yes')
+
         return v
 
 
