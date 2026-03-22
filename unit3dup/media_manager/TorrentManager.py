@@ -33,6 +33,7 @@ class TorrentManager:
         self.upload_count = 0
         self.skip_reasons: list[dict] = []
         self.release_names: list[str] = []
+        self.release_sources: list[str] = []
         self.content_categories: list[str] = []
         self.validation_reports: dict[str, list[dict]] = {}
         self.fast_load = config_settings.user_preferences.FAST_LOAD
@@ -102,6 +103,7 @@ class TorrentManager:
                                                             tracker_archive=self.tracker_archive)
                 self.upload_count += len(game_process_results)
                 self.release_names.extend(r.release_name for r in game_process_results if r.release_name)
+                self.release_sources.extend(r.content.source or "" for r in game_process_results if r.content)
                 self.content_categories.extend(r.content.category for r in game_process_results if r.content)
                 self.skip_reasons.extend(game_skips)
 
@@ -114,6 +116,7 @@ class TorrentManager:
                                                               tracker_archive=self.tracker_archive)
                 self.upload_count += len(video_process_results)
                 self.release_names.extend(r.release_name for r in video_process_results if r.release_name)
+                self.release_sources.extend(r.content.source or "" for r in video_process_results if r.content)
                 self.content_categories.extend(r.content.category for r in video_process_results if r.content)
                 self.skip_reasons.extend(video_skips)
                 # Validation reports are video-only (Game/Doc don't run ValidationRunner)
@@ -128,6 +131,7 @@ class TorrentManager:
                                                             tracker_archive=self.tracker_archive)
                 self.upload_count += len(docu_process_results)
                 self.release_names.extend(r.release_name for r in docu_process_results if r.release_name)
+                self.release_sources.extend(r.content.source or "" for r in docu_process_results if r.content)
                 self.content_categories.extend(r.content.category for r in docu_process_results if r.content)
                 self.skip_reasons.extend(docu_skips)
 

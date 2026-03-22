@@ -49,6 +49,7 @@ class Bot:
         self.upload_count = 0
         self.skip_reasons: list[dict] = []
         self.release_names: list[str] = []
+        self.release_sources: list[str] = []
         self.content_categories: list[str] = []
         self.validation_reports: dict[str, list[dict]] = {}
 
@@ -113,6 +114,7 @@ class Bot:
         self.upload_count = torrent_manager.upload_count
         self.skip_reasons = torrent_manager.skip_reasons
         self.release_names = torrent_manager.release_names
+        self.release_sources = torrent_manager.release_sources
         self.content_categories = torrent_manager.content_categories
         self.validation_reports = torrent_manager.validation_reports
         return True
@@ -211,6 +213,7 @@ class Bot:
                             # Use the normalized release name if available
                             release_name = single_bot.release_names[0] if single_bot.release_names else src.name
                             upload_report = single_bot.validation_reports.get(release_name)
+                            release_source = single_bot.release_sources[0] if single_bot.release_sources else None
                             target_state.mark_uploaded(
                                 source_path=str(src),
                                 torrent_name=release_name,
@@ -219,15 +222,19 @@ class Bot:
                                 category=folder_category,
                                 content_category=content_cat,
                                 validation_report=upload_report,
+                                source=release_source,
                             )
                             label = "[Watcher] DRY-RUN uploaded" if dry_run else "[Watcher] Uploaded"
                             custom_console.bot_log(f"{label} -> {release_name}")
                         elif single_bot.skip_reasons:
                             reasons = ", ".join(sorted(set(s["reason"] for s in single_bot.skip_reasons)))
                             skip_report = []
+                            skip_source = None
                             for s in single_bot.skip_reasons:
                                 if "validation_report" in s:
                                     skip_report.extend(s["validation_report"])
+                                if not skip_source and s.get("source"):
+                                    skip_source = s["source"]
                             target_state.mark_skipped(
                                 source_path=str(src),
                                 torrent_name=src.name,
@@ -236,6 +243,7 @@ class Bot:
                                 category=folder_category,
                                 content_category=content_cat,
                                 validation_report=skip_report or None,
+                                source=skip_source,
                             )
                             custom_console.bot_warning_log(
                                 f"[Watcher] Skipped -> {src.name} ({reasons})"

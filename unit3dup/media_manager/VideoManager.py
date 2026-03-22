@@ -60,7 +60,8 @@ class VideoManager:
                 if self.cli.watcher:
                     if os.path.exists(torrent_filepath):
                         custom_console.bot_log(f"Watcher Active.. skip the old upload '{content.file_name}'")
-                        skip_reasons.append({"torrent_name": content.torrent_name, "reason": "already_in_archive"})
+                        skip_reasons.append({"torrent_name": content.torrent_name, "reason": "already_in_archive",
+                                             "source": content.source or ""})
                         continue
 
                 torrent_response = UserContent.torrent(content=content, tracker_name_list=tracker_name_list,
@@ -70,7 +71,8 @@ class VideoManager:
                 if (self.cli.duplicate or config_settings.user_preferences.DUPLICATE_ON
                         and UserContent.is_duplicate(content=content, tracker_name=selected_tracker,
                                                      cli=self.cli)):
-                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "duplicate_on_tracker"})
+                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "duplicate_on_tracker",
+                                         "source": content.source or ""})
                     continue
 
                 # Search for VIDEO ID
@@ -79,7 +81,8 @@ class VideoManager:
 
                 # If it is 'None' we skipped the imdb search (-notitle)
                 if not db:
-                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "no_tmdb_result"})
+                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "no_tmdb_result",
+                                         "source": content.source or ""})
                     continue
 
                 # Override category for animated content based on TMDB genre
@@ -122,7 +125,8 @@ class VideoManager:
                 if UploadBot.is_excluded_tag(release_name_check):
                     tag = release_name_check.rsplit('-', 1)[-1] if '-' in release_name_check else "?"
                     custom_console.bot_warning_log(f"Tag '{tag}' exclu (EXCLUDED_TAGS). Skip: {release_name_check}")
-                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "excluded_tag"})
+                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "excluded_tag",
+                                         "source": content.source or ""})
                     continue
 
                 # ── Validation des règles tracker ─────────────────────────────
@@ -140,7 +144,8 @@ class VideoManager:
                         if runner.has_errors():
                             custom_console.bot_error_log("Validation errors found. Skipping upload. Use -skipval to bypass.")
                             skip_reasons.append({"torrent_name": content.torrent_name, "reason": "validation_error",
-                                                 "validation_report": runner.to_dicts()})
+                                                 "validation_report": runner.to_dicts(),
+                                                 "source": content.source or ""})
                             continue
                         # Store warnings/infos for uploaded entries (keyed by normalized release name)
                         self.validation_reports[release_name_check] = runner.to_dicts()

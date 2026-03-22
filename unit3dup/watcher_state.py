@@ -79,7 +79,8 @@ class WatcherState:
     def mark_uploaded(self, source_path: str, torrent_name: str, trackers: list[str],
                       folder_path: str | None = None, category: str | None = None,
                       content_category: str | None = None,
-                      validation_report: list[dict] | None = None):
+                      validation_report: list[dict] | None = None,
+                      source: str | None = None):
         """Record a successfully uploaded entry."""
         key = self._make_key(source_path)
         # Promote from skipped to uploaded if previously skipped
@@ -96,13 +97,16 @@ class WatcherState:
         }
         if validation_report:
             entry["validation_report"] = validation_report
+        if source:
+            entry["source"] = source
         self._state["uploaded"][key] = entry
         self._save()
 
     def mark_skipped(self, source_path: str, torrent_name: str, reason: str,
                      folder_path: str | None = None, category: str | None = None,
                      content_category: str | None = None,
-                     validation_report: list[dict] | None = None):
+                     validation_report: list[dict] | None = None,
+                     source: str | None = None):
         """Record a skipped entry with the reason it was not uploaded."""
         key = self._make_key(source_path)
         # Never downgrade an uploaded entry to skipped
@@ -120,6 +124,8 @@ class WatcherState:
         }
         if validation_report:
             entry["validation_report"] = validation_report
+        if source:
+            entry["source"] = source
         self._state["skipped"][key] = entry
         self._save()
 

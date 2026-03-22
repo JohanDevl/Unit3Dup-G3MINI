@@ -38,7 +38,8 @@ class DocuManager:
             if self.cli.watcher:
                 if os.path.exists(torrent_filepath):
                     custom_console.bot_log(f"Watcher Active.. skip the old upload '{content.file_name}'")
-                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "already_in_archive"})
+                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "already_in_archive",
+                                         "source": content.source or ""})
                     continue
 
             torrent_response = UserContent.torrent(content=content, tracker_name_list=tracker_name_list,
@@ -47,7 +48,8 @@ class DocuManager:
             # Skip if it is a duplicate
             if ((self.cli.duplicate or config_settings.user_preferences.DUPLICATE_ON)
                     and UserContent.is_duplicate(content=content, tracker_name=selected_tracker, cli=self.cli)):
-                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "duplicate_on_tracker"})
+                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "duplicate_on_tracker",
+                                     "source": content.source or ""})
                 continue
 
             # print the title will be shown on the torrent page
@@ -84,7 +86,8 @@ class DocuManager:
             if UploadBot.is_excluded_tag(release_name_check):
                 tag = release_name_check.rsplit('-', 1)[-1] if '-' in release_name_check else "?"
                 custom_console.bot_warning_log(f"Tag '{tag}' exclu (EXCLUDED_TAGS). Skip: {release_name_check}")
-                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "excluded_tag"})
+                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "excluded_tag",
+                                     "source": content.source or ""})
                 continue
 
             # Get the data

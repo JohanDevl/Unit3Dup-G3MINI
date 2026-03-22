@@ -62,7 +62,8 @@ class GameManager:
             if self.cli.watcher:
                 if os.path.exists(torrent_filepath):
                     custom_console.bot_log(f"Watcher Active.. skip the old upload '{content.file_name}'")
-                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "already_in_archive"})
+                    skip_reasons.append({"torrent_name": content.torrent_name, "reason": "already_in_archive",
+                                         "source": content.source or ""})
                     continue
 
             torrent_response = UserContent.torrent(content=content, tracker_name_list=tracker_name_list,
@@ -72,7 +73,8 @@ class GameManager:
             # Skip if it is a duplicate
             if ((self.cli.duplicate or config_settings.user_preferences.DUPLICATE_ON)
                     and UserContent.is_duplicate(content=content, tracker_name=selected_tracker, cli=self.cli)):
-                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "duplicate_on_tracker"})
+                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "duplicate_on_tracker",
+                                     "source": content.source or ""})
                 continue
 
             # Search for the game on IGDB using the content's title and platform tags
@@ -82,7 +84,8 @@ class GameManager:
 
             # Skip the upload if there is no valid IGDB
             if not game_data_results:
-                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "no_igdb_result"})
+                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "no_igdb_result",
+                                     "source": content.source or ""})
                 continue
 
             # Tracker instance
@@ -96,7 +99,8 @@ class GameManager:
             if UploadBot.is_excluded_tag(release_name_check):
                 tag = release_name_check.rsplit('-', 1)[-1] if '-' in release_name_check else "?"
                 custom_console.bot_warning_log(f"Tag '{tag}' exclu (EXCLUDED_TAGS). Skip: {release_name_check}")
-                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "excluded_tag"})
+                skip_reasons.append({"torrent_name": content.torrent_name, "reason": "excluded_tag",
+                                     "source": content.source or ""})
                 continue
 
             # Don't upload if -noup is set to True
