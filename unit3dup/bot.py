@@ -227,27 +227,47 @@ class Bot:
                             label = "[Watcher] DRY-RUN uploaded" if dry_run else "[Watcher] Uploaded"
                             custom_console.bot_log(f"{label} -> {release_name}")
                         elif single_bot.skip_reasons:
-                            reasons = ", ".join(sorted(set(s["reason"] for s in single_bot.skip_reasons)))
-                            skip_report = []
-                            skip_source = None
-                            for s in single_bot.skip_reasons:
-                                if "validation_report" in s:
-                                    skip_report.extend(s["validation_report"])
-                                if not skip_source and s.get("source"):
-                                    skip_source = s["source"]
-                            target_state.mark_skipped(
-                                source_path=str(src),
-                                torrent_name=src.name,
-                                reason=reasons,
-                                folder_path=watcher_path,
-                                category=folder_category,
-                                content_category=content_cat,
-                                validation_report=skip_report or None,
-                                source=skip_source,
-                            )
-                            custom_console.bot_warning_log(
-                                f"[Watcher] Skipped -> {src.name} ({reasons})"
-                            )
+                            unique_reasons = sorted(set(s["reason"] for s in single_bot.skip_reasons))
+
+                            if unique_reasons == ["already_in_archive"]:
+                                # Torrent exists in archive = content was uploaded before
+                                archive_name = single_bot.skip_reasons[0].get("torrent_name", src.name)
+                                archive_source = next(
+                                    (s.get("source") for s in single_bot.skip_reasons if s.get("source")), None
+                                )
+                                target_state.mark_uploaded(
+                                    source_path=str(src),
+                                    torrent_name=archive_name,
+                                    trackers=self.trackers_name_list,
+                                    folder_path=watcher_path,
+                                    category=folder_category,
+                                    content_category=content_cat,
+                                    source=archive_source,
+                                )
+                                label = "[Watcher] DRY-RUN already uploaded" if dry_run else "[Watcher] Already uploaded"
+                                custom_console.bot_log(f"{label} -> {archive_name}")
+                            else:
+                                reasons = ", ".join(unique_reasons)
+                                skip_report = []
+                                skip_source = None
+                                for s in single_bot.skip_reasons:
+                                    if "validation_report" in s:
+                                        skip_report.extend(s["validation_report"])
+                                    if not skip_source and s.get("source"):
+                                        skip_source = s["source"]
+                                target_state.mark_skipped(
+                                    source_path=str(src),
+                                    torrent_name=src.name,
+                                    reason=reasons,
+                                    folder_path=watcher_path,
+                                    category=folder_category,
+                                    content_category=content_cat,
+                                    validation_report=skip_report or None,
+                                    source=skip_source,
+                                )
+                                custom_console.bot_warning_log(
+                                    f"[Watcher] Skipped -> {src.name} ({reasons})"
+                                )
                         else:
                             target_state.mark_skipped(
                                 source_path=str(src),

@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 from datetime import datetime
 
 # Legacy delimiter used in old composite keys (folder_path||basename).
@@ -33,13 +34,17 @@ class WatcherState:
                     data = json.load(f)
                     if "uploaded" in data and "skipped" in data:
                         return data
-            except (json.JSONDecodeError, IOError):
-                pass
+            except (json.JSONDecodeError, IOError) as e:
+                print(f"[WatcherState] WARNING: corrupt state file {self.state_file}: {e}", file=sys.stderr)
         return {"uploaded": {}, "skipped": {}}
 
     def _save(self):
-        with open(self.state_file, 'w', encoding='utf-8') as f:
+        tmp = self.state_file + ".tmp"
+        with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(self._state, f, indent=4, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, self.state_file)
 
     def _migrate_legacy_keys(self):
         """Migrate old composite keys (folder_path||basename) to basename-only keys."""
