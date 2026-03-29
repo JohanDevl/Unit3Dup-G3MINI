@@ -96,6 +96,22 @@ def retry_item(item_id: int):
     return result
 
 
+@router.post("/items/{item_id}/save")
+def save_item(item_id: int, req: ApproveRequest):
+    """Save release name / description edits without changing status."""
+    item = _db().get_item(item_id)
+    if not item:
+        raise HTTPException(404, "Item not found")
+    updates = {}
+    if req.release_name is not None:
+        updates["user_edited_name"] = req.release_name
+    if req.description is not None:
+        updates["user_edited_desc"] = req.description
+    if updates:
+        _db().update_item(item_id, **updates)
+    return {"success": True, "message": "Changes saved"}
+
+
 @router.post("/items/{item_id}/rescan-tmdb")
 def rescan_tmdb(item_id: int, req: RescanTmdbRequest):
     result = _svc().rescan_tmdb(item_id, req.tmdb_id)

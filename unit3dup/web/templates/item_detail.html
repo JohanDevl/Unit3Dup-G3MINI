@@ -141,6 +141,9 @@
                       placeholder="Leave empty to use generated description">{{ item.user_edited_desc or '' }}</textarea>
         </div>
         <div class="btn-group">
+            <button type="button" class="btn btn-ghost" onclick="saveEdits({{ item.id }})">
+                <i data-lucide="save"></i> Save
+            </button>
             <button type="button" class="btn btn-success"
                     hx-post="/api/v1/items/{{ item.id }}/approve"
                     hx-ext="json-enc"
@@ -170,6 +173,27 @@
 </div>
 
 <script>
+function saveEdits(id) {
+    const name = document.getElementById('release_name').value || null;
+    const desc = document.getElementById('description_edit').value || null;
+    fetch(`/api/v1/items/${id}/save`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({release_name: name, description: desc})
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            document.getElementById("action-result").innerHTML =
+                '<div class="alert alert-success">Changes saved</div>';
+        } else {
+            document.getElementById("action-result").innerHTML =
+                `<div class="alert alert-error">${data.detail || data.message}</div>`;
+        }
+    }).catch(err => {
+        document.getElementById("action-result").innerHTML =
+            `<div class="alert alert-error">Error: ${err}</div>`;
+    });
+}
+
 function rescanTmdb(id) {
     const tmdbId = parseInt(document.getElementById('tmdb_id_input').value);
     if (!tmdbId || tmdbId <= 0) {
