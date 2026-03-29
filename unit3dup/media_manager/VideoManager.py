@@ -187,13 +187,6 @@ class VideoManager:
                         # Store warnings/infos even if there are errors (web UI will show them)
                         self.validation_reports[release_name_check] = runner.to_dicts()
 
-                # ── Generate NFO content from mediainfo (path cleaned) ────────────
-                nfo_content = None
-                if video_info.mediainfo:
-                    import re as _re
-                    _nfo_pattern = r'(Complete name\s+:\s+)(.+[/\\])([^/\\]+\.\w+)'
-                    nfo_content = _re.sub(_nfo_pattern, lambda m: m.group(1) + m.group(3), video_info.mediainfo)
-
                 # ── Create PreparedItem ──────────────────────────────────────────
                 source_type = "folder" if os.path.isdir(content.torrent_path) else "file"
 
@@ -214,7 +207,7 @@ class VideoManager:
                     qbit_category=self.qbit_category,
                     description=video_info.description,
                     mediainfo=video_info.mediainfo,
-                    nfo_content=nfo_content,
+                    nfo_content=None,
                     tmdb_id=db.video_id if db else 0,
                     imdb_id=db.imdb_id if db else 0,
                     tmdb_title=db.result.get_title() if db and db.result else None,

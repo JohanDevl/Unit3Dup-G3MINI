@@ -115,15 +115,6 @@
 {% endif %}
 
 <!-- NFO -->
-{% if item.nfo_content %}
-<details class="accordion">
-    <summary><i data-lucide="file-code" style="width:16px;height:16px"></i> NFO</summary>
-    <div class="accordion-body">
-        <pre class="pre-block">{{ item.nfo_content }}</pre>
-    </div>
-</details>
-{% endif %}
-
 <!-- Actions -->
 {% if item.status in ('pending', 'error') %}
 <div class="card" style="margin-top:1.5rem">
