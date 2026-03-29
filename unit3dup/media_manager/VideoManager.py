@@ -240,7 +240,7 @@ class VideoManager:
                     nfo_content=nfo_content,
                     tmdb_id=db.video_id if db else 0,
                     imdb_id=db.imdb_id if db else 0,
-                    tmdb_title=db.result.get_title() if db else None,
+                    tmdb_title=db.result.get_title() if db and db.result else None,
                     tmdb_year=db.year if db else None,
                     validation_report=runner.to_dicts() if val_results else [],
                     has_errors=runner.has_errors() if val_results else False,
