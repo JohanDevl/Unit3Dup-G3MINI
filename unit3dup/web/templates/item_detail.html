@@ -172,6 +172,41 @@
     <div id="action-result"></div>
 </div>
 
+<!-- Reject Modal -->
+<div class="modal-overlay" id="reject-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i data-lucide="x-circle" style="width:20px;height:20px;color:var(--danger)"></i> Reject Item</h3>
+            <button class="modal-close" onclick="closeRejectModal()">
+                <i data-lucide="x" style="width:18px;height:18px"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p>Select a reason or type a custom one:</p>
+            <div class="reason-chips">
+                <span class="reason-chip" onclick="setRejectReason(this)">Wrong match</span>
+                <span class="reason-chip" onclick="setRejectReason(this)">Bad quality</span>
+                <span class="reason-chip" onclick="setRejectReason(this)">Duplicate</span>
+                <span class="reason-chip" onclick="setRejectReason(this)">Wrong category</span>
+                <span class="reason-chip" onclick="setRejectReason(this)">Missing subtitles</span>
+                <span class="reason-chip" onclick="setRejectReason(this)">Bad release name</span>
+                <span class="reason-chip" onclick="setRejectReason(this)">Not wanted</span>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label for="reject-reason">Reason</label>
+                <textarea id="reject-reason" class="form-textarea" rows="3"
+                          placeholder="Why are you rejecting this item?"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeRejectModal()">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmReject()">
+                <i data-lucide="x-circle"></i> Reject
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
 function saveEdits(id) {
     const name = document.getElementById('release_name').value || null;
@@ -220,14 +255,43 @@ function rescanTmdb(id) {
     });
 }
 
+let _rejectItemId = null;
+
 function rejectItem(id) {
-    const reason = prompt("Reason for rejection:");
-    if (reason === null) return;
-    fetch(`/api/v1/items/${id}/reject`, {
+    _rejectItemId = id;
+    document.getElementById('reject-reason').value = '';
+    document.getElementById('reject-modal').classList.add('open');
+    setTimeout(() => {
+        document.getElementById('reject-reason').focus();
+        lucide.createIcons();
+    }, 100);
+}
+
+function closeRejectModal() {
+    document.getElementById('reject-modal').classList.remove('open');
+    _rejectItemId = null;
+}
+
+function setRejectReason(chip) {
+    const textarea = document.getElementById('reject-reason');
+    const current = textarea.value.trim();
+    const tag = chip.textContent.trim();
+    textarea.value = current ? `${current}, ${tag}` : tag;
+    textarea.focus();
+}
+
+function confirmReject() {
+    const reason = document.getElementById('reject-reason').value.trim();
+    if (!reason) {
+        document.getElementById('reject-reason').style.borderColor = 'var(--danger)';
+        return;
+    }
+    fetch(`/api/v1/items/${_rejectItemId}/reject`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({reason: reason})
     }).then(r => r.json()).then(data => {
+        closeRejectModal();
         if (data.success) {
             window.location.href = "/history";
         } else {
@@ -235,10 +299,19 @@ function rejectItem(id) {
                 `<div class="alert alert-error">${data.detail || data.message}</div>`;
         }
     }).catch(err => {
+        closeRejectModal();
         document.getElementById("action-result").innerHTML =
             `<div class="alert alert-error">Error: ${err}</div>`;
     });
 }
+
+// Close modal on Escape or overlay click
+document.getElementById('reject-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeRejectModal();
+});
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeRejectModal();
+});
 </script>
 {% endif %}
 
