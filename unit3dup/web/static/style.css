@@ -863,8 +863,9 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
 
     /* Tables: card layout on mobile */
     .table-container { overflow-x: visible; }
-    table { min-width: 0; }
+    table { min-width: 0; display: block; width: 100%; }
     thead { display: none; }
+    tbody { display: block; }
     tbody tr {
         display: block;
         background: var(--bg-tertiary);
