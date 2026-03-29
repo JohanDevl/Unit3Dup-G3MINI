@@ -55,10 +55,17 @@ def _format_datetime(value: str | None) -> str:
         return "—"
     try:
         from datetime import datetime
-        dt = datetime.fromisoformat(value)
+        # Handle both "2026-03-29T23:16:27.591250" and "2026-03-29 23:16:27"
+        clean = value.replace("T", " ").split(".")[0]  # Remove T and microseconds
+        dt = datetime.strptime(clean, "%Y-%m-%d %H:%M:%S")
         return dt.strftime("%d/%m/%Y %H:%M")
     except (ValueError, TypeError):
-        return value[:16] if len(value) > 16 else value
+        # Last resort: try to extract date parts manually
+        try:
+            clean = value.replace("T", " ").split(".")[0]
+            return clean[:16].replace("-", "/")
+        except Exception:
+            return str(value)
 
 
 def _format_reason(reason: str | None) -> str:
