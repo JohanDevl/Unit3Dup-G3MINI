@@ -22,6 +22,9 @@ Homepage = "https://github.com/31December99/Unit3Dup"
 where = ["."]
 exclude = ["tests", "docs","http_cache","venv*"]
 
+[tool.setuptools.package-data]
+"unit3dup.web" = ["templates/**/*.html", "static/**/*"]
+
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 version = {file = "VERSION"}

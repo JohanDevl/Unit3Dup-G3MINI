@@ -34,10 +34,10 @@ def create_app(state_db: StateDB) -> FastAPI:
     init_api(state_db, upload_service)
     init_views(state_db)
 
-    # Mount static files
+    # Mount static files (directory is part of the installed package)
     static_dir = os.path.join(os.path.dirname(__file__), "static")
-    os.makedirs(static_dir, exist_ok=True)
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    if os.path.isdir(static_dir):
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
     # Include routers
     app.include_router(api_router)
