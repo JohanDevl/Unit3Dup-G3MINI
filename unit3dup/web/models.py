@@ -31,6 +31,11 @@ class RescanTmdbRequest(BaseModel):
     tmdb_id: int
 
 
+class UpdateSourceTypeRequest(BaseModel):
+    type_id: int
+    source_label: str
+
+
 class StatsResponse(BaseModel):
     pending: int = 0
     uploaded: int = 0

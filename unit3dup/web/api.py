@@ -8,7 +8,8 @@ from fastapi import APIRouter, HTTPException
 from unit3dup.state_db import StateDB
 from unit3dup.web.models import (
     ApproveRequest, RejectRequest, BulkApproveRequest, BulkRejectRequest,
-    RescanTmdbRequest, StatsResponse, ItemDetail, ItemListResponse, ItemSummary,
+    RescanTmdbRequest, UpdateSourceTypeRequest,
+    StatsResponse, ItemDetail, ItemListResponse, ItemSummary,
 )
 from unit3dup.web.upload_service import UploadService
 
@@ -110,6 +111,22 @@ def save_item(item_id: int, req: ApproveRequest):
     if updates:
         _db().update_item(item_id, **updates)
     return {"success": True, "message": "Changes saved"}
+
+
+@router.post("/items/{item_id}/update-source-type")
+def update_source_type(item_id: int, req: UpdateSourceTypeRequest):
+    """Update the source type (type_id) for an item."""
+    import json
+    item = _db().get_item(item_id)
+    if not item:
+        raise HTTPException(404, "Item not found")
+    tracker_payload = item.get("tracker_payload")
+    if isinstance(tracker_payload, str):
+        tracker_payload = json.loads(tracker_payload)
+    if tracker_payload:
+        tracker_payload["type_id"] = req.type_id
+    _db().update_item(item_id, source_tag=req.source_label, tracker_payload=tracker_payload)
+    return {"success": True, "message": f"Source type updated to {req.source_label}"}
 
 
 @router.post("/items/{item_id}/rescan-tmdb")

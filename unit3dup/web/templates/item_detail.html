@@ -31,7 +31,33 @@
             <tr><td>Display Name</td><td>{{ item.display_name or "—" }}</td></tr>
             <tr><td>Category</td><td>{{ item.content_category or "—" }}</td></tr>
             <tr><td>Resolution</td><td>{{ item.resolution or "—" }}</td></tr>
-            <tr><td>Source</td><td>{{ item.source_tag or "—" }}</td></tr>
+            <tr>
+                <td>Source</td>
+                <td>
+                    {{ item.source_tag or "—" }}
+                    {% if item.status in ('pending', 'error', 'skipped', 'rejected') %}
+                    {% set current_type_id = item.tracker_payload.type_id if item.tracker_payload and item.tracker_payload.type_id else '' %}
+                    <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
+                        <select id="source_type_select" class="filter-select" style="width:auto;margin:0;padding:0.3rem 0.5rem">
+                            <option value="">— Select —</option>
+                            <option value="1" {% if current_type_id == 1 %}selected{% endif %}>Full Disc</option>
+                            <option value="2" {% if current_type_id == 2 %}selected{% endif %}>Remux</option>
+                            <option value="3" {% if current_type_id == 3 %}selected{% endif %}>Encode / BDRip / BluRay</option>
+                            <option value="4" {% if current_type_id == 4 %}selected{% endif %}>WEB-DL</option>
+                            <option value="5" {% if current_type_id == 5 %}selected{% endif %}>WEBRip</option>
+                            <option value="6" {% if current_type_id == 6 %}selected{% endif %}>HDTV</option>
+                            <option value="7" {% if current_type_id == 7 %}selected{% endif %}>ISO</option>
+                            <option value="11" {% if current_type_id == 11 %}selected{% endif %}>DVD</option>
+                            <option value="12" {% if current_type_id == 12 %}selected{% endif %}>TVRip</option>
+                            <option value="13" {% if current_type_id == 13 %}selected{% endif %}>DVDRip</option>
+                        </select>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="updateSourceType({{ item.id }})">
+                            <i data-lucide="save" style="width:14px;height:14px"></i> Update
+                        </button>
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
             <tr><td>Size</td><td>{{ item.file_size | filesize }}</td></tr>
             <tr><td>Tracker</td><td>{{ item.tracker_name or "—" }}</td></tr>
             <tr>
@@ -199,6 +225,32 @@
 </div>
 
 <script>
+function updateSourceType(id) {
+    const select = document.getElementById('source_type_select');
+    const typeId = parseInt(select.value);
+    if (!typeId) {
+        document.getElementById("action-result").innerHTML =
+            '<div class="alert alert-error">Please select a source type</div>';
+        return;
+    }
+    const label = select.options[select.selectedIndex].text;
+    fetch(`/api/v1/items/${id}/update-source-type`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({type_id: typeId, source_label: label})
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            document.getElementById("action-result").innerHTML =
+                `<div class="alert alert-error">${data.detail || data.message}</div>`;
+        }
+    }).catch(err => {
+        document.getElementById("action-result").innerHTML =
+            `<div class="alert alert-error">Error: ${err}</div>`;
+    });
+}
+
 function saveEdits(id) {
     const name = document.getElementById('release_name').value || null;
     const desc = document.getElementById('description_edit').value || null;
