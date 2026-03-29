@@ -635,6 +635,33 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
 .filter-tab:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 .filter-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+/* ── Pagination ────────────────────────────────────────────────── */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0 0.25rem;
+    border-top: 1px solid var(--border-color);
+    margin-top: 0.5rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.page-info {
+    font-size: 0.8rem;
+}
+
+.page-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.page-size {
+    padding: 0.3rem 0.5rem !important;
+    font-size: 0.78rem !important;
+}
+
 /* ── Action Result ─────────────────────────────────────────────── */
 #action-result { margin-top: 1rem; }
 

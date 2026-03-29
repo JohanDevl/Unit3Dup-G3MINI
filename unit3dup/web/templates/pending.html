@@ -25,9 +25,15 @@
         </select>
     </div>
 
-    <div hx-get="/partials/pending-list" hx-trigger="every 10s" hx-swap="innerHTML" id="pending-container">
+    <div hx-get="/partials/pending-list" hx-trigger="every 10s" hx-swap="innerHTML" id="pending-container"
+         hx-on::after-swap="initPagination('pending-table', 'pending-pagination', 25)">
         {% include "partials/pending_rows.html" %}
     </div>
+    <div id="pending-pagination"></div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => initPagination('pending-table', 'pending-pagination', 25));
+</script>
 
 {% endblock %}

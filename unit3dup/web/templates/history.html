@@ -74,6 +74,11 @@
             </tbody>
         </table>
     </div>
+    <div id="history-pagination"></div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => initPagination('history-table', 'history-pagination', 25));
+</script>
 
 {% endblock %}

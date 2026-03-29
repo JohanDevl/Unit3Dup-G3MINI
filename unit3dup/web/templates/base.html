@@ -124,6 +124,117 @@
 
             rows.forEach(row => tbody.appendChild(row));
         }
+
+        // ── Pagination ───────────────────────────────────────────────
+
+        function initPagination(tableId, controlsId, defaultPerPage) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+            const tbody = table.querySelector('tbody');
+            const controls = document.getElementById(controlsId);
+            if (!controls) return;
+
+            let perPage = defaultPerPage || 25;
+            let currentPage = 1;
+
+            function getVisibleRows() {
+                return Array.from(tbody.querySelectorAll('tr')).filter(r => r.style.display !== 'none');
+            }
+
+            function render() {
+                const allRows = Array.from(tbody.querySelectorAll('tr'));
+                const visible = allRows.filter(r => !r.dataset.hiddenByFilter);
+                const totalVisible = visible.length;
+                const totalPages = perPage === 0 ? 1 : Math.max(1, Math.ceil(totalVisible / perPage));
+                if (currentPage > totalPages) currentPage = totalPages;
+
+                let idx = 0;
+                allRows.forEach(row => {
+                    if (row.dataset.hiddenByFilter === '1') {
+                        row.style.display = 'none';
+                        return;
+                    }
+                    if (perPage === 0) {
+                        row.style.display = '';
+                    } else {
+                        const page = Math.floor(idx / perPage) + 1;
+                        row.style.display = page === currentPage ? '' : 'none';
+                    }
+                    idx++;
+                });
+
+                // Update info
+                const start = perPage === 0 ? 1 : (currentPage - 1) * perPage + 1;
+                const end = perPage === 0 ? totalVisible : Math.min(currentPage * perPage, totalVisible);
+                const infoEl = controls.querySelector('.page-info');
+                if (infoEl) infoEl.textContent = totalVisible === 0
+                    ? 'No items'
+                    : `${start}-${end} of ${totalVisible}`;
+
+                // Update buttons
+                const prevBtn = controls.querySelector('.page-prev');
+                const nextBtn = controls.querySelector('.page-next');
+                if (prevBtn) prevBtn.disabled = currentPage <= 1 || perPage === 0;
+                if (nextBtn) nextBtn.disabled = currentPage >= totalPages || perPage === 0;
+            }
+
+            // Build controls HTML
+            controls.innerHTML = `
+                <div class="pagination">
+                    <span class="page-info secondary"></span>
+                    <div class="page-actions">
+                        <select class="filter-select page-size" style="width:auto">
+                            <option value="25"${perPage===25?' selected':''}>25</option>
+                            <option value="50"${perPage===50?' selected':''}>50</option>
+                            <option value="100"${perPage===100?' selected':''}>100</option>
+                            <option value="250"${perPage===250?' selected':''}>250</option>
+                            <option value="0">All</option>
+                        </select>
+                        <button class="btn btn-ghost btn-sm page-prev" type="button">&lsaquo; Prev</button>
+                        <button class="btn btn-ghost btn-sm page-next" type="button">Next &rsaquo;</button>
+                    </div>
+                </div>
+            `;
+
+            controls.querySelector('.page-size').addEventListener('change', function() {
+                perPage = parseInt(this.value);
+                currentPage = 1;
+                render();
+            });
+            controls.querySelector('.page-prev').addEventListener('click', () => { currentPage--; render(); });
+            controls.querySelector('.page-next').addEventListener('click', () => { currentPage++; render(); });
+
+            // Expose render so search/filter can call it
+            table._paginationRender = render;
+            render();
+        }
+
+        // Patch search & filter to work with pagination
+        const _origSearch = tableSearch;
+        tableSearch = function(inputEl, tableId) {
+            const filter = inputEl.value.toLowerCase();
+            const table = document.getElementById(tableId);
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.dataset.hiddenByFilter = text.includes(filter) ? '' : '1';
+            });
+            if (table._paginationRender) table._paginationRender();
+        };
+
+        const _origFilter = tableFilter;
+        tableFilter = function(selectEl, tableId, colIndex) {
+            const val = selectEl.value.toLowerCase();
+            const table = document.getElementById(tableId);
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                if (!val) { row.dataset.hiddenByFilter = ''; return; }
+                const cell = row.cells[colIndex];
+                const text = cell ? cell.textContent.toLowerCase().trim() : '';
+                row.dataset.hiddenByFilter = text.includes(val) ? '' : '1';
+            });
+            if (table._paginationRender) table._paginationRender();
+        };
     </script>
 </body>
 </html>

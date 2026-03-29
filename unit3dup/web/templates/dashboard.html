@@ -46,6 +46,11 @@
             </tbody>
         </table>
     </div>
+    <div id="recent-pagination"></div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => initPagination('recent-table', 'recent-pagination', 25));
+</script>
 
 {% endblock %}

@@ -68,7 +68,7 @@ def _format_filesize(size: int | None) -> str:
 @router.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     counts = _db().count_by_status()
-    recent = _db().list_items(per_page=10)
+    recent = _db().list_items(per_page=100)
     return templates.TemplateResponse(request, "dashboard.html", {
         "stats": counts,
         "recent": recent,
@@ -78,7 +78,7 @@ def dashboard(request: Request):
 
 @router.get("/pending", response_class=HTMLResponse)
 def pending_list(request: Request):
-    items = _db().list_items(status="pending", per_page=100)
+    items = _db().list_items(status="pending", per_page=500)
     return templates.TemplateResponse(request, "pending.html", {
         "items": items,
         "page_title": "Pending",
@@ -99,12 +99,12 @@ def pending_detail(request: Request, item_id: int):
 @router.get("/history", response_class=HTMLResponse)
 def history_list(request: Request, status: str | None = None):
     if status and status in ("uploaded", "rejected", "skipped", "error"):
-        items = _db().list_items(status=status, per_page=200)
+        items = _db().list_items(status=status, per_page=500)
     else:
         # Show all non-pending
         all_items = []
         for s in ("uploaded", "rejected", "skipped", "error"):
-            all_items.extend(_db().list_items(status=s, per_page=200))
+            all_items.extend(_db().list_items(status=s, per_page=500))
         items = sorted(all_items, key=lambda x: x.get("discovered_at", ""), reverse=True)
     return templates.TemplateResponse(request, "history.html", {
         "items": items,
@@ -128,7 +128,7 @@ def history_detail(request: Request, item_id: int):
 
 @router.get("/partials/pending-list", response_class=HTMLResponse)
 def partial_pending_list(request: Request):
-    items = _db().list_items(status="pending", per_page=100)
+    items = _db().list_items(status="pending", per_page=500)
     return templates.TemplateResponse(request, "partials/pending_rows.html", {
         "items": items,
     })
