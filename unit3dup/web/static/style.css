@@ -54,6 +54,7 @@ body {
 }
 
 a { color: var(--accent); text-decoration: none; transition: color var(--transition); }
+img { max-width: 100%; height: auto; }
 a:hover { color: var(--accent-hover); }
 
 h1, h2, h3, h4 { color: var(--text-primary); font-weight: 600; line-height: 1.3; }
@@ -836,7 +837,8 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     .nav-badge { display: unset; }
 
     .sidebar-toggle { display: block; }
-    .main-content { margin-left: 0; }
+    html { overflow-x: hidden; }
+    .main-content { margin-left: 0; min-width: 0; overflow-x: hidden; }
     .content { padding: 0.75rem; }
     .top-bar { padding: 0 0.75rem; }
     .top-bar h1 { font-size: 1rem; }
@@ -916,6 +918,7 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     .detail-grid { grid-template-columns: 1fr; gap: 1rem; }
     .detail-header h1 { font-size: 1.15rem; }
     .detail-meta { gap: 0.35rem; }
+    .info-table { word-break: break-word; overflow-wrap: anywhere; }
     .info-table td:first-child { width: 90px; font-size: 0.75rem; white-space: normal; }
     .inline-edit { flex-wrap: wrap; }
     .inline-edit-input { width: 100%; max-width: 140px; }
