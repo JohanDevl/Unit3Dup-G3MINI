@@ -276,6 +276,7 @@ class Bot:
                                         has_errors=int(item.has_errors),
                                         has_warnings=int(item.has_warnings),
                                         skip_reason=item.skip_reason,
+                                        discovered_at=datetime.now().isoformat(),
                                         prepared_at=None,
                                     )
                                     custom_console.bot_warning_log(f"[Watcher/Web] Skipped → {src.name} ({item.skip_reason})")
@@ -309,6 +310,7 @@ class Bot:
                                         validation_report=item.validation_report,
                                         has_errors=int(item.has_errors),
                                         has_warnings=int(item.has_warnings),
+                                        discovered_at=datetime.now().isoformat(),
                                         prepared_at=datetime.now().isoformat(),
                                     )
                                     custom_console.bot_log(f"[Watcher/Web] Pending → {item.release_name or src.name}")
@@ -321,6 +323,7 @@ class Bot:
                                     source_type="folder" if src.is_dir() else "file",
                                     status="skipped",
                                     skip_reason="no_processable_media",
+                                    discovered_at=datetime.now().isoformat(),
                                 )
                                 custom_console.bot_warning_log(f"[Watcher/Web] Skipped → {src.name} (no_processable_media)")
 
