@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS items (
     user_edited_name    TEXT,
     user_edited_desc    TEXT,
 
-    discovered_at       TEXT DEFAULT (datetime('now')),
+    discovered_at       TEXT DEFAULT (datetime('now', 'localtime')),
     prepared_at         TEXT,
     decided_at          TEXT,
     uploaded_at         TEXT,
