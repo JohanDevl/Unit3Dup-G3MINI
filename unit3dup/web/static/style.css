@@ -919,7 +919,19 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     .detail-header h1 { font-size: 1.15rem; }
     .detail-meta { gap: 0.35rem; }
     .info-table { word-break: break-word; overflow-wrap: anywhere; }
-    .info-table td:first-child { width: 90px; font-size: 0.75rem; white-space: normal; }
+    .info-table tr {
+        display: flex;
+        background: transparent;
+        border-radius: 0;
+        border: none;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 0;
+        padding: 0.5rem 0;
+    }
+    .info-table td { display: block; text-align: left; }
+    .info-table td::before { display: none; }
+    .info-table td:first-child { width: 90px; flex-shrink: 0; font-size: 0.75rem; white-space: normal; }
+    .info-table td:last-child { flex: 1; min-width: 0; }
     .inline-edit { flex-wrap: wrap; }
     .inline-edit-input { width: 100%; max-width: 140px; }
 
