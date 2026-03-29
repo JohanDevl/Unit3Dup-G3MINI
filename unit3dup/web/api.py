@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 
 from unit3dup.state_db import StateDB
 from unit3dup.web.models import (
@@ -72,9 +72,7 @@ def get_item(item_id: int):
 
 
 @router.post("/items/{item_id}/approve")
-def approve_item(item_id: int, req: ApproveRequest | None = None):
-    if req is None:
-        req = ApproveRequest()
+def approve_item(item_id: int, req: ApproveRequest = Body(default=ApproveRequest())):
     result = _svc().approve_and_upload(item_id, req.release_name, req.description)
     if not result["success"]:
         raise HTTPException(400, result["message"])
