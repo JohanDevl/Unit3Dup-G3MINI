@@ -27,6 +27,8 @@ def init_views(state_db: StateDB):
     # Register custom filters
     templates.env.filters["bbcode"] = bbcode_to_html
     templates.env.filters["filesize"] = _format_filesize
+    # Global context: pending count for sidebar badge
+    templates.env.globals["get_pending_count"] = lambda: state_db.count_by_status().get("pending", 0)
 
 
 def _db() -> StateDB:

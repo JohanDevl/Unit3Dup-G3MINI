@@ -1,11 +1,33 @@
 {% extends "base.html" %}
 {% block content %}
-<hgroup>
-    <h2>Pending Items</h2>
-    <p>{{ items | length }} item(s) waiting for your approval</p>
-</hgroup>
 
-<div hx-get="/partials/pending-list" hx-trigger="every 10s" hx-swap="innerHTML" id="pending-container">
-    {% include "partials/pending_rows.html" %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+    <div>
+        <h2 style="margin-bottom:0.25rem">Pending Items</h2>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0">{{ items | length }} item(s) waiting for review</p>
+    </div>
 </div>
+
+<div class="card" id="pending-card">
+    <div class="table-toolbar">
+        <div class="search-wrapper">
+            <i data-lucide="search"></i>
+            <input type="text" class="search-input" placeholder="Search pending items..."
+                   oninput="tableSearch(this, 'pending-table')">
+        </div>
+        <select class="filter-select" onchange="tableFilter(this, 'pending-table', 3)">
+            <option value="">All categories</option>
+            <option value="movie">Movie</option>
+            <option value="tv">TV</option>
+            <option value="animation">Animation</option>
+            <option value="game">Game</option>
+            <option value="documentary">Documentary</option>
+        </select>
+    </div>
+
+    <div hx-get="/partials/pending-list" hx-trigger="every 10s" hx-swap="innerHTML" id="pending-container">
+        {% include "partials/pending_rows.html" %}
+    </div>
+</div>
+
 {% endblock %}

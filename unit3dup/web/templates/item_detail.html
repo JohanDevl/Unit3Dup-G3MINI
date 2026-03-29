@@ -1,113 +1,128 @@
 {% extends "base.html" %}
 {% block content %}
-<nav aria-label="breadcrumb">
-    <ul>
-        <li><a href="/">Dashboard</a></li>
-        <li><a href="/{% if item.status == 'pending' %}pending{% else %}history{% endif %}">
-            {% if item.status == 'pending' %}Pending{% else %}History{% endif %}
-        </a></li>
-        <li>{{ item.source_basename }}</li>
-    </ul>
-</nav>
 
-<hgroup>
-    <h2>{{ item.release_name or item.display_name or item.source_basename }}</h2>
-    <p>
-        <span class="status-pill status-{{ item.status }}">{{ item.status }}</span>
+<div class="breadcrumb">
+    <a href="/">Dashboard</a>
+    <span class="sep">/</span>
+    <a href="/{% if item.status == 'pending' %}pending{% else %}history{% endif %}">
+        {% if item.status == 'pending' %}Pending{% else %}History{% endif %}
+    </a>
+    <span class="sep">/</span>
+    <span>{{ item.source_basename }}</span>
+</div>
+
+<div class="detail-header">
+    <h1>{{ item.release_name or item.display_name or item.source_basename }}</h1>
+    <div class="detail-meta">
+        <span class="pill pill-{{ item.status }}">{{ item.status }}</span>
         {% if item.content_category %}<span class="badge badge-blue">{{ item.content_category }}</span>{% endif %}
         {% if item.resolution %}<span class="badge badge-gray">{{ item.resolution }}</span>{% endif %}
         {% if item.source_tag %}<span class="badge badge-red">{{ item.source_tag }}</span>{% endif %}
-    </p>
-</hgroup>
+    </div>
+</div>
 
-<div class="grid">
-    <div>
-        <article>
-            <header>Release Info</header>
-            <table>
-                <tr><td><strong>Source Name</strong></td><td>{{ item.source_basename }}</td></tr>
-                <tr><td><strong>Release Name</strong></td><td>{{ item.release_name or "—" }}</td></tr>
-                <tr><td><strong>Display Name</strong></td><td>{{ item.display_name or "—" }}</td></tr>
-                <tr><td><strong>Category</strong></td><td>{{ item.content_category or "—" }}</td></tr>
-                <tr><td><strong>Resolution</strong></td><td>{{ item.resolution or "—" }}</td></tr>
-                <tr><td><strong>Source</strong></td><td>{{ item.source_tag or "—" }}</td></tr>
-                <tr><td><strong>Size</strong></td><td>{{ item.file_size | filesize }}</td></tr>
-                <tr><td><strong>Tracker</strong></td><td>{{ item.tracker_name or "—" }}</td></tr>
-                {% if item.tmdb_id %}<tr><td><strong>TMDB</strong></td><td>{{ item.tmdb_title or "" }} ({{ item.tmdb_year or "" }}) — ID: {{ item.tmdb_id }}</td></tr>{% endif %}
-                {% if item.imdb_id %}<tr><td><strong>IMDB</strong></td><td>{{ item.imdb_id }}</td></tr>{% endif %}
-                {% if item.igdb_id %}<tr><td><strong>IGDB</strong></td><td>{{ item.igdb_id }}</td></tr>{% endif %}
-                <tr><td><strong>Discovered</strong></td><td>{{ item.discovered_at or "—" }}</td></tr>
-                {% if item.uploaded_at %}<tr><td><strong>Uploaded</strong></td><td>{{ item.uploaded_at }}</td></tr>{% endif %}
-                {% if item.skip_reason %}<tr><td><strong>Skip Reason</strong></td><td>{{ item.skip_reason }}</td></tr>{% endif %}
-                {% if item.rejection_reason %}<tr><td><strong>Rejection Reason</strong></td><td>{{ item.rejection_reason }}</td></tr>{% endif %}
-                {% if item.upload_error %}<tr><td><strong>Error</strong></td><td class="error-text">{{ item.upload_error }}</td></tr>{% endif %}
-            </table>
-        </article>
+<div class="detail-grid">
+    <!-- Release Info -->
+    <div class="card">
+        <div class="card-header"><h3>Release Info</h3></div>
+        <table class="info-table">
+            <tr><td>Source Name</td><td>{{ item.source_basename }}</td></tr>
+            <tr><td>Release Name</td><td>{{ item.release_name or "—" }}</td></tr>
+            <tr><td>Display Name</td><td>{{ item.display_name or "—" }}</td></tr>
+            <tr><td>Category</td><td>{{ item.content_category or "—" }}</td></tr>
+            <tr><td>Resolution</td><td>{{ item.resolution or "—" }}</td></tr>
+            <tr><td>Source</td><td>{{ item.source_tag or "—" }}</td></tr>
+            <tr><td>Size</td><td>{{ item.file_size | filesize }}</td></tr>
+            <tr><td>Tracker</td><td>{{ item.tracker_name or "—" }}</td></tr>
+            {% if item.tmdb_id %}
+            <tr><td>TMDB</td><td>{{ item.tmdb_title or "" }} ({{ item.tmdb_year or "" }}) — ID: {{ item.tmdb_id }}</td></tr>
+            {% endif %}
+            {% if item.imdb_id %}<tr><td>IMDB</td><td>{{ item.imdb_id }}</td></tr>{% endif %}
+            {% if item.igdb_id %}<tr><td>IGDB</td><td>{{ item.igdb_id }}</td></tr>{% endif %}
+            <tr><td>Discovered</td><td>{{ item.discovered_at or "—" }}</td></tr>
+            {% if item.uploaded_at %}<tr><td>Uploaded</td><td>{{ item.uploaded_at }}</td></tr>{% endif %}
+            {% if item.skip_reason %}<tr><td>Skip Reason</td><td>{{ item.skip_reason }}</td></tr>{% endif %}
+            {% if item.rejection_reason %}<tr><td>Rejected</td><td>{{ item.rejection_reason }}</td></tr>{% endif %}
+            {% if item.upload_error %}<tr><td>Error</td><td class="error-text">{{ item.upload_error }}</td></tr>{% endif %}
+        </table>
     </div>
 
-    <div>
-        {% if item.validation_report %}
-        <article>
-            <header>
-                Validation
-                {% if item.has_errors %}<span class="status-pill status-error">Errors</span>{% endif %}
-                {% if item.has_warnings %}<span class="status-pill status-pending">Warnings</span>{% endif %}
-            </header>
-            <table class="striped">
+    <!-- Validation -->
+    {% if item.validation_report %}
+    <div class="card">
+        <div class="card-header">
+            <h3>Validation</h3>
+            <div>
+                {% if item.has_errors %}<span class="pill pill-error">Errors</span>{% endif %}
+                {% if item.has_warnings %}<span class="pill pill-warn">Warnings</span>{% endif %}
+            </div>
+        </div>
+        <div class="table-container">
+            <table>
                 <thead><tr><th>Severity</th><th>Rule</th><th>Message</th></tr></thead>
                 <tbody>
                 {% for v in item.validation_report %}
-                    <tr class="{% if v.severity == 'ERROR' %}error-row{% elif v.severity == 'WARNING' %}warning-row{% endif %}">
-                        <td>{{ v.severity if v.severity else "INFO" }}</td>
-                        <td>{{ v.rule if v.rule else "—" }}</td>
+                    <tr class="{% if v.severity == 'ERROR' %}val-error{% elif v.severity == 'WARNING' %}val-warn{% endif %}">
+                        <td><span class="pill pill-{% if v.severity == 'ERROR' %}error{% elif v.severity == 'WARNING' %}warn{% else %}ok{% endif %}">{{ v.severity if v.severity else "INFO" }}</span></td>
+                        <td class="secondary">{{ v.rule if v.rule else "—" }}</td>
                         <td>{{ v.message if v.message else v }}</td>
                     </tr>
                 {% endfor %}
                 </tbody>
             </table>
-        </article>
-        {% endif %}
+        </div>
     </div>
+    {% endif %}
 </div>
 
+<!-- Description / Prez -->
 {% if item.description %}
-<details open>
-    <summary>Description / Prez (BBCode Preview)</summary>
-    <article class="bbcode-preview">
+<details class="accordion" open>
+    <summary><i data-lucide="file-text" style="width:16px;height:16px"></i> Description / Prez</summary>
+    <div class="accordion-body bbcode-preview">
         {{ item.description | bbcode | safe }}
-    </article>
+    </div>
 </details>
 {% endif %}
 
+<!-- MediaInfo -->
 {% if item.mediainfo %}
-<details>
-    <summary>MediaInfo</summary>
-    <pre class="mediainfo-block">{{ item.mediainfo }}</pre>
+<details class="accordion">
+    <summary><i data-lucide="monitor" style="width:16px;height:16px"></i> MediaInfo</summary>
+    <div class="accordion-body">
+        <pre class="pre-block">{{ item.mediainfo }}</pre>
+    </div>
 </details>
 {% endif %}
 
+<!-- NFO -->
 {% if item.nfo_content %}
-<details>
-    <summary>NFO</summary>
-    <pre class="nfo-block">{{ item.nfo_content }}</pre>
+<details class="accordion">
+    <summary><i data-lucide="file-code" style="width:16px;height:16px"></i> NFO</summary>
+    <div class="accordion-body">
+        <pre class="pre-block">{{ item.nfo_content }}</pre>
+    </div>
 </details>
 {% endif %}
 
+<!-- Actions -->
 {% if item.status in ('pending', 'error') %}
-<article>
-    <header>Actions</header>
+<div class="card" style="margin-top:1.5rem">
+    <div class="card-header"><h3>Actions</h3></div>
     <form id="approve-form">
-        <label for="release_name">Release Name (edit to override)</label>
-        <input type="text" id="release_name" name="release_name"
-               value="{{ item.user_edited_name or item.release_name or '' }}"
-               placeholder="Release name">
-
-        <label for="description_edit">Description (edit to override)</label>
-        <textarea id="description_edit" name="description" rows="6"
-                  placeholder="Leave empty to use generated description">{{ item.user_edited_desc or '' }}</textarea>
-
-        <div class="grid">
-            <button type="button" class="approve-btn"
+        <div class="form-group">
+            <label for="release_name">Release Name (edit to override)</label>
+            <input type="text" id="release_name" name="release_name" class="form-input"
+                   value="{{ item.user_edited_name or item.release_name or '' }}"
+                   placeholder="Release name">
+        </div>
+        <div class="form-group">
+            <label for="description_edit">Description (edit to override)</label>
+            <textarea id="description_edit" name="description" class="form-textarea"
+                      placeholder="Leave empty to use generated description">{{ item.user_edited_desc or '' }}</textarea>
+        </div>
+        <div class="btn-group">
+            <button type="button" class="btn btn-success"
                     hx-post="/api/v1/items/{{ item.id }}/approve"
                     hx-ext="json-enc"
                     hx-vals='js:{
@@ -117,26 +132,23 @@
                     hx-confirm="Approve and upload this item?"
                     hx-target="#action-result"
                     hx-swap="innerHTML">
-                Approve & Upload
+                <i data-lucide="upload"></i> Approve & Upload
             </button>
-
-            <button type="button" class="reject-btn"
-                    onclick="rejectItem({{ item.id }})">
-                Reject
+            <button type="button" class="btn btn-danger" onclick="rejectItem({{ item.id }})">
+                <i data-lucide="x-circle"></i> Reject
             </button>
-
             {% if item.status == 'error' %}
-            <button type="button"
+            <button type="button" class="btn btn-ghost"
                     hx-post="/api/v1/items/{{ item.id }}/retry"
                     hx-target="#action-result"
                     hx-swap="innerHTML">
-                Retry
+                <i data-lucide="refresh-cw"></i> Retry
             </button>
             {% endif %}
         </div>
     </form>
     <div id="action-result"></div>
-</article>
+</div>
 
 <script>
 function rejectItem(id) {
@@ -151,26 +163,26 @@ function rejectItem(id) {
             window.location.href = "/history";
         } else {
             document.getElementById("action-result").innerHTML =
-                `<p class="error-text">${data.detail || data.message}</p>`;
+                `<div class="alert alert-error">${data.detail || data.message}</div>`;
         }
     }).catch(err => {
         document.getElementById("action-result").innerHTML =
-            `<p class="error-text">Error: ${err}</p>`;
+            `<div class="alert alert-error">Error: ${err}</div>`;
     });
 }
 </script>
 {% endif %}
 
 {% if item.status in ('rejected', 'skipped') %}
-<article>
-    <header>Actions</header>
-    <button type="button"
+<div class="card" style="margin-top:1.5rem">
+    <div class="card-header"><h3>Actions</h3></div>
+    <button type="button" class="btn btn-primary"
             hx-post="/api/v1/items/{{ item.id }}/retry"
             hx-swap="none"
             hx-on::after-request="window.location.href='/pending'">
-        Rescan / Move to Pending
+        <i data-lucide="refresh-cw"></i> Rescan / Move to Pending
     </button>
-</article>
+</div>
 {% endif %}
 
 {% endblock %}

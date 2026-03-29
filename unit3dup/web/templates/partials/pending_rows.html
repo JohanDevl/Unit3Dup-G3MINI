@@ -1,42 +1,44 @@
-<div class="overflow-auto">
-<table class="striped">
-    <thead>
-        <tr>
-            <th>Source Name</th>
-            <th>Release Name</th>
-            <th>Category</th>
-            <th>Source</th>
-            <th>Resolution</th>
-            <th>Warnings</th>
-            <th>Discovered</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-    {% for item in items %}
-        <tr>
-            <td>{{ item.source_basename }}</td>
-            <td>
-                <a href="/pending/{{ item.id }}">
-                    {{ item.release_name or item.display_name or "—" }}
-                </a>
-            </td>
-            <td>{{ item.content_category or "—" }}</td>
-            <td>{{ item.source_tag or "—" }}</td>
-            <td>{{ item.resolution or "—" }}</td>
-            <td>
-                {% if item.has_errors %}<span class="status-pill status-error">Error</span>
-                {% elif item.has_warnings %}<span class="status-pill status-pending">Warn</span>
-                {% else %}<span class="status-pill status-uploaded">OK</span>{% endif %}
-            </td>
-            <td>{{ item.discovered_at[:16] if item.discovered_at else "—" }}</td>
-            <td>
-                <a href="/pending/{{ item.id }}" role="button" class="outline small-btn">Review</a>
-            </td>
-        </tr>
-    {% else %}
-        <tr><td colspan="8">No pending items. Waiting for watcher to discover new media...</td></tr>
-    {% endfor %}
-    </tbody>
-</table>
+<div class="table-container">
+    <table id="pending-table">
+        <thead>
+            <tr>
+                <th onclick="tableSort('pending-table', 0, this)" style="width:25%">Source <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 1, this)" style="width:25%">Release Name <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 2, this)">Size <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 3, this)">Category <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 4, this)">Source Tag <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 5, this)">Resolution <span class="sort-arrow">&#8597;</span></th>
+                <th>Validation</th>
+                <th onclick="tableSort('pending-table', 7, this)">Discovered <span class="sort-arrow">&#8597;</span></th>
+                <th style="width:80px"></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+            <tr>
+                <td class="truncate">{{ item.source_basename }}</td>
+                <td class="truncate">
+                    <a href="/pending/{{ item.id }}">
+                        {{ item.release_name or item.display_name or "—" }}
+                    </a>
+                </td>
+                <td class="secondary">{{ item.file_size | filesize }}</td>
+                <td class="secondary">{{ item.content_category or "—" }}</td>
+                <td class="secondary">{{ item.source_tag or "—" }}</td>
+                <td class="secondary">{{ item.resolution or "—" }}</td>
+                <td>
+                    {% if item.has_errors %}<span class="pill pill-error">Error</span>
+                    {% elif item.has_warnings %}<span class="pill pill-warn">Warn</span>
+                    {% else %}<span class="pill pill-ok">OK</span>{% endif %}
+                </td>
+                <td class="secondary">{{ item.discovered_at[:16] if item.discovered_at else "—" }}</td>
+                <td>
+                    <a href="/pending/{{ item.id }}" class="btn btn-ghost btn-sm">Review</a>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="9" class="secondary" style="text-align:center;padding:2rem">No pending items. Waiting for watcher to discover new media...</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
 </div>

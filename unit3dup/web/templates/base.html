@@ -1,33 +1,112 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title | default("Dashboard") }} - Unit3Dup</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <title>{{ page_title | default("Dashboard") }} — Unit3Dup</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-    <header class="container">
-        <nav>
-            <ul>
-                <li><strong>Unit3Dup</strong></li>
-            </ul>
-            <ul>
-                <li><a href="/" {% if page_title == "Dashboard" %}aria-current="page"{% endif %}>Dashboard</a></li>
-                <li><a href="/pending" {% if page_title == "Pending" %}aria-current="page"{% endif %}>Pending</a></li>
-                <li><a href="/history" {% if page_title == "History" %}aria-current="page"{% endif %}>History</a></li>
-            </ul>
-        </nav>
-    </header>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-    <main class="container">
-        {% block content %}{% endblock %}
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <i data-lucide="upload-cloud" style="color:var(--accent)"></i>
+            <div class="sidebar-logo">Unit3<span>Dup</span></div>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/" class="nav-item {% if page_title == 'Dashboard' %}active{% endif %}">
+                <i data-lucide="layout-dashboard"></i>
+                <span class="nav-label">Dashboard</span>
+            </a>
+            <a href="/pending" class="nav-item {% if page_title == 'Pending' %}active{% endif %}">
+                <i data-lucide="clock"></i>
+                <span class="nav-label">Pending</span>
+                {% set pc = get_pending_count() %}
+                {% if pc > 0 %}<span class="nav-badge">{{ pc }}</span>{% endif %}
+            </a>
+            <a href="/history" class="nav-item {% if page_title == 'History' %}active{% endif %}">
+                <i data-lucide="history"></i>
+                <span class="nav-label">History</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <span class="nav-label">Unit3Dup Dashboard</span>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="top-bar">
+            <button class="sidebar-toggle" onclick="toggleSidebar()">
+                <i data-lucide="menu" style="width:20px;height:20px"></i>
+            </button>
+            <h1>{{ page_title | default("Dashboard") }}</h1>
+        </header>
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
     </main>
 
-    <footer class="container">
-        <small>Unit3Dup Web Dashboard</small>
-    </footer>
+    <script>
+        // Init Lucide icons
+        lucide.createIcons();
+
+        // Sidebar toggle (mobile)
+        function toggleSidebar() {
+            document.querySelector('.sidebar').classList.toggle('open');
+            document.querySelector('.sidebar-overlay').classList.toggle('open');
+        }
+
+        // Re-init icons after HTMX swap
+        document.body.addEventListener('htmx:afterSwap', () => lucide.createIcons());
+
+        // ── Table interactivity ──────────────────────────────────────
+
+        function tableSearch(inputEl, tableId) {
+            const filter = inputEl.value.toLowerCase();
+            const rows = document.querySelectorAll(`#${tableId} tbody tr`);
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(filter) ? '' : 'none';
+            });
+        }
+
+        function tableFilter(selectEl, tableId, colIndex) {
+            const val = selectEl.value.toLowerCase();
+            const rows = document.querySelectorAll(`#${tableId} tbody tr`);
+            rows.forEach(row => {
+                if (!val) { row.style.display = ''; return; }
+                const cell = row.cells[colIndex];
+                const text = cell ? cell.textContent.toLowerCase().trim() : '';
+                row.style.display = text.includes(val) ? '' : 'none';
+            });
+        }
+
+        function tableSort(tableId, colIndex, th) {
+            const table = document.getElementById(tableId);
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            // Toggle direction
+            const isAsc = th.classList.contains('sort-asc');
+            table.querySelectorAll('th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+            th.classList.add(isAsc ? 'sort-desc' : 'sort-asc');
+
+            const dir = isAsc ? -1 : 1;
+            rows.sort((a, b) => {
+                const aText = (a.cells[colIndex]?.textContent || '').trim().toLowerCase();
+                const bText = (b.cells[colIndex]?.textContent || '').trim().toLowerCase();
+                // Try numeric sort
+                const aNum = parseFloat(aText);
+                const bNum = parseFloat(bText);
+                if (!isNaN(aNum) && !isNaN(bNum)) return (aNum - bNum) * dir;
+                return aText.localeCompare(bText) * dir;
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+        }
+    </script>
 </body>
 </html>

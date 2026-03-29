@@ -1,50 +1,72 @@
 {% extends "base.html" %}
 {% block content %}
-<hgroup>
-    <h2>History</h2>
-    <p>{{ items | length }} item(s)</p>
-</hgroup>
 
-<div role="group">
-    <a href="/history" role="button" {% if not current_status %}class="outline"{% endif %}>All</a>
-    <a href="/history?status=uploaded" role="button" {% if current_status == 'uploaded' %}class="outline"{% endif %}>Uploaded</a>
-    <a href="/history?status=rejected" role="button" {% if current_status == 'rejected' %}class="outline"{% endif %}>Rejected</a>
-    <a href="/history?status=skipped" role="button" {% if current_status == 'skipped' %}class="outline"{% endif %}>Skipped</a>
-    <a href="/history?status=error" role="button" {% if current_status == 'error' %}class="outline"{% endif %}>Error</a>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+    <div>
+        <h2 style="margin-bottom:0.25rem">History</h2>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0">{{ items | length }} item(s)</p>
+    </div>
 </div>
 
-<div class="overflow-auto">
-<table class="striped">
-    <thead>
-        <tr>
-            <th>Name</th>
-            <th>Status</th>
-            <th>Category</th>
-            <th>Source</th>
-            <th>Resolution</th>
-            <th>Reason</th>
-            <th>Date</th>
-        </tr>
-    </thead>
-    <tbody>
-    {% for item in items %}
-        <tr>
-            <td>
-                <a href="/history/{{ item.id }}">
-                    {{ item.release_name or item.display_name or item.source_basename }}
-                </a>
-            </td>
-            <td><span class="status-pill status-{{ item.status }}">{{ item.status }}</span></td>
-            <td>{{ item.content_category or "—" }}</td>
-            <td>{{ item.source_tag or "—" }}</td>
-            <td>{{ item.resolution or "—" }}</td>
-            <td>{{ item.rejection_reason or item.skip_reason or "—" }}</td>
-            <td>{{ (item.uploaded_at or item.discovered_at or "")[:16] }}</td>
-        </tr>
-    {% else %}
-        <tr><td colspan="7">No items in history.</td></tr>
-    {% endfor %}
-    </tbody>
-</table>
+<div class="filter-tabs">
+    <a href="/history" class="filter-tab {% if not current_status %}active{% endif %}">All</a>
+    <a href="/history?status=uploaded" class="filter-tab {% if current_status == 'uploaded' %}active{% endif %}">Uploaded</a>
+    <a href="/history?status=rejected" class="filter-tab {% if current_status == 'rejected' %}active{% endif %}">Rejected</a>
+    <a href="/history?status=skipped" class="filter-tab {% if current_status == 'skipped' %}active{% endif %}">Skipped</a>
+    <a href="/history?status=error" class="filter-tab {% if current_status == 'error' %}active{% endif %}">Error</a>
 </div>
+
+<div class="card">
+    <div class="table-toolbar">
+        <div class="search-wrapper">
+            <i data-lucide="search"></i>
+            <input type="text" class="search-input" placeholder="Search history..."
+                   oninput="tableSearch(this, 'history-table')">
+        </div>
+        <select class="filter-select" onchange="tableFilter(this, 'history-table', 3)">
+            <option value="">All categories</option>
+            <option value="movie">Movie</option>
+            <option value="tv">TV</option>
+            <option value="animation">Animation</option>
+            <option value="game">Game</option>
+            <option value="documentary">Documentary</option>
+        </select>
+    </div>
+
+    <div class="table-container">
+        <table id="history-table">
+            <thead>
+                <tr>
+                    <th onclick="tableSort('history-table', 0, this)" style="width:30%">Name <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSort('history-table', 1, this)">Status <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSort('history-table', 2, this)">Category <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSort('history-table', 3, this)">Source <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSort('history-table', 4, this)">Resolution <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSort('history-table', 5, this)" style="width:20%">Reason <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSort('history-table', 6, this)">Date <span class="sort-arrow">&#8597;</span></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in items %}
+                <tr>
+                    <td class="truncate">
+                        <a href="/history/{{ item.id }}">
+                            {{ item.release_name or item.display_name or item.source_basename }}
+                        </a>
+                    </td>
+                    <td><span class="pill pill-{{ item.status }}">{{ item.status }}</span></td>
+                    <td class="secondary">{{ item.content_category or "—" }}</td>
+                    <td class="secondary">{{ item.source_tag or "—" }}</td>
+                    <td class="secondary">{{ item.resolution or "—" }}</td>
+                    <td class="secondary truncate">{{ item.rejection_reason or item.skip_reason or "—" }}</td>
+                    <td class="secondary">{{ (item.uploaded_at or item.discovered_at or "")[:16] }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="7" class="secondary" style="text-align:center;padding:2rem">No items in history.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
 {% endblock %}

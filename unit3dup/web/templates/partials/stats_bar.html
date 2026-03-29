@@ -1,18 +1,38 @@
-<div class="grid stats-grid">
-    <article class="stat-card">
-        <h3>{{ stats.get('pending', 0) }}</h3>
-        <p>Pending</p>
-    </article>
-    <article class="stat-card">
-        <h3>{{ stats.get('uploaded', 0) }}</h3>
-        <p>Uploaded</p>
-    </article>
-    <article class="stat-card">
-        <h3>{{ stats.get('rejected', 0) + stats.get('skipped', 0) }}</h3>
-        <p>Rejected / Skipped</p>
-    </article>
-    <article class="stat-card">
-        <h3>{{ stats.get('error', 0) }}</h3>
-        <p>Errors</p>
-    </article>
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon pending">
+            <i data-lucide="clock"></i>
+        </div>
+        <div class="stat-info">
+            <h3>{{ stats.get('pending', 0) }}</h3>
+            <p>Pending</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon uploaded">
+            <i data-lucide="check-circle"></i>
+        </div>
+        <div class="stat-info">
+            <h3>{{ stats.get('uploaded', 0) }}</h3>
+            <p>Uploaded</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon rejected">
+            <i data-lucide="x-circle"></i>
+        </div>
+        <div class="stat-info">
+            <h3>{{ stats.get('rejected', 0) + stats.get('skipped', 0) }}</h3>
+            <p>Rejected / Skipped</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon error">
+            <i data-lucide="alert-circle"></i>
+        </div>
+        <div class="stat-info">
+            <h3>{{ stats.get('error', 0) }}</h3>
+            <p>Errors</p>
+        </div>
+    </div>
 </div>
