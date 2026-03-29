@@ -171,6 +171,9 @@
                     ? 'No items'
                     : `${start}-${end} of ${totalVisible}`;
 
+                const pageNumEl = controls.querySelector('.page-num');
+                if (pageNumEl) pageNumEl.textContent = `Page ${currentPage} of ${totalPages}`;
+
                 // Update buttons
                 const prevBtn = controls.querySelector('.page-prev');
                 const nextBtn = controls.querySelector('.page-next');
@@ -191,6 +194,7 @@
                             <option value="0">All</option>
                         </select>
                         <button class="btn btn-ghost btn-sm page-prev" type="button">&lsaquo; Prev</button>
+                        <span class="page-num secondary" style="font-size:0.8rem;min-width:80px;text-align:center"></span>
                         <button class="btn btn-ghost btn-sm page-next" type="button">Next &rsaquo;</button>
                     </div>
                 </div>
