@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<hgroup>
+    <h2>Pending Items</h2>
+    <p>{{ items | length }} item(s) waiting for your approval</p>
+</hgroup>
+
+<div hx-get="/partials/pending-list" hx-trigger="every 10s" hx-swap="innerHTML" id="pending-container">
+    {% include "partials/pending_rows.html" %}
+</div>
+{% endblock %}

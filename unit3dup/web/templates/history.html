@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<hgroup>
+    <h2>History</h2>
+    <p>{{ items | length }} item(s)</p>
+</hgroup>
+
+<div role="group">
+    <a href="/history" role="button" {% if not current_status %}class="outline"{% endif %}>All</a>
+    <a href="/history?status=uploaded" role="button" {% if current_status == 'uploaded' %}class="outline"{% endif %}>Uploaded</a>
+    <a href="/history?status=rejected" role="button" {% if current_status == 'rejected' %}class="outline"{% endif %}>Rejected</a>
+    <a href="/history?status=skipped" role="button" {% if current_status == 'skipped' %}class="outline"{% endif %}>Skipped</a>
+    <a href="/history?status=error" role="button" {% if current_status == 'error' %}class="outline"{% endif %}>Error</a>
+</div>
+
+<div class="overflow-auto">
+<table class="striped">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Category</th>
+            <th>Source</th>
+            <th>Resolution</th>
+            <th>Reason</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for item in items %}
+        <tr>
+            <td>
+                <a href="/history/{{ item.id }}">
+                    {{ item.release_name or item.display_name or item.source_basename }}
+                </a>
+            </td>
+            <td><span class="status-pill status-{{ item.status }}">{{ item.status }}</span></td>
+            <td>{{ item.content_category or "—" }}</td>
+            <td>{{ item.source_tag or "—" }}</td>
+            <td>{{ item.resolution or "—" }}</td>
+            <td>{{ item.rejection_reason or item.skip_reason or "—" }}</td>
+            <td>{{ (item.uploaded_at or item.discovered_at or "")[:16] }}</td>
+        </tr>
+    {% else %}
+        <tr><td colspan="7">No items in history.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

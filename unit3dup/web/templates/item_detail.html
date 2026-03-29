@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li><a href="/{% if item.status == 'pending' %}pending{% else %}history{% endif %}">
+            {% if item.status == 'pending' %}Pending{% else %}History{% endif %}
+        </a></li>
+        <li>{{ item.source_basename }}</li>
+    </ul>
+</nav>
+
+<hgroup>
+    <h2>{{ item.release_name or item.display_name or item.source_basename }}</h2>
+    <p>
+        <span class="status-pill status-{{ item.status }}">{{ item.status }}</span>
+        {% if item.content_category %}<span class="badge badge-blue">{{ item.content_category }}</span>{% endif %}
+        {% if item.resolution %}<span class="badge badge-gray">{{ item.resolution }}</span>{% endif %}
+        {% if item.source_tag %}<span class="badge badge-red">{{ item.source_tag }}</span>{% endif %}
+    </p>
+</hgroup>
+
+<div class="grid">
+    <div>
+        <article>
+            <header>Release Info</header>
+            <table>
+                <tr><td><strong>Source Name</strong></td><td>{{ item.source_basename }}</td></tr>
+                <tr><td><strong>Release Name</strong></td><td>{{ item.release_name or "—" }}</td></tr>
+                <tr><td><strong>Display Name</strong></td><td>{{ item.display_name or "—" }}</td></tr>
+                <tr><td><strong>Category</strong></td><td>{{ item.content_category or "—" }}</td></tr>
+                <tr><td><strong>Resolution</strong></td><td>{{ item.resolution or "—" }}</td></tr>
+                <tr><td><strong>Source</strong></td><td>{{ item.source_tag or "—" }}</td></tr>
+                <tr><td><strong>Size</strong></td><td>{{ item.file_size | filesize }}</td></tr>
+                <tr><td><strong>Tracker</strong></td><td>{{ item.tracker_name or "—" }}</td></tr>
+                {% if item.tmdb_id %}<tr><td><strong>TMDB</strong></td><td>{{ item.tmdb_title or "" }} ({{ item.tmdb_year or "" }}) — ID: {{ item.tmdb_id }}</td></tr>{% endif %}
+                {% if item.imdb_id %}<tr><td><strong>IMDB</strong></td><td>{{ item.imdb_id }}</td></tr>{% endif %}
+                {% if item.igdb_id %}<tr><td><strong>IGDB</strong></td><td>{{ item.igdb_id }}</td></tr>{% endif %}
+                <tr><td><strong>Discovered</strong></td><td>{{ item.discovered_at or "—" }}</td></tr>
+                {% if item.uploaded_at %}<tr><td><strong>Uploaded</strong></td><td>{{ item.uploaded_at }}</td></tr>{% endif %}
+                {% if item.skip_reason %}<tr><td><strong>Skip Reason</strong></td><td>{{ item.skip_reason }}</td></tr>{% endif %}
+                {% if item.rejection_reason %}<tr><td><strong>Rejection Reason</strong></td><td>{{ item.rejection_reason }}</td></tr>{% endif %}
+                {% if item.upload_error %}<tr><td><strong>Error</strong></td><td class="error-text">{{ item.upload_error }}</td></tr>{% endif %}
+            </table>
+        </article>
+    </div>
+
+    <div>
+        {% if item.validation_report %}
+        <article>
+            <header>
+                Validation
+                {% if item.has_errors %}<span class="status-pill status-error">Errors</span>{% endif %}
+                {% if item.has_warnings %}<span class="status-pill status-pending">Warnings</span>{% endif %}
+            </header>
+            <table class="striped">
+                <thead><tr><th>Severity</th><th>Rule</th><th>Message</th></tr></thead>
+                <tbody>
+                {% for v in item.validation_report %}
+                    <tr class="{% if v.severity == 'ERROR' %}error-row{% elif v.severity == 'WARNING' %}warning-row{% endif %}">
+                        <td>{{ v.severity if v.severity else "INFO" }}</td>
+                        <td>{{ v.rule if v.rule else "—" }}</td>
+                        <td>{{ v.message if v.message else v }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </article>
+        {% endif %}
+    </div>
+</div>
+
+{% if item.description %}
+<details open>
+    <summary>Description / Prez (BBCode Preview)</summary>
+    <article class="bbcode-preview">
+        {{ item.description | bbcode | safe }}
+    </article>
+</details>
+{% endif %}
+
+{% if item.mediainfo %}
+<details>
+    <summary>MediaInfo</summary>
+    <pre class="mediainfo-block">{{ item.mediainfo }}</pre>
+</details>
+{% endif %}
+
+{% if item.nfo_content %}
+<details>
+    <summary>NFO</summary>
+    <pre class="nfo-block">{{ item.nfo_content }}</pre>
+</details>
+{% endif %}
+
+{% if item.status in ('pending', 'error') %}
+<article>
+    <header>Actions</header>
+    <form id="approve-form">
+        <label for="release_name">Release Name (edit to override)</label>
+        <input type="text" id="release_name" name="release_name"
+               value="{{ item.user_edited_name or item.release_name or '' }}"
+               placeholder="Release name">
+
+        <label for="description_edit">Description (edit to override)</label>
+        <textarea id="description_edit" name="description" rows="6"
+                  placeholder="Leave empty to use generated description">{{ item.user_edited_desc or '' }}</textarea>
+
+        <div class="grid">
+            <button type="button" class="approve-btn"
+                    hx-post="/api/v1/items/{{ item.id }}/approve"
+                    hx-ext="json-enc"
+                    hx-vals='js:{
+                        "release_name": document.getElementById("release_name").value || null,
+                        "description": document.getElementById("description_edit").value || null
+                    }'
+                    hx-confirm="Approve and upload this item?"
+                    hx-target="#action-result"
+                    hx-swap="innerHTML">
+                Approve & Upload
+            </button>
+
+            <button type="button" class="reject-btn"
+                    onclick="rejectItem({{ item.id }})">
+                Reject
+            </button>
+
+            {% if item.status == 'error' %}
+            <button type="button"
+                    hx-post="/api/v1/items/{{ item.id }}/retry"
+                    hx-target="#action-result"
+                    hx-swap="innerHTML">
+                Retry
+            </button>
+            {% endif %}
+        </div>
+    </form>
+    <div id="action-result"></div>
+</article>
+
+<script>
+function rejectItem(id) {
+    const reason = prompt("Reason for rejection:");
+    if (reason === null) return;
+    fetch(`/api/v1/items/${id}/reject`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({reason: reason})
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            window.location.href = "/history";
+        } else {
+            document.getElementById("action-result").innerHTML =
+                `<p class="error-text">${data.detail || data.message}</p>`;
+        }
+    }).catch(err => {
+        document.getElementById("action-result").innerHTML =
+            `<p class="error-text">Error: ${err}</p>`;
+    });
+}
+</script>
+{% endif %}
+
+{% if item.status in ('rejected', 'skipped') %}
+<article>
+    <header>Actions</header>
+    <button type="button"
+            hx-post="/api/v1/items/{{ item.id }}/retry"
+            hx-swap="none"
+            hx-on::after-request="window.location.href='/pending'">
+        Rescan / Move to Pending
+    </button>
+</article>
+{% endif %}
+
+{% endblock %}

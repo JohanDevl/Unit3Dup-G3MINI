@@ -1,0 +1,42 @@
+<div class="overflow-auto">
+<table class="striped">
+    <thead>
+        <tr>
+            <th>Source Name</th>
+            <th>Release Name</th>
+            <th>Category</th>
+            <th>Source</th>
+            <th>Resolution</th>
+            <th>Warnings</th>
+            <th>Discovered</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for item in items %}
+        <tr>
+            <td>{{ item.source_basename }}</td>
+            <td>
+                <a href="/pending/{{ item.id }}">
+                    {{ item.release_name or item.display_name or "—" }}
+                </a>
+            </td>
+            <td>{{ item.content_category or "—" }}</td>
+            <td>{{ item.source_tag or "—" }}</td>
+            <td>{{ item.resolution or "—" }}</td>
+            <td>
+                {% if item.has_errors %}<span class="status-pill status-error">Error</span>
+                {% elif item.has_warnings %}<span class="status-pill status-pending">Warn</span>
+                {% else %}<span class="status-pill status-uploaded">OK</span>{% endif %}
+            </td>
+            <td>{{ item.discovered_at[:16] if item.discovered_at else "—" }}</td>
+            <td>
+                <a href="/pending/{{ item.id }}" role="button" class="outline small-btn">Review</a>
+            </td>
+        </tr>
+    {% else %}
+        <tr><td colspan="8">No pending items. Waiting for watcher to discover new media...</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>

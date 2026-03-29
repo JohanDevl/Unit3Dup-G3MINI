@@ -119,6 +119,26 @@ class Bot:
         self.validation_reports = torrent_manager.validation_reports
         return True
 
+    def prepare(self) -> list:
+        """Prepare contents without uploading. Returns list of PreparedItem objects."""
+        from unit3dup.prepared_item import PreparedItem
+
+        contents = self.contents()
+        if not contents:
+            return []
+
+        torrent_manager = TorrentManager(
+            cli=self.cli,
+            tracker_archive=self.torrent_archive_path,
+            qbit_category=self.qbit_category,
+        )
+        torrent_manager.process(contents=contents)
+        prepared_items = torrent_manager.prepare_all(trackers_name_list=self.trackers_name_list)
+
+        self.skip_reasons = torrent_manager.skip_reasons
+        self.validation_reports = torrent_manager.validation_reports
+
+        return prepared_items
 
     def watcher(self, duration: int, watcher_folders: list, state_dir: str) -> bool:
         """
@@ -153,6 +173,17 @@ class Bot:
             # In dry-run mode, write to a separate preview file
             dryrun_state = WatcherState(state_dir=state_dir, filename="watcher_dryrun.json") if dry_run else None
 
+            state_db = None
+            if getattr(self.cli, 'web', False):
+                from unit3dup.state_db import StateDB
+                db_path = os.path.join(state_dir, "unit3dup.db")
+                state_db = StateDB(db_path=db_path)
+                # Migrate existing JSON state if DB is fresh
+                if not state_db.count_by_status():
+                    migrated = state_db.migrate_from_json(watcher_state.state_file)
+                    if migrated:
+                        custom_console.bot_log(f"[Watcher] Migrated {migrated} entries from JSON to SQLite")
+
             if dry_run:
                 custom_console.bot_log("[Watcher] DRY-RUN mode: results written to watcher_dryrun.json only")
             custom_console.bot_log(
@@ -184,8 +215,11 @@ class Bot:
                         if not src.exists():
                             continue
 
-                        # Check watcher state BEFORE any heavy processing
-                        status = watcher_state.is_known(str(src), folder_path=watcher_path)
+                        # Check state BEFORE any heavy processing
+                        if state_db:
+                            status = state_db.is_known(src.name)
+                        else:
+                            status = watcher_state.is_known(str(src), folder_path=watcher_path)
                         if status:
                             continue
 
@@ -201,6 +235,94 @@ class Bot:
                             torrent_archive_path=self.torrent_archive_path,
                             qbit_category=folder_category,
                         )
+
+                        if state_db:
+                            # Web mode: prepare only, don't upload
+                            import json
+                            from datetime import datetime
+                            prepared_items = single_bot.prepare()
+
+                            for item in prepared_items:
+                                if item.skip_reason:
+                                    state_db.add_item(
+                                        source_basename=src.name,
+                                        source_path=str(src),
+                                        folder_path=watcher_path,
+                                        source_type="folder" if src.is_dir() else "file",
+                                        status="skipped",
+                                        content_category=item.content_category,
+                                        qbit_category=item.qbit_category,
+                                        display_name=item.display_name,
+                                        torrent_name=item.content.torrent_name if item.content else "",
+                                        release_name=item.release_name,
+                                        source_tag=item.source_tag,
+                                        file_size=item.content.size if item.content else 0,
+                                        resolution=item.resolution,
+                                        tmdb_id=item.tmdb_id,
+                                        imdb_id=item.imdb_id,
+                                        igdb_id=item.igdb_id,
+                                        tmdb_title=item.tmdb_title,
+                                        tmdb_year=item.tmdb_year,
+                                        description=item.description,
+                                        mediainfo=item.mediainfo,
+                                        nfo_content=item.nfo_content,
+                                        tracker_payload=item.tracker_data,
+                                        tracker_name=item.tracker_name,
+                                        trackers_list=item.trackers_list,
+                                        torrent_archive_path=item.torrent_filepath,
+                                        validation_report=item.validation_report,
+                                        has_errors=int(item.has_errors),
+                                        has_warnings=int(item.has_warnings),
+                                        skip_reason=item.skip_reason,
+                                        prepared_at=None,
+                                    )
+                                    custom_console.bot_warning_log(f"[Watcher/Web] Skipped → {src.name} ({item.skip_reason})")
+                                else:
+                                    state_db.add_item(
+                                        source_basename=src.name,
+                                        source_path=str(src),
+                                        folder_path=watcher_path,
+                                        source_type="folder" if src.is_dir() else "file",
+                                        status="pending",
+                                        content_category=item.content_category,
+                                        qbit_category=item.qbit_category,
+                                        display_name=item.display_name,
+                                        torrent_name=item.content.torrent_name if item.content else "",
+                                        release_name=item.release_name,
+                                        source_tag=item.source_tag,
+                                        file_size=item.content.size if item.content else 0,
+                                        resolution=item.resolution,
+                                        tmdb_id=item.tmdb_id,
+                                        imdb_id=item.imdb_id,
+                                        igdb_id=item.igdb_id,
+                                        tmdb_title=item.tmdb_title,
+                                        tmdb_year=item.tmdb_year,
+                                        description=item.description,
+                                        mediainfo=item.mediainfo,
+                                        nfo_content=item.nfo_content,
+                                        tracker_payload=item.tracker_data,
+                                        tracker_name=item.tracker_name,
+                                        trackers_list=item.trackers_list,
+                                        torrent_archive_path=item.torrent_filepath,
+                                        validation_report=item.validation_report,
+                                        has_errors=int(item.has_errors),
+                                        has_warnings=int(item.has_warnings),
+                                        prepared_at=datetime.now().isoformat(),
+                                    )
+                                    custom_console.bot_log(f"[Watcher/Web] Pending → {item.release_name or src.name}")
+
+                            if not prepared_items:
+                                state_db.add_item(
+                                    source_basename=src.name,
+                                    source_path=str(src),
+                                    folder_path=watcher_path,
+                                    source_type="folder" if src.is_dir() else "file",
+                                    status="skipped",
+                                    skip_reason="no_processable_media",
+                                )
+                                custom_console.bot_warning_log(f"[Watcher/Web] Skipped → {src.name} (no_processable_media)")
+
+                            continue  # Skip the normal (non-web) processing below
 
                         ok = single_bot.run()
 

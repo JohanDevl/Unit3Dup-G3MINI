@@ -1,0 +1,129 @@
+# -*- coding: utf-8 -*-
+"""HTML view endpoints for the web dashboard."""
+
+from __future__ import annotations
+
+import os
+
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+from unit3dup.state_db import StateDB
+from unit3dup.web.bbcode_renderer import bbcode_to_html
+
+router = APIRouter(tags=["views"])
+
+_templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+templates = Jinja2Templates(directory=_templates_dir)
+
+# Will be set by app factory
+_state_db: StateDB | None = None
+
+
+def init_views(state_db: StateDB):
+    global _state_db
+    _state_db = state_db
+    # Register custom filters
+    templates.env.filters["bbcode"] = bbcode_to_html
+    templates.env.filters["filesize"] = _format_filesize
+
+
+def _db() -> StateDB:
+    if _state_db is None:
+        raise HTTPException(500, "Database not initialized")
+    return _state_db
+
+
+def _format_filesize(size: int | None) -> str:
+    if not size:
+        return "—"
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if abs(size) < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} PB"
+
+
+@router.get("/", response_class=HTMLResponse)
+def dashboard(request: Request):
+    counts = _db().count_by_status()
+    recent = _db().list_items(per_page=10)
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "stats": counts,
+        "recent": recent,
+        "page_title": "Dashboard",
+    })
+
+
+@router.get("/pending", response_class=HTMLResponse)
+def pending_list(request: Request):
+    items = _db().list_items(status="pending", per_page=100)
+    return templates.TemplateResponse("pending.html", {
+        "request": request,
+        "items": items,
+        "page_title": "Pending",
+    })
+
+
+@router.get("/pending/{item_id}", response_class=HTMLResponse)
+def pending_detail(request: Request, item_id: int):
+    item = _db().get_item(item_id)
+    if not item:
+        raise HTTPException(404, "Item not found")
+    return templates.TemplateResponse("item_detail.html", {
+        "request": request,
+        "item": item,
+        "page_title": item.get("release_name") or item.get("display_name") or "Detail",
+    })
+
+
+@router.get("/history", response_class=HTMLResponse)
+def history_list(request: Request, status: str | None = None):
+    if status and status in ("uploaded", "rejected", "skipped", "error"):
+        items = _db().list_items(status=status, per_page=200)
+    else:
+        # Show all non-pending
+        all_items = []
+        for s in ("uploaded", "rejected", "skipped", "error"):
+            all_items.extend(_db().list_items(status=s, per_page=200))
+        items = sorted(all_items, key=lambda x: x.get("discovered_at", ""), reverse=True)
+    return templates.TemplateResponse("history.html", {
+        "request": request,
+        "items": items,
+        "current_status": status,
+        "page_title": "History",
+    })
+
+
+@router.get("/history/{item_id}", response_class=HTMLResponse)
+def history_detail(request: Request, item_id: int):
+    item = _db().get_item(item_id)
+    if not item:
+        raise HTTPException(404, "Item not found")
+    return templates.TemplateResponse("item_detail.html", {
+        "request": request,
+        "item": item,
+        "page_title": item.get("release_name") or item.get("display_name") or "Detail",
+    })
+
+
+# ── HTMX Partials ─────────────────────────────────────────────────
+
+@router.get("/partials/pending-list", response_class=HTMLResponse)
+def partial_pending_list(request: Request):
+    items = _db().list_items(status="pending", per_page=100)
+    return templates.TemplateResponse("partials/pending_rows.html", {
+        "request": request,
+        "items": items,
+    })
+
+
+@router.get("/partials/stats", response_class=HTMLResponse)
+def partial_stats(request: Request):
+    counts = _db().count_by_status()
+    return templates.TemplateResponse("partials/stats_bar.html", {
+        "request": request,
+        "stats": counts,
+    })

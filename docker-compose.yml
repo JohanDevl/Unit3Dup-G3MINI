@@ -8,11 +8,16 @@ services:
     restart: "no"
 
     # Watcher mode: monitors input folder, auto-uploads new files
+    # Web mode: add -web to enable the web dashboard for manual approval
     # Dry mode: add -noup to create torrents without uploading
     # Scan mode: add -scan instead of -watcher to analyze without uploading
-    command: ["-watcher"]
+    command: ["-watcher", "-web"]
+    # command: ["-watcher"]            # Watcher only: auto-upload without web UI
     # command: ["-watcher", "-noup"]   # Dry mode: torrent only, no upload
     # command: ["-scan", "/home/pc/data"]  # Scan mode: analyze files only
+
+    ports:
+      - "8000:8000"
 
     volumes:
       # Config (persists Unit3Dbot.json, cache, torrent archive,

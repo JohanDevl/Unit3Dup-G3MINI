@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Dashboard</h2>
+
+<div hx-get="/partials/stats" hx-trigger="every 10s" hx-swap="innerHTML">
+    {% include "partials/stats_bar.html" %}
+</div>
+
+<h3>Recent Activity</h3>
+<div class="overflow-auto">
+<table class="striped">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Category</th>
+            <th>Source</th>
+            <th>Discovered</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for item in recent %}
+        <tr>
+            <td>
+                <a href="/{% if item.status == 'pending' %}pending{% else %}history{% endif %}/{{ item.id }}">
+                    {{ item.release_name or item.display_name or item.source_basename }}
+                </a>
+            </td>
+            <td><span class="status-pill status-{{ item.status }}">{{ item.status }}</span></td>
+            <td>{{ item.content_category or "—" }}</td>
+            <td>{{ item.source_tag or "—" }}</td>
+            <td>{{ item.discovered_at[:16] if item.discovered_at else "—" }}</td>
+        </tr>
+    {% else %}
+        <tr><td colspan="5">No items yet. Start the watcher to discover media.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

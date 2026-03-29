@@ -145,6 +145,8 @@ class UserPreferences(BaseModel):
     CACHE_DBONLINE: bool = False
     PERSONAL_RELEASE: bool = False
     FAST_LOAD: int = 0
+    WEB_HOST: str = "0.0.0.0"
+    WEB_PORT: int = 8000
 
 
 class Options(BaseModel):

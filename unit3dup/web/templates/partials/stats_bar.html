@@ -1,0 +1,18 @@
+<div class="grid stats-grid">
+    <article class="stat-card">
+        <h3>{{ stats.get('pending', 0) }}</h3>
+        <p>Pending</p>
+    </article>
+    <article class="stat-card">
+        <h3>{{ stats.get('uploaded', 0) }}</h3>
+        <p>Uploaded</p>
+    </article>
+    <article class="stat-card">
+        <h3>{{ stats.get('rejected', 0) + stats.get('skipped', 0) }}</h3>
+        <p>Rejected / Skipped</p>
+    </article>
+    <article class="stat-card">
+        <h3>{{ stats.get('error', 0) }}</h3>
+        <p>Errors</p>
+    </article>
+</div>
