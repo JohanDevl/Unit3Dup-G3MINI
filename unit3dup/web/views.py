@@ -49,8 +49,7 @@ def _format_filesize(size: int | None) -> str:
 def dashboard(request: Request):
     counts = _db().count_by_status()
     recent = _db().list_items(per_page=10)
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "dashboard.html", {
         "stats": counts,
         "recent": recent,
         "page_title": "Dashboard",
@@ -60,8 +59,7 @@ def dashboard(request: Request):
 @router.get("/pending", response_class=HTMLResponse)
 def pending_list(request: Request):
     items = _db().list_items(status="pending", per_page=100)
-    return templates.TemplateResponse("pending.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "pending.html", {
         "items": items,
         "page_title": "Pending",
     })
@@ -72,8 +70,7 @@ def pending_detail(request: Request, item_id: int):
     item = _db().get_item(item_id)
     if not item:
         raise HTTPException(404, "Item not found")
-    return templates.TemplateResponse("item_detail.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "item_detail.html", {
         "item": item,
         "page_title": item.get("release_name") or item.get("display_name") or "Detail",
     })
@@ -89,8 +86,7 @@ def history_list(request: Request, status: str | None = None):
         for s in ("uploaded", "rejected", "skipped", "error"):
             all_items.extend(_db().list_items(status=s, per_page=200))
         items = sorted(all_items, key=lambda x: x.get("discovered_at", ""), reverse=True)
-    return templates.TemplateResponse("history.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "history.html", {
         "items": items,
         "current_status": status,
         "page_title": "History",
@@ -102,8 +98,7 @@ def history_detail(request: Request, item_id: int):
     item = _db().get_item(item_id)
     if not item:
         raise HTTPException(404, "Item not found")
-    return templates.TemplateResponse("item_detail.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "item_detail.html", {
         "item": item,
         "page_title": item.get("release_name") or item.get("display_name") or "Detail",
     })
@@ -114,8 +109,7 @@ def history_detail(request: Request, item_id: int):
 @router.get("/partials/pending-list", response_class=HTMLResponse)
 def partial_pending_list(request: Request):
     items = _db().list_items(status="pending", per_page=100)
-    return templates.TemplateResponse("partials/pending_rows.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "partials/pending_rows.html", {
         "items": items,
     })
 
@@ -123,7 +117,6 @@ def partial_pending_list(request: Request):
 @router.get("/partials/stats", response_class=HTMLResponse)
 def partial_stats(request: Request):
     counts = _db().count_by_status()
-    return templates.TemplateResponse("partials/stats_bar.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "partials/stats_bar.html", {
         "stats": counts,
     })
