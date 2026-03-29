@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from unit3dup.state_db import StateDB
 from unit3dup.web.models import (
     ApproveRequest, RejectRequest, BulkApproveRequest, BulkRejectRequest,
-    RescanTmdbRequest, UpdateSourceTypeRequest,
+    RescanTmdbRequest, UpdateSourceTypeRequest, UpdateResolutionRequest,
     StatsResponse, ItemDetail, ItemListResponse, ItemSummary,
 )
 from unit3dup.web.upload_service import UploadService
@@ -111,6 +111,22 @@ def save_item(item_id: int, req: ApproveRequest):
     if updates:
         _db().update_item(item_id, **updates)
     return {"success": True, "message": "Changes saved"}
+
+
+@router.post("/items/{item_id}/update-resolution")
+def update_resolution(item_id: int, req: UpdateResolutionRequest):
+    """Update the resolution (resolution_id) for an item."""
+    import json
+    item = _db().get_item(item_id)
+    if not item:
+        raise HTTPException(404, "Item not found")
+    tracker_payload = item.get("tracker_payload")
+    if isinstance(tracker_payload, str):
+        tracker_payload = json.loads(tracker_payload)
+    if tracker_payload:
+        tracker_payload["resolution_id"] = req.resolution_id
+    _db().update_item(item_id, resolution=req.resolution_label, tracker_payload=tracker_payload)
+    return {"success": True, "message": f"Resolution updated to {req.resolution_label}"}
 
 
 @router.post("/items/{item_id}/update-source-type")

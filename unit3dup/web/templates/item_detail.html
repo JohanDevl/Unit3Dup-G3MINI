@@ -30,7 +30,33 @@
             <tr><td>Release Name</td><td>{{ item.release_name or "—" }}</td></tr>
             <tr><td>Display Name</td><td>{{ item.display_name or "—" }}</td></tr>
             <tr><td>Category</td><td>{{ item.content_category or "—" }}</td></tr>
-            <tr><td>Resolution</td><td>{{ item.resolution or "—" }}</td></tr>
+            <tr>
+                <td>Resolution</td>
+                <td>
+                    {{ item.resolution or "—" }}
+                    {% if item.status in ('pending', 'error', 'skipped', 'rejected') %}
+                    {% set current_res_id = item.tracker_payload.resolution_id if item.tracker_payload and item.tracker_payload.resolution_id else '' %}
+                    <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
+                        <select id="resolution_select" class="filter-select" style="width:auto;margin:0;padding:0.3rem 0.5rem">
+                            <option value="">— Select —</option>
+                            <option value="1" {% if current_res_id == 1 %}selected{% endif %}>4320p</option>
+                            <option value="2" {% if current_res_id == 2 %}selected{% endif %}>2160p</option>
+                            <option value="3" {% if current_res_id == 3 %}selected{% endif %}>1080p</option>
+                            <option value="4" {% if current_res_id == 4 %}selected{% endif %}>1080i</option>
+                            <option value="5" {% if current_res_id == 5 %}selected{% endif %}>720p</option>
+                            <option value="6" {% if current_res_id == 6 %}selected{% endif %}>576p</option>
+                            <option value="7" {% if current_res_id == 7 %}selected{% endif %}>576i</option>
+                            <option value="8" {% if current_res_id == 8 %}selected{% endif %}>480p</option>
+                            <option value="9" {% if current_res_id == 9 %}selected{% endif %}>480i</option>
+                            <option value="10" {% if current_res_id == 10 %}selected{% endif %}>Other</option>
+                        </select>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="updateResolution({{ item.id }})">
+                            <i data-lucide="save" style="width:14px;height:14px"></i> Update
+                        </button>
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
             <tr>
                 <td>Source</td>
                 <td>
@@ -255,6 +281,32 @@
 </div>
 
 <script>
+function updateResolution(id) {
+    const select = document.getElementById('resolution_select');
+    const resId = parseInt(select.value);
+    if (!resId) {
+        document.getElementById("action-result").innerHTML =
+            '<div class="alert alert-error">Please select a resolution</div>';
+        return;
+    }
+    const label = select.options[select.selectedIndex].text;
+    fetch(`/api/v1/items/${id}/update-resolution`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({resolution_id: resId, resolution_label: label})
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            document.getElementById("action-result").innerHTML =
+                `<div class="alert alert-error">${data.detail || data.message}</div>`;
+        }
+    }).catch(err => {
+        document.getElementById("action-result").innerHTML =
+            `<div class="alert alert-error">Error: ${err}</div>`;
+    });
+}
+
 function updateSourceType(id) {
     const select = document.getElementById('source_type_select');
     const typeId = parseInt(select.value);

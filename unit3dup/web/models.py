@@ -36,6 +36,11 @@ class UpdateSourceTypeRequest(BaseModel):
     source_label: str
 
 
+class UpdateResolutionRequest(BaseModel):
+    resolution_id: int
+    resolution_label: str
+
+
 class StatsResponse(BaseModel):
     pending: int = 0
     uploaded: int = 0
