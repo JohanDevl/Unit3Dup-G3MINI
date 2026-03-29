@@ -533,6 +533,25 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     padding-right: 1rem;
 }
 
+.inline-edit {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-top: 0.5rem;
+}
+
+.inline-edit-input {
+    width: 140px;
+    margin: 0;
+    padding: 0.3rem 0.5rem;
+}
+
+.inline-edit .filter-select {
+    width: auto;
+    margin: 0;
+    padding: 0.3rem 0.5rem;
+}
+
 /* ── Accordion ─────────────────────────────────────────────────── */
 .accordion {
     margin-bottom: 1rem;
@@ -894,7 +913,9 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     .detail-grid { grid-template-columns: 1fr; gap: 1rem; }
     .detail-header h1 { font-size: 1.15rem; }
     .detail-meta { gap: 0.35rem; }
-    .info-table td:first-child { width: 90px; font-size: 0.75rem; }
+    .info-table td:first-child { width: 90px; font-size: 0.75rem; white-space: normal; }
+    .inline-edit { flex-wrap: wrap; }
+    .inline-edit-input { width: 100%; max-width: 140px; }
 
     /* Filter tabs: scroll horizontal */
     .filter-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 0.25rem; padding-bottom: 0.25rem; }
@@ -914,6 +935,7 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     .accordion summary { font-size: 0.85rem; padding: 0.6rem 0.75rem; }
     .accordion-body { padding: 0.75rem; }
     .pre-block { font-size: 0.65rem; max-height: 250px; }
+    .bbcode-preview .grid { grid-template-columns: 1fr; }
 
     /* Modal: full width on mobile */
     .modal { width: 95%; max-width: none; max-height: 90vh; overflow-y: auto; }
@@ -930,6 +952,6 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     .stats-grid { grid-template-columns: 1fr; }
     html { font-size: 13px; }
     .content { padding: 0.5rem; }
-    table { min-width: 500px; }
     .stat-card { flex-direction: column; text-align: center; gap: 0.25rem; }
+    .info-table td:first-child { width: auto; min-width: 70px; white-space: normal; }
 }

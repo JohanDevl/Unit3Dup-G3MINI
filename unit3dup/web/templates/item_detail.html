@@ -36,8 +36,8 @@
                     {{ item.resolution or "—" }}
                     {% if item.status == 'pending' %}
                     {% set current_res_id = item.tracker_payload.resolution_id if item.tracker_payload and item.tracker_payload.resolution_id else '' %}
-                    <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
-                        <select id="resolution_select" class="filter-select" style="width:auto;margin:0;padding:0.3rem 0.5rem">
+                    <div class="inline-edit">
+                        <select id="resolution_select" class="filter-select">
                             <option value="">— Select —</option>
                             <option value="1" {% if current_res_id == 1 %}selected{% endif %}>4320p</option>
                             <option value="2" {% if current_res_id == 2 %}selected{% endif %}>2160p</option>
@@ -63,8 +63,8 @@
                     {{ item.source_tag or "—" }}
                     {% if item.status == 'pending' %}
                     {% set current_type_id = item.tracker_payload.type_id if item.tracker_payload and item.tracker_payload.type_id else '' %}
-                    <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
-                        <select id="source_type_select" class="filter-select" style="width:auto;margin:0;padding:0.3rem 0.5rem">
+                    <div class="inline-edit">
+                        <select id="source_type_select" class="filter-select">
                             <option value="">— Select —</option>
                             <optgroup label="Video">
                                 <option value="1" {% if current_type_id == 1 %}selected{% endif %}>FULL DISC</option>
@@ -128,8 +128,8 @@
                         <span class="secondary">Not found</span>
                     {% endif %}
                     {% if item.status == 'pending' %}
-                    <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
-                        <input type="number" id="tmdb_id_input" class="form-input" style="width:140px;margin:0;padding:0.3rem 0.5rem"
+                    <div class="inline-edit">
+                        <input type="number" id="tmdb_id_input" class="form-input inline-edit-input"
                                value="{{ item.tmdb_id or '' }}" placeholder="TMDB ID">
                         <button type="button" class="btn btn-ghost btn-sm" onclick="rescanTmdb({{ item.id }})">
                             <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Update TMDB
