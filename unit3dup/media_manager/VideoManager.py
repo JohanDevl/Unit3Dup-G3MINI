@@ -187,35 +187,12 @@ class VideoManager:
                         # Store warnings/infos even if there are errors (web UI will show them)
                         self.validation_reports[release_name_check] = runner.to_dicts()
 
-                # ── Search for NFO file (read content, don't generate) ────────────
+                # ── Generate NFO content from mediainfo (path cleaned) ────────────
                 nfo_content = None
-                media_file_path = content.file_name if content.file_name else content.torrent_path
-
-                if media_file_path:
-                    media_file_path = os.path.abspath(media_file_path)
-
-                    if os.path.isdir(media_file_path):
-                        # Cas d'un dossier (release pack)
-                        nfo_files = [f for f in os.listdir(media_file_path) if f.lower().endswith('.nfo')]
-                        if nfo_files:
-                            nfo_path = os.path.join(media_file_path, nfo_files[0])
-                            try:
-                                with open(nfo_path, 'r', encoding='utf-8', errors='ignore') as f:
-                                    nfo_content = f.read()
-                            except Exception:
-                                pass
-                    elif os.path.isfile(media_file_path):
-                        # Cas d'un fichier unique
-                        file_dir = os.path.dirname(media_file_path)
-                        file_base = os.path.splitext(os.path.basename(media_file_path))[0]
-                        nfo_candidate = os.path.join(file_dir, f"{file_base}.nfo")
-
-                        if os.path.isfile(nfo_candidate):
-                            try:
-                                with open(nfo_candidate, 'r', encoding='utf-8', errors='ignore') as f:
-                                    nfo_content = f.read()
-                            except Exception:
-                                pass
+                if video_info.mediainfo:
+                    import re as _re
+                    _nfo_pattern = r'(Complete name\s+:\s+)(.+[/\\])([^/\\]+\.\w+)'
+                    nfo_content = _re.sub(_nfo_pattern, lambda m: m.group(1) + m.group(3), video_info.mediainfo)
 
                 # ── Create PreparedItem ──────────────────────────────────────────
                 source_type = "folder" if os.path.isdir(content.torrent_path) else "file"
