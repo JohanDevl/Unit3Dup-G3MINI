@@ -438,6 +438,12 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
 
 .btn-sm { padding: 0.3rem 0.7rem; font-size: 0.78rem; }
 
+.btn:disabled, .btn[disabled] {
+    opacity: 0.3;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 /* ── Forms ─────────────────────────────────────────────────────── */
