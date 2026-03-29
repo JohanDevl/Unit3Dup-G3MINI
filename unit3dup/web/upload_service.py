@@ -293,17 +293,31 @@ class UploadService:
             from common.external_services.theMovieDB.core.api import TmdbAPI
 
             api = TmdbAPI()
+            # Override language to French, fallback English
+            original_lang = api.params.get("language")
+            api.params["language"] = "fr-FR"
+
             category = item.get("content_category", "movie")
             # Map to TMDB category
             tmdb_category = "tv" if category in ("tv", "tv_show", "tv_animation") else "movie"
 
-            # Fetch details
+            # Fetch details in French
             details = api.details(video_id=new_tmdb_id, category=tmdb_category)
             if not details:
                 return {"success": False, "message": f"TMDB ID {new_tmdb_id} not found for category '{tmdb_category}'"}
 
             result = details  # MovieDetails or TVShowDetails object
             title = result.get_title() if hasattr(result, 'get_title') else str(result)
+
+            # If French title is empty, fallback to English
+            if not title or title == str(new_tmdb_id):
+                api.params["language"] = "en-US"
+                details_en = api.details(video_id=new_tmdb_id, category=tmdb_category)
+                if details_en:
+                    title = details_en.get_title() if hasattr(details_en, 'get_title') else title
+
+            # Restore original language
+            api.params["language"] = original_lang
             year = None
             if hasattr(result, 'get_date') and result.get_date():
                 try:
