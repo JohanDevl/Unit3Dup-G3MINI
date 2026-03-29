@@ -34,10 +34,29 @@
             <tr><td>Source</td><td>{{ item.source_tag or "—" }}</td></tr>
             <tr><td>Size</td><td>{{ item.file_size | filesize }}</td></tr>
             <tr><td>Tracker</td><td>{{ item.tracker_name or "—" }}</td></tr>
-            {% if item.tmdb_id %}
-            <tr><td>TMDB</td><td>{{ item.tmdb_title or "" }} ({{ item.tmdb_year or "" }}) — ID: {{ item.tmdb_id }}</td></tr>
-            {% endif %}
-            {% if item.imdb_id %}<tr><td>IMDB</td><td>{{ item.imdb_id }}</td></tr>{% endif %}
+            <tr>
+                <td>TMDB</td>
+                <td>
+                    {% if item.tmdb_id %}
+                        <a href="https://www.themoviedb.org/{{ 'tv' if item.content_category in ('tv', 'tv_show', 'tv_animation') else 'movie' }}/{{ item.tmdb_id }}" target="_blank" style="margin-right:0.5rem">
+                            {{ item.tmdb_title or "" }} ({{ item.tmdb_year or "" }})
+                        </a>
+                        <span class="badge badge-gray">ID: {{ item.tmdb_id }}</span>
+                    {% else %}
+                        <span class="secondary">Not found</span>
+                    {% endif %}
+                    {% if item.status in ('pending', 'error', 'skipped', 'rejected') %}
+                    <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
+                        <input type="number" id="tmdb_id_input" class="form-input" style="width:140px;margin:0;padding:0.3rem 0.5rem"
+                               value="{{ item.tmdb_id or '' }}" placeholder="TMDB ID">
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="rescanTmdb({{ item.id }})">
+                            <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Update TMDB
+                        </button>
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% if item.imdb_id %}<tr><td>IMDB</td><td><a href="https://www.imdb.com/title/tt{{ '%07d' % item.imdb_id if item.imdb_id else '' }}/" target="_blank">tt{{ '%07d' % item.imdb_id if item.imdb_id else item.imdb_id }}</a></td></tr>{% endif %}
             {% if item.igdb_id %}<tr><td>IGDB</td><td>{{ item.igdb_id }}</td></tr>{% endif %}
             <tr><td>Discovered</td><td>{{ item.discovered_at or "—" }}</td></tr>
             {% if item.uploaded_at %}<tr><td>Uploaded</td><td>{{ item.uploaded_at }}</td></tr>{% endif %}
@@ -151,6 +170,32 @@
 </div>
 
 <script>
+function rescanTmdb(id) {
+    const tmdbId = parseInt(document.getElementById('tmdb_id_input').value);
+    if (!tmdbId || tmdbId <= 0) {
+        document.getElementById("action-result").innerHTML =
+            '<div class="alert alert-error">Please enter a valid TMDB ID</div>';
+        return;
+    }
+    document.getElementById("action-result").innerHTML =
+        '<div class="alert" style="background:var(--info-bg);color:var(--info);border:1px solid rgba(59,130,246,0.2)">Fetching TMDB data...</div>';
+    fetch(`/api/v1/items/${id}/rescan-tmdb`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({tmdb_id: tmdbId})
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            document.getElementById("action-result").innerHTML =
+                `<div class="alert alert-error">${data.detail || data.message}</div>`;
+        }
+    }).catch(err => {
+        document.getElementById("action-result").innerHTML =
+            `<div class="alert alert-error">Error: ${err}</div>`;
+    });
+}
+
 function rejectItem(id) {
     const reason = prompt("Reason for rejection:");
     if (reason === null) return;

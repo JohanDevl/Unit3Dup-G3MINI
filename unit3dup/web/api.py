@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from unit3dup.state_db import StateDB
 from unit3dup.web.models import (
     ApproveRequest, RejectRequest, BulkApproveRequest, BulkRejectRequest,
-    StatsResponse, ItemDetail, ItemListResponse, ItemSummary,
+    RescanTmdbRequest, StatsResponse, ItemDetail, ItemListResponse, ItemSummary,
 )
 from unit3dup.web.upload_service import UploadService
 
@@ -91,6 +91,14 @@ def reject_item(item_id: int, req: RejectRequest):
 @router.post("/items/{item_id}/retry")
 def retry_item(item_id: int):
     result = _svc().retry_item(item_id)
+    if not result["success"]:
+        raise HTTPException(400, result["message"])
+    return result
+
+
+@router.post("/items/{item_id}/rescan-tmdb")
+def rescan_tmdb(item_id: int, req: RescanTmdbRequest):
+    result = _svc().rescan_tmdb(item_id, req.tmdb_id)
     if not result["success"]:
         raise HTTPException(400, result["message"])
     return result

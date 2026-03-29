@@ -178,6 +178,92 @@ class UploadService:
         successes = sum(1 for r in results if r["success"])
         return {"success": True, "message": f"{successes}/{len(ids)} uploaded", "results": results}
 
+    def rescan_tmdb(self, item_id: int, new_tmdb_id: int) -> dict:
+        """Re-fetch TMDB data for an item with a corrected TMDB ID.
+
+        Updates: tmdb_id, tmdb_title, tmdb_year, imdb_id, keywords,
+        and the corresponding fields in tracker_payload.
+        """
+        item = self.state_db.get_item(item_id)
+        if not item:
+            return {"success": False, "message": "Item not found"}
+        if item["status"] not in ("pending", "error", "skipped", "rejected"):
+            return {"success": False, "message": f"Cannot rescan item with status '{item['status']}'"}
+
+        try:
+            from common.external_services.theMovieDB.core.api import TmdbAPI
+
+            api = TmdbAPI()
+            category = item.get("content_category", "movie")
+            # Map to TMDB category
+            tmdb_category = "tv" if category in ("tv", "tv_show", "tv_animation") else "movie"
+
+            # Fetch details
+            details = api.details(video_id=new_tmdb_id, category=tmdb_category)
+            if not details:
+                return {"success": False, "message": f"TMDB ID {new_tmdb_id} not found for category '{tmdb_category}'"}
+
+            result = details  # MovieDetails or TVShowDetails object
+            title = result.get_title() if hasattr(result, 'get_title') else str(result)
+            year = None
+            if hasattr(result, 'get_date') and result.get_date():
+                try:
+                    from datetime import datetime as dt
+                    year = dt.strptime(result.get_date(), '%Y-%m-%d').year
+                except (ValueError, TypeError):
+                    pass
+
+            # Fetch keywords
+            keywords_list = ""
+            try:
+                keywords_result = api.keywords(video_id=new_tmdb_id, category=tmdb_category)
+                if keywords_result:
+                    keywords_list = keywords_result
+            except Exception:
+                pass
+
+            # Fetch IMDB ID from details
+            imdb_id = 0
+            if hasattr(result, 'imdb_id') and result.imdb_id:
+                try:
+                    imdb_id = int(str(result.imdb_id).replace('tt', ''))
+                except (ValueError, TypeError):
+                    pass
+
+            # Update tracker payload
+            tracker_payload = item.get("tracker_payload")
+            if isinstance(tracker_payload, str):
+                tracker_payload = json.loads(tracker_payload)
+            if tracker_payload:
+                tracker_payload["tmdb"] = new_tmdb_id
+                tracker_payload["imdb"] = imdb_id
+                if keywords_list:
+                    tracker_payload["keywords"] = keywords_list
+
+            # Update DB
+            self.state_db.update_item(
+                item_id,
+                tmdb_id=new_tmdb_id,
+                tmdb_title=title,
+                tmdb_year=year,
+                imdb_id=imdb_id,
+                tracker_payload=tracker_payload,
+                status="pending",  # Reset to pending for re-review
+            )
+
+            custom_console.bot_log(f"[Web] TMDB rescan → {title} ({year}) ID:{new_tmdb_id}")
+            return {
+                "success": True,
+                "message": f"TMDB updated: {title} ({year})",
+                "tmdb_id": new_tmdb_id,
+                "tmdb_title": title,
+                "tmdb_year": year,
+                "imdb_id": imdb_id,
+            }
+
+        except Exception as e:
+            return {"success": False, "message": f"TMDB rescan failed: {str(e)}"}
+
     def bulk_reject(self, ids: list[int], reason: str) -> dict:
         count = 0
         for item_id in ids:

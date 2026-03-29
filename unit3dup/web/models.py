@@ -27,6 +27,10 @@ class RetryRequest(BaseModel):
     pass
 
 
+class RescanTmdbRequest(BaseModel):
+    tmdb_id: int
+
+
 class StatsResponse(BaseModel):
     pending: int = 0
     uploaded: int = 0
