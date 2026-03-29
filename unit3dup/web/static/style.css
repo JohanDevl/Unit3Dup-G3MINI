@@ -842,12 +842,41 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     .card { padding: 0.75rem; }
     .card-header { padding-bottom: 0.75rem; margin-bottom: 0.75rem; }
 
-    /* Tables: horizontal scroll, smaller font */
-    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    table { font-size: 0.78rem; min-width: 600px; }
-    thead th { padding: 0.5rem; font-size: 0.7rem; }
-    tbody td { padding: 0.5rem; }
-    .truncate { max-width: 150px; }
+    /* Tables: card layout on mobile */
+    .table-container { overflow-x: visible; }
+    table { min-width: 0; }
+    thead { display: none; }
+    tbody tr {
+        display: block;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        margin-bottom: 0.5rem;
+        padding: 0.75rem;
+    }
+    tbody td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.3rem 0;
+        border-bottom: none;
+        font-size: 0.82rem;
+    }
+    tbody td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+    tbody td:empty { display: none; }
+    tbody td.truncate { max-width: none; white-space: normal; text-align: right; }
+    tbody td:last-child { border-bottom: none; }
+    /* Hide sort arrows on mobile */
+    .sort-arrow { display: none; }
 
     /* Toolbar: stack vertically */
     .table-toolbar {

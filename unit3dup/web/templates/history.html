@@ -56,17 +56,17 @@
             <tbody>
             {% for item in items %}
                 <tr>
-                    <td class="truncate">
+                    <td class="truncate" data-label="Name">
                         <a href="/history/{{ item.id }}">
                             {{ item.release_name or item.display_name or item.source_basename }}
                         </a>
                     </td>
-                    <td><span class="pill pill-{{ item.status }}">{{ item.status }}</span></td>
-                    <td class="secondary">{{ item.content_category or "—" }}</td>
-                    <td class="secondary">{{ item.source_tag or "—" }}</td>
-                    <td class="secondary">{{ item.resolution or "—" }}</td>
-                    <td class="secondary truncate">{{ (item.rejection_reason or item.skip_reason) | reason_label }}</td>
-                    <td class="secondary" data-sort="{{ item.uploaded_at or item.discovered_at or '' }}">{{ (item.uploaded_at or item.discovered_at) | datefmt }}</td>
+                    <td data-label="Status"><span class="pill pill-{{ item.status }}">{{ item.status }}</span></td>
+                    <td class="secondary" data-label="Category">{{ item.content_category or "—" }}</td>
+                    <td class="secondary" data-label="Source">{{ item.source_tag or "—" }}</td>
+                    <td class="secondary" data-label="Resolution">{{ item.resolution or "—" }}</td>
+                    <td class="secondary truncate" data-label="Reason">{{ (item.rejection_reason or item.skip_reason) | reason_label }}</td>
+                    <td class="secondary" data-sort="{{ item.uploaded_at or item.discovered_at or '' }}" data-label="Date">{{ (item.uploaded_at or item.discovered_at) | datefmt }}</td>
                 </tr>
             {% else %}
                 <tr><td colspan="7" class="secondary" style="text-align:center;padding:2rem">No items in history.</td></tr>
