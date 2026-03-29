@@ -40,16 +40,46 @@
                     <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
                         <select id="source_type_select" class="filter-select" style="width:auto;margin:0;padding:0.3rem 0.5rem">
                             <option value="">— Select —</option>
-                            <option value="1" {% if current_type_id == 1 %}selected{% endif %}>Full Disc</option>
-                            <option value="2" {% if current_type_id == 2 %}selected{% endif %}>Remux</option>
-                            <option value="3" {% if current_type_id == 3 %}selected{% endif %}>Encode / BDRip / BluRay</option>
-                            <option value="4" {% if current_type_id == 4 %}selected{% endif %}>WEB-DL</option>
-                            <option value="5" {% if current_type_id == 5 %}selected{% endif %}>WEBRip</option>
-                            <option value="6" {% if current_type_id == 6 %}selected{% endif %}>HDTV</option>
-                            <option value="7" {% if current_type_id == 7 %}selected{% endif %}>ISO</option>
-                            <option value="11" {% if current_type_id == 11 %}selected{% endif %}>DVD</option>
-                            <option value="12" {% if current_type_id == 12 %}selected{% endif %}>TVRip</option>
-                            <option value="13" {% if current_type_id == 13 %}selected{% endif %}>DVDRip</option>
+                            <optgroup label="Video">
+                                <option value="1" {% if current_type_id == 1 %}selected{% endif %}>FULL DISC</option>
+                                <option value="2" {% if current_type_id == 2 %}selected{% endif %}>REMUX</option>
+                                <option value="3" {% if current_type_id == 3 %}selected{% endif %}>BDRip</option>
+                                <option value="4" {% if current_type_id == 4 %}selected{% endif %}>WEB</option>
+                                <option value="5" {% if current_type_id == 5 %}selected{% endif %}>WEBRip</option>
+                                <option value="6" {% if current_type_id == 6 %}selected{% endif %}>HDTV</option>
+                                <option value="12" {% if current_type_id == 12 %}selected{% endif %}>TVRip</option>
+                                <option value="11" {% if current_type_id == 11 %}selected{% endif %}>DVD</option>
+                                <option value="13" {% if current_type_id == 13 %}selected{% endif %}>DVDRip</option>
+                                <option value="7" {% if current_type_id == 7 %}selected{% endif %}>ISO</option>
+                            </optgroup>
+                            <optgroup label="Jeux">
+                                <option value="16" {% if current_type_id == 16 %}selected{% endif %}>Jeux\Windows</option>
+                                <option value="17" {% if current_type_id == 17 %}selected{% endif %}>Jeux\Autre</option>
+                                <option value="18" {% if current_type_id == 18 %}selected{% endif %}>Jeux\Linux</option>
+                                <option value="19" {% if current_type_id == 19 %}selected{% endif %}>Jeux\MacOS</option>
+                                <option value="20" {% if current_type_id == 20 %}selected{% endif %}>Jeux\Xbox</option>
+                                <option value="21" {% if current_type_id == 21 %}selected{% endif %}>Jeux\Nintendo</option>
+                                <option value="22" {% if current_type_id == 22 %}selected{% endif %}>Jeux\Smartphone</option>
+                                <option value="23" {% if current_type_id == 23 %}selected{% endif %}>Jeux\Sony</option>
+                                <option value="24" {% if current_type_id == 24 %}selected{% endif %}>Jeux\Tablette</option>
+                            </optgroup>
+                            <optgroup label="Livres">
+                                <option value="25" {% if current_type_id == 25 %}selected{% endif %}>Livres\M4B</option>
+                                <option value="26" {% if current_type_id == 26 %}selected{% endif %}>Livres\MP3</option>
+                                <option value="27" {% if current_type_id == 27 %}selected{% endif %}>Livres</option>
+                                <option value="28" {% if current_type_id == 28 %}selected{% endif %}>Livres\BD</option>
+                                <option value="29" {% if current_type_id == 29 %}selected{% endif %}>Livres\Comics</option>
+                                <option value="30" {% if current_type_id == 30 %}selected{% endif %}>Livres\Mangas</option>
+                                <option value="31" {% if current_type_id == 31 %}selected{% endif %}>Livres\Magazine</option>
+                                <option value="32" {% if current_type_id == 32 %}selected{% endif %}>Livres\Presse</option>
+                                <option value="33" {% if current_type_id == 33 %}selected{% endif %}>Livres\Audio</option>
+                            </optgroup>
+                            <optgroup label="Logiciels">
+                                <option value="34" {% if current_type_id == 34 %}selected{% endif %}>Logiciels\Windows</option>
+                                <option value="35" {% if current_type_id == 35 %}selected{% endif %}>Logiciels\MacOS</option>
+                                <option value="36" {% if current_type_id == 36 %}selected{% endif %}>Logiciels\Linux</option>
+                                <option value="37" {% if current_type_id == 37 %}selected{% endif %}>Logiciels\Autres</option>
+                            </optgroup>
                         </select>
                         <button type="button" class="btn btn-ghost btn-sm" onclick="updateSourceType({{ item.id }})">
                             <i data-lucide="save" style="width:14px;height:14px"></i> Update
