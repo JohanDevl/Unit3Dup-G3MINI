@@ -34,7 +34,7 @@
                 <td>Resolution</td>
                 <td>
                     {{ item.resolution or "—" }}
-                    {% if item.status in ('pending', 'error', 'skipped', 'rejected') %}
+                    {% if item.status == 'pending' %}
                     {% set current_res_id = item.tracker_payload.resolution_id if item.tracker_payload and item.tracker_payload.resolution_id else '' %}
                     <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
                         <select id="resolution_select" class="filter-select" style="width:auto;margin:0;padding:0.3rem 0.5rem">
@@ -61,7 +61,7 @@
                 <td>Source</td>
                 <td>
                     {{ item.source_tag or "—" }}
-                    {% if item.status in ('pending', 'error', 'skipped', 'rejected') %}
+                    {% if item.status == 'pending' %}
                     {% set current_type_id = item.tracker_payload.type_id if item.tracker_payload and item.tracker_payload.type_id else '' %}
                     <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
                         <select id="source_type_select" class="filter-select" style="width:auto;margin:0;padding:0.3rem 0.5rem">
@@ -127,7 +127,7 @@
                     {% else %}
                         <span class="secondary">Not found</span>
                     {% endif %}
-                    {% if item.status in ('pending', 'error', 'skipped', 'rejected') %}
+                    {% if item.status == 'pending' %}
                     <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.5rem">
                         <input type="number" id="tmdb_id_input" class="form-input" style="width:140px;margin:0;padding:0.3rem 0.5rem"
                                value="{{ item.tmdb_id or '' }}" placeholder="TMDB ID">
