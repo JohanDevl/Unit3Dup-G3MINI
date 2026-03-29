@@ -89,7 +89,6 @@
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.querySelectorAll('tr'));
 
-            // Toggle direction
             const isAsc = th.classList.contains('sort-asc');
             table.querySelectorAll('th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
             th.classList.add(isAsc ? 'sort-desc' : 'sort-asc');
@@ -98,11 +97,29 @@
             rows.sort((a, b) => {
                 const aText = (a.cells[colIndex]?.textContent || '').trim().toLowerCase();
                 const bText = (b.cells[colIndex]?.textContent || '').trim().toLowerCase();
-                // Try numeric sort
                 const aNum = parseFloat(aText);
                 const bNum = parseFloat(bText);
                 if (!isNaN(aNum) && !isNaN(bNum)) return (aNum - bNum) * dir;
                 return aText.localeCompare(bText) * dir;
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        function tableSortDate(tableId, colIndex, th) {
+            const table = document.getElementById(tableId);
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            const isAsc = th.classList.contains('sort-asc');
+            table.querySelectorAll('th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+            th.classList.add(isAsc ? 'sort-desc' : 'sort-asc');
+
+            const dir = isAsc ? -1 : 1;
+            rows.sort((a, b) => {
+                const aVal = a.cells[colIndex]?.getAttribute('data-sort') || '';
+                const bVal = b.cells[colIndex]?.getAttribute('data-sort') || '';
+                return aVal.localeCompare(bVal) * dir;
             });
 
             rows.forEach(row => tbody.appendChild(row));

@@ -9,7 +9,7 @@
                 <th onclick="tableSort('pending-table', 4, this)">Source Tag <span class="sort-arrow">&#8597;</span></th>
                 <th onclick="tableSort('pending-table', 5, this)">Resolution <span class="sort-arrow">&#8597;</span></th>
                 <th>Validation</th>
-                <th onclick="tableSort('pending-table', 7, this)">Discovered <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSortDate('pending-table', 7, this)">Discovered <span class="sort-arrow">&#8597;</span></th>
                 <th style="width:80px"></th>
             </tr>
         </thead>
@@ -31,7 +31,7 @@
                     {% elif item.has_warnings %}<span class="pill pill-warn">Warn</span>
                     {% else %}<span class="pill pill-ok">OK</span>{% endif %}
                 </td>
-                <td class="secondary">{{ item.discovered_at[:16] if item.discovered_at else "—" }}</td>
+                <td class="secondary" data-sort="{{ item.discovered_at or '' }}">{{ item.discovered_at[:16] if item.discovered_at else "—" }}</td>
                 <td>
                     <a href="/pending/{{ item.id }}" class="btn btn-ghost btn-sm">Review</a>
                 </td>

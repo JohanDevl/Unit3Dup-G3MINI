@@ -27,6 +27,7 @@ def init_views(state_db: StateDB):
     # Register custom filters
     templates.env.filters["bbcode"] = bbcode_to_html
     templates.env.filters["filesize"] = _format_filesize
+    templates.env.filters["reason_label"] = _format_reason
     # Global context: pending count for sidebar badge
     templates.env.globals["get_pending_count"] = lambda: state_db.count_by_status().get("pending", 0)
 
@@ -35,6 +36,23 @@ def _db() -> StateDB:
     if _state_db is None:
         raise HTTPException(500, "Database not initialized")
     return _state_db
+
+
+_REASON_LABELS = {
+    "already_in_archive": "Already uploaded",
+    "duplicate_on_tracker": "Duplicate on tracker",
+    "no_tmdb_result": "TMDB not found",
+    "no_igdb_result": "IGDB not found",
+    "excluded_tag": "Excluded tag",
+    "validation_error": "Validation error",
+    "no_processable_media": "No media found",
+}
+
+
+def _format_reason(reason: str | None) -> str:
+    if not reason:
+        return "—"
+    return _REASON_LABELS.get(reason, reason.replace("_", " ").capitalize())
 
 
 def _format_filesize(size: int | None) -> str:
