@@ -16,6 +16,9 @@ services:
     # command: ["-watcher", "-noup"]   # Dry mode: torrent only, no upload
     # command: ["-scan", "/home/pc/data"]  # Scan mode: analyze files only
 
+    environment:
+      - TZ=Europe/Paris    # Adjust to your timezone
+
     ports:
       - "8000:8000"
 
