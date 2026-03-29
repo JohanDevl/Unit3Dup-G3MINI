@@ -140,8 +140,8 @@
             </tr>
             {% if item.imdb_id %}<tr><td>IMDB</td><td><a href="https://www.imdb.com/title/tt{{ '%07d' % item.imdb_id if item.imdb_id else '' }}/" target="_blank">tt{{ '%07d' % item.imdb_id if item.imdb_id else item.imdb_id }}</a></td></tr>{% endif %}
             {% if item.igdb_id %}<tr><td>IGDB</td><td>{{ item.igdb_id }}</td></tr>{% endif %}
-            <tr><td>Discovered</td><td>{{ item.discovered_at or "—" }}</td></tr>
-            {% if item.uploaded_at %}<tr><td>Uploaded</td><td>{{ item.uploaded_at }}</td></tr>{% endif %}
+            <tr><td>Discovered</td><td>{{ item.discovered_at | datefmt }}</td></tr>
+            {% if item.uploaded_at %}<tr><td>Uploaded</td><td>{{ item.uploaded_at | datefmt }}</td></tr>{% endif %}
             {% if item.skip_reason %}<tr><td>Skip Reason</td><td>{{ item.skip_reason }}</td></tr>{% endif %}
             {% if item.rejection_reason %}<tr><td>Rejected</td><td>{{ item.rejection_reason }}</td></tr>{% endif %}
             {% if item.upload_error %}<tr><td>Error</td><td class="error-text">{{ item.upload_error }}</td></tr>{% endif %}

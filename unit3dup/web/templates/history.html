@@ -66,7 +66,7 @@
                     <td class="secondary">{{ item.source_tag or "—" }}</td>
                     <td class="secondary">{{ item.resolution or "—" }}</td>
                     <td class="secondary truncate">{{ (item.rejection_reason or item.skip_reason) | reason_label }}</td>
-                    <td class="secondary" data-sort="{{ item.uploaded_at or item.discovered_at or '' }}">{{ (item.uploaded_at or item.discovered_at or "")[:16] }}</td>
+                    <td class="secondary" data-sort="{{ item.uploaded_at or item.discovered_at or '' }}">{{ (item.uploaded_at or item.discovered_at) | datefmt }}</td>
                 </tr>
             {% else %}
                 <tr><td colspan="7" class="secondary" style="text-align:center;padding:2rem">No items in history.</td></tr>

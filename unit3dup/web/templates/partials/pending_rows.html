@@ -33,7 +33,7 @@
                     {% else %}<span class="pill pill-ok">OK</span>{% endif %}
                 </td>
                 <td class="secondary">{{ item.skip_reason | reason_label }}</td>
-                <td class="secondary" data-sort="{{ item.discovered_at or '' }}">{{ item.discovered_at[:16] if item.discovered_at else "—" }}</td>
+                <td class="secondary" data-sort="{{ item.discovered_at or '' }}">{{ item.discovered_at | datefmt }}</td>
                 <td>
                     <a href="/pending/{{ item.id }}" class="btn btn-ghost btn-sm">Review</a>
                 </td>

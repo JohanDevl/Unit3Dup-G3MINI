@@ -28,6 +28,7 @@ def init_views(state_db: StateDB):
     templates.env.filters["bbcode"] = bbcode_to_html
     templates.env.filters["filesize"] = _format_filesize
     templates.env.filters["reason_label"] = _format_reason
+    templates.env.filters["datefmt"] = _format_datetime
     # Global context: pending count for sidebar badge
     templates.env.globals["get_pending_count"] = lambda: state_db.count_by_status().get("pending", 0)
 
@@ -47,6 +48,17 @@ _REASON_LABELS = {
     "validation_error": "Validation error",
     "no_processable_media": "No media found",
 }
+
+
+def _format_datetime(value: str | None) -> str:
+    if not value:
+        return "—"
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(value)
+        return dt.strftime("%d/%m/%Y %H:%M")
+    except (ValueError, TypeError):
+        return value[:16] if len(value) > 16 else value
 
 
 def _format_reason(reason: str | None) -> str:
