@@ -207,7 +207,9 @@ class Bot:
                         continue
 
                     entries = sorted(
-                        [p for p in watcher_root.iterdir() if p.name and not p.name.startswith(".")],
+                        [p for p in watcher_root.iterdir()
+                         if p.name and not p.name.startswith(".")
+                         and (p.is_dir() or ManageTitles.filter_ext(p.name))],
                         key=lambda p: p.name.lower(),
                     )
 
