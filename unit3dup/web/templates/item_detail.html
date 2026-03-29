@@ -217,16 +217,7 @@
             <button type="button" class="btn btn-ghost" onclick="saveEdits({{ item.id }})">
                 <i data-lucide="save"></i> Save
             </button>
-            <button type="button" class="btn btn-success"
-                    hx-post="/api/v1/items/{{ item.id }}/approve"
-                    hx-ext="json-enc"
-                    hx-vals='js:{
-                        "release_name": document.getElementById("release_name").value || null,
-                        "description": document.getElementById("description_edit").value || null
-                    }'
-                    hx-confirm="Approve and upload this item?"
-                    hx-target="#action-result"
-                    hx-swap="innerHTML">
+            <button type="button" class="btn btn-success" onclick="openApproveModal({{ item.id }})">
                 <i data-lucide="upload"></i> Approve & Upload
             </button>
             <button type="button" class="btn btn-danger" onclick="rejectItem({{ item.id }})">
@@ -243,6 +234,48 @@
         </div>
     </form>
     <div id="action-result"></div>
+</div>
+
+<!-- Approve Modal -->
+<div class="modal-overlay" id="approve-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i data-lucide="upload" style="width:20px;height:20px;color:var(--success)"></i> Confirm Upload</h3>
+            <button class="modal-close" onclick="closeApproveModal()">
+                <i data-lucide="x" style="width:18px;height:18px"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p>You are about to upload this item to the tracker. Please review:</p>
+            <table class="info-table" style="margin-bottom:1rem">
+                <tr><td>Release Name</td><td id="approve-preview-name" style="font-weight:600;word-break:break-all"></td></tr>
+                <tr><td>Category</td><td>{{ item.content_category or "—" }}</td></tr>
+                <tr><td>Resolution</td><td>{{ item.resolution or "—" }}</td></tr>
+                <tr><td>Source</td><td>{{ item.source_tag or "—" }}</td></tr>
+                <tr><td>TMDB</td><td>{{ item.tmdb_title or "—" }} {% if item.tmdb_year %}({{ item.tmdb_year }}){% endif %} {% if item.tmdb_id %}— ID: {{ item.tmdb_id }}{% endif %}</td></tr>
+                <tr><td>Tracker</td><td>{{ item.tracker_name or "—" }}</td></tr>
+            </table>
+            {% if item.has_errors %}
+            <div class="alert alert-error" style="margin-bottom:1rem">
+                <strong>Warning:</strong> This item has validation errors. Upload may be rejected by the tracker.
+            </div>
+            {% elif item.has_warnings %}
+            <div class="alert" style="background:var(--warning-bg);color:var(--warning);border:1px solid rgba(245,158,11,0.2);margin-bottom:1rem">
+                <strong>Note:</strong> This item has validation warnings.
+            </div>
+            {% endif %}
+            <p id="approve-desc-note" style="font-size:0.8rem;color:var(--text-muted);display:none">
+                <i data-lucide="info" style="width:14px;height:14px;vertical-align:middle"></i>
+                Description override will be applied.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeApproveModal()">Cancel</button>
+            <button class="btn btn-success" id="approve-confirm-btn" onclick="confirmApprove()">
+                <i data-lucide="upload"></i> Upload Now
+            </button>
+        </div>
+    </div>
 </div>
 
 <!-- Reject Modal -->
@@ -281,6 +314,63 @@
 </div>
 
 <script>
+let _approveItemId = null;
+
+function openApproveModal(id) {
+    _approveItemId = id;
+    const name = document.getElementById('release_name').value || '{{ item.release_name or item.display_name or "" }}';
+    const desc = document.getElementById('description_edit').value;
+    document.getElementById('approve-preview-name').textContent = name;
+    const descNote = document.getElementById('approve-desc-note');
+    descNote.style.display = desc ? 'block' : 'none';
+    document.getElementById('approve-modal').classList.add('open');
+    setTimeout(() => lucide.createIcons(), 100);
+}
+
+function closeApproveModal() {
+    document.getElementById('approve-modal').classList.remove('open');
+    _approveItemId = null;
+}
+
+function confirmApprove() {
+    const name = document.getElementById('release_name').value || null;
+    const desc = document.getElementById('description_edit').value || null;
+    const btn = document.getElementById('approve-confirm-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader"></i> Uploading...';
+    lucide.createIcons();
+
+    fetch(`/api/v1/items/${_approveItemId}/approve`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({release_name: name, description: desc})
+    }).then(r => r.json()).then(data => {
+        closeApproveModal();
+        if (data.success) {
+            document.getElementById("action-result").innerHTML =
+                `<div class="alert alert-success">${data.message || 'Upload successful!'}</div>`;
+            setTimeout(() => window.location.href = '/history', 1500);
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="upload"></i> Upload Now';
+            lucide.createIcons();
+            document.getElementById("action-result").innerHTML =
+                `<div class="alert alert-error">${data.detail || data.message}</div>`;
+        }
+    }).catch(err => {
+        closeApproveModal();
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="upload"></i> Upload Now';
+        lucide.createIcons();
+        document.getElementById("action-result").innerHTML =
+            `<div class="alert alert-error">Error: ${err}</div>`;
+    });
+}
+
+document.getElementById('approve-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeApproveModal();
+});
+
 function updateResolution(id) {
     const select = document.getElementById('resolution_select');
     const resId = parseInt(select.value);
@@ -435,7 +525,7 @@ document.getElementById('reject-modal').addEventListener('click', function(e) {
     if (e.target === this) closeRejectModal();
 });
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeRejectModal();
+    if (e.key === 'Escape') { closeRejectModal(); closeApproveModal(); }
 });
 </script>
 {% endif %}
