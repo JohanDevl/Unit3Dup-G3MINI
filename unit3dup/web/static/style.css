@@ -881,7 +881,9 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
         padding: 0.3rem 0;
         border-bottom: none;
         font-size: 0.82rem;
+        overflow-wrap: anywhere;
     }
+    tbody td > * { min-width: 0; }
     tbody td::before {
         content: attr(data-label);
         font-weight: 600;
