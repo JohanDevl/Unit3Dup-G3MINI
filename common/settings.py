@@ -465,13 +465,17 @@ class Config(BaseModel):
                              'WEBP_ENABLED', 'CACHE_SCR','CACHE_DBONLINE', 'PERSONAL_RELEASE']:
                     section[field] = Validate.boolean(value=section[field], field_name=field)
 
-                if field in ['TORRENT_COMMENT','WATCHER_PATH','DEFAULT_TRACKER']:
+                if field in ['TORRENT_COMMENT','WATCHER_PATH','DEFAULT_TRACKER','WEB_HOST']:
                     section[field] = Validate.string(value=section[field], field_name=field)
 
                 if field in ['NUMBER_OF_SCREENSHOTS','COMPRESS_SCSHOT','IMGBB_PRIORITY','FREE_IMAGE_PRIORITY',
                              'LENSDUMP_PRIORITY','PASSIMA_PRIORITY','IMARIDE_PRIORITY', 'WATCHER_INTERVAL','SIZE_TH',
-                             'FAST_LOAD']:
-                    section[field] = Validate.integer(value=section[field], field_name=field)
+                             'FAST_LOAD', 'WEB_PORT']:
+                    if isinstance(section[field], str) and section[field].strip() == '':
+                        defaults = UserPreferences.model_fields
+                        section[field] = defaults[field].default if field in defaults else 0
+                    else:
+                        section[field] = Validate.integer(value=section[field], field_name=field)
 
                 if field == 'PREFERRED_LANG':
                     section[field] =Validate.iso3166(value=section[field], field_name=field)
