@@ -111,6 +111,15 @@ def save_item(item_id: int, req: ApproveRequest):
     return {"success": True, "message": "Changes saved"}
 
 
+@router.post("/items/{item_id}/rescan")
+def rescan_item(item_id: int):
+    """Re-run the full prepare pipeline on the source file."""
+    result = _svc().rescan_item(item_id)
+    if not result["success"]:
+        raise HTTPException(400, result["message"])
+    return result
+
+
 @router.post("/items/{item_id}/update-resolution")
 def update_resolution(item_id: int, req: UpdateResolutionRequest):
     """Update the resolution (resolution_id) for an item."""

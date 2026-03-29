@@ -169,6 +169,105 @@ class UploadService:
         self.state_db.retry_item(item_id)
         return {"success": True, "message": "Item moved back to pending"}
 
+    def rescan_item(self, item_id: int) -> dict:
+        """Re-run the full prepare pipeline on the source file.
+
+        Deletes the current item from DB, removes it from known state,
+        so the watcher re-processes it on the next cycle.
+        """
+        item = self.state_db.get_item(item_id)
+        if not item:
+            return {"success": False, "message": "Item not found"}
+        if item["status"] not in ("pending", "error", "skipped", "rejected"):
+            return {"success": False, "message": f"Cannot rescan item with status '{item['status']}'"}
+
+        source_path = item.get("source_path", "")
+        if not source_path or not os.path.exists(source_path):
+            return {"success": False, "message": f"Source file not found: {source_path}"}
+
+        try:
+            import argparse
+            from unit3dup.bot import Bot
+            from unit3dup import config_settings
+            from common.trackers.data import trackers_api_data
+
+            # Build CLI namespace matching watcher mode
+            cli = argparse.Namespace(
+                mt=False, duplicate=False, watcher=False, noup=False, noseed=True,
+                reseed=False, personal=False, confirm=False, skip_validation=False,
+                notitle=None, gentitle=False, force=None, upload=None, folder=None,
+                scan=None, web=True, ftp=False, tracker=None,
+            )
+
+            # Determine trackers
+            trackers = item.get("trackers_list", [])
+            if isinstance(trackers, str):
+                trackers = json.loads(trackers)
+            if not trackers:
+                trackers = list(trackers_api_data.keys())[:1]
+
+            tracker_archive = config_settings.user_preferences.TORRENT_ARCHIVE_PATH or "."
+            mode = "folder" if os.path.isdir(source_path) else "man"
+
+            bot = Bot(
+                path=source_path,
+                cli=cli,
+                trackers_name_list=trackers,
+                mode=mode,
+                torrent_archive_path=tracker_archive,
+                qbit_category=item.get("qbit_category"),
+            )
+
+            prepared_items = bot.prepare()
+
+            if not prepared_items:
+                return {"success": False, "message": "Rescan produced no results"}
+
+            # Take the first prepared item and update the DB entry
+            p = prepared_items[0]
+
+            from datetime import datetime
+            self.state_db.update_item(
+                item_id,
+                status="pending" if not p.skip_reason else "skipped",
+                release_name=p.release_name,
+                display_name=p.display_name,
+                source_tag=p.source_tag,
+                resolution=p.resolution,
+                content_category=p.content_category,
+                tmdb_id=p.tmdb_id,
+                imdb_id=p.imdb_id,
+                igdb_id=p.igdb_id,
+                tmdb_title=p.tmdb_title,
+                tmdb_year=p.tmdb_year,
+                description=p.description,
+                mediainfo=p.mediainfo,
+                tracker_payload=p.tracker_data,
+                tracker_name=p.tracker_name,
+                trackers_list=p.trackers_list,
+                torrent_archive_path=p.torrent_filepath,
+                validation_report=p.validation_report,
+                has_errors=int(p.has_errors),
+                has_warnings=int(p.has_warnings),
+                skip_reason=p.skip_reason,
+                prepared_at=datetime.now().isoformat(),
+                upload_error=None,
+                rejection_reason=None,
+                user_edited_name=None,
+                user_edited_desc=None,
+            )
+
+            if p.skip_reason:
+                custom_console.bot_warning_log(f"[Web] Rescan → {p.skip_reason}: {source_path}")
+                return {"success": True, "message": f"Rescan complete — skipped: {p.skip_reason}"}
+
+            custom_console.bot_log(f"[Web] Rescan → {p.release_name}")
+            return {"success": True, "message": f"Rescan complete: {p.release_name}"}
+
+        except Exception as e:
+            custom_console.bot_error_log(f"[Web] Rescan failed: {e}")
+            return {"success": False, "message": f"Rescan failed: {str(e)}"}
+
     def bulk_approve(self, ids: list[int]) -> dict:
         results = []
         with self._upload_lock:

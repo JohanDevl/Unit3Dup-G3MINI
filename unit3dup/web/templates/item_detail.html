@@ -223,6 +223,9 @@
             <button type="button" class="btn btn-danger" onclick="rejectItem({{ item.id }})">
                 <i data-lucide="x-circle"></i> Reject
             </button>
+            <button type="button" class="btn btn-ghost" onclick="rescanItem({{ item.id }})">
+                <i data-lucide="scan"></i> Rescan
+            </button>
             {% if item.status == 'error' %}
             <button type="button" class="btn btn-ghost"
                     hx-post="/api/v1/items/{{ item.id }}/retry"
@@ -370,6 +373,25 @@ function confirmApprove() {
 document.getElementById('approve-modal').addEventListener('click', function(e) {
     if (e.target === this) closeApproveModal();
 });
+
+function rescanItem(id) {
+    document.getElementById("action-result").innerHTML =
+        '<div class="alert" style="background:var(--info-bg);color:var(--info);border:1px solid rgba(59,130,246,0.2)">Rescanning... This may take a moment.</div>';
+    fetch(`/api/v1/items/${id}/rescan`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"}
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            document.getElementById("action-result").innerHTML =
+                `<div class="alert alert-error">${data.detail || data.message}</div>`;
+        }
+    }).catch(err => {
+        document.getElementById("action-result").innerHTML =
+            `<div class="alert alert-error">Error: ${err}</div>`;
+    });
+}
 
 function updateResolution(id) {
     const select = document.getElementById('resolution_select');
