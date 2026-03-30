@@ -53,7 +53,7 @@
     </div>
 
     <div hx-get="/partials/pending-list" hx-trigger="every 10s" hx-swap="innerHTML" id="pending-container"
-         hx-on::after-swap="initPagination('pending-table', 'pending-pagination', 25); refreshMultiFilterOptions('pending-table'); reapplyFilters('pending-table')">
+         hx-on::after-swap="reapplySort('pending-table'); initPagination('pending-table', 'pending-pagination', 25); refreshMultiFilterOptions('pending-table'); reapplyFilters('pending-table')">
         {% include "partials/pending_rows.html" %}
     </div>
     <div id="pending-pagination"></div>

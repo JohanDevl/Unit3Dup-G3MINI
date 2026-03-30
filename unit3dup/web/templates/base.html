@@ -68,6 +68,7 @@
         // so the registry stays valid after sort reorders the DOM.
 
         const _filterRegistries = {};
+        const _sortState = {};
 
         function registerFilter(tableId, filterName, hiddenSet) {
             if (!_filterRegistries[tableId]) _filterRegistries[tableId] = {};
@@ -141,6 +142,7 @@
             const isAsc = th.classList.contains('sort-asc');
             table.querySelectorAll('th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
             th.classList.add(isAsc ? 'sort-desc' : 'sort-asc');
+            _sortState[tableId] = { colIndex, direction: isAsc ? 'desc' : 'asc', type: 'alpha' };
 
             const dir = isAsc ? -1 : 1;
             rows.sort((a, b) => {
@@ -164,6 +166,7 @@
             const isAsc = th.classList.contains('sort-asc');
             table.querySelectorAll('th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
             th.classList.add(isAsc ? 'sort-desc' : 'sort-asc');
+            _sortState[tableId] = { colIndex, direction: isAsc ? 'desc' : 'asc', type: 'date' };
 
             const dir = isAsc ? -1 : 1;
             rows.sort((a, b) => {
@@ -174,6 +177,44 @@
 
             rows.forEach(row => tbody.appendChild(row));
             if (table._paginationRender) table._paginationRender();
+        }
+
+        function reapplySort(tableId) {
+            const state = _sortState[tableId];
+            if (!state) return;
+
+            const table = document.getElementById(tableId);
+            if (!table) return;
+
+            const ths = table.querySelectorAll('thead th');
+            const th = ths[state.colIndex];
+            if (!th) return;
+
+            ths.forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+            th.classList.add(state.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const dir = state.direction === 'asc' ? 1 : -1;
+
+            if (state.type === 'date') {
+                rows.sort((a, b) => {
+                    const aVal = a.cells[state.colIndex]?.getAttribute('data-sort') || '';
+                    const bVal = b.cells[state.colIndex]?.getAttribute('data-sort') || '';
+                    return aVal.localeCompare(bVal) * dir;
+                });
+            } else {
+                rows.sort((a, b) => {
+                    const aText = (a.cells[state.colIndex]?.textContent || '').trim().toLowerCase();
+                    const bText = (b.cells[state.colIndex]?.textContent || '').trim().toLowerCase();
+                    const aNum = parseFloat(aText);
+                    const bNum = parseFloat(bText);
+                    if (!isNaN(aNum) && !isNaN(bNum)) return (aNum - bNum) * dir;
+                    return aText.localeCompare(bText) * dir;
+                });
+            }
+
+            rows.forEach(row => tbody.appendChild(row));
         }
 
         // ── Mobile sort ──────────────────────────────────────────────
@@ -193,6 +234,7 @@
             // Set explicit direction (idempotent, no toggle)
             table.querySelectorAll('th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
             th.classList.add(desc ? 'sort-desc' : 'sort-asc');
+            _sortState[tableId] = { colIndex, direction: desc ? 'desc' : 'asc', type: sortType === 'date' ? 'date' : 'alpha' };
 
             const dir = desc ? -1 : 1;
             const tbody = table.querySelector('tbody');
@@ -385,7 +427,7 @@
                             <option value="50"${perPage===50?' selected':''}>50</option>
                             <option value="100"${perPage===100?' selected':''}>100</option>
                             <option value="250"${perPage===250?' selected':''}>250</option>
-                            <option value="0">All</option>
+                            <option value="0"${perPage===0?' selected':''}>All</option>
                         </select>
                         <button class="btn btn-ghost btn-sm page-prev" type="button">&lsaquo; Prev</button>
                         <span class="page-num secondary" style="font-size:0.8rem;min-width:80px;text-align:center"></span>
