@@ -332,8 +332,8 @@
             const controls = document.getElementById(controlsId);
             if (!controls) return;
 
-            let perPage = defaultPerPage || 25;
-            let currentPage = 1;
+            let perPage = controls._savedPerPage ?? defaultPerPage ?? 25;
+            let currentPage = controls._savedCurrentPage ?? 1;
 
             function render() {
                 const allRows = Array.from(tbody.querySelectorAll('tr'));
@@ -341,6 +341,9 @@
                 const totalVisible = visible.length;
                 const totalPages = perPage === 0 ? 1 : Math.max(1, Math.ceil(totalVisible / perPage));
                 if (currentPage > totalPages) currentPage = totalPages;
+
+                controls._savedPerPage = perPage;
+                controls._savedCurrentPage = currentPage;
 
                 let idx = 0;
                 allRows.forEach(row => {
