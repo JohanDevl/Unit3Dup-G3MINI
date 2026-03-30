@@ -7,6 +7,7 @@ import diskcache
 from typing import TypeVar
 
 from common.external_services.theMovieDB.core.models.tvshow.alternative import Alternative
+from common.external_services.theMovieDB.core.models.tvshow.external_ids import ExternalIds
 from common.external_services.theMovieDB.core.models.tvshow.details import TVShowDetails
 from common.external_services.theMovieDB.core.models.movie.details import MovieDetails
 from common.external_services.theMovieDB.core.models.movie.nowplaying import NowPlaying
@@ -99,6 +100,9 @@ class TvEndpoint:
         return {'url': f'{base_url}/tv/{serie_id}/keywords', 'datatype': Keyword, 'query': '',
                 'results': 'results'}
 
+    @staticmethod
+    def external_ids(serie_id: int) -> dict:
+        return {'url': f'{base_url}/tv/{serie_id}/external_ids', 'datatype': ExternalIds, 'query': ''}
 
 
 class TmdbAPI(MyHttp):
@@ -185,6 +189,12 @@ class TmdbAPI(MyHttp):
             print(f"Endpoint for category '{category}' not found.")
             return []
 
+    def _external_ids(self, video_id: int, category: str) -> list[T] | None:
+        if endpoint_class := self.ENDPOINTS.get(category):
+            if hasattr(endpoint_class, 'external_ids'):
+                request = endpoint_class.external_ids(video_id)
+                return self.request(endpoint=request)
+        return None
 
     def _keywords(self, video_id: int, category: str) -> list[T] | None:
         if endpoint_class:=self.ENDPOINTS.get(category):
@@ -266,6 +276,24 @@ class DbOnline(TmdbAPI):
                         return result
         return False
 
+    def _fetch_imdb_id(self, tmdb_id: int, category: str) -> int:
+        """Fetch IMDb ID from TMDB details (movie) or external_ids (tv)."""
+        if category != 'tv':
+            details = self.details(video_id=tmdb_id, category=category)
+            if details and hasattr(details[0], 'imdb_id') and details[0].imdb_id:
+                try:
+                    return int(str(details[0].imdb_id).replace('tt', ''))
+                except (ValueError, TypeError):
+                    pass
+        else:
+            ext = self._external_ids(video_id=tmdb_id, category=category)
+            if ext and ext[0].imdb_id:
+                try:
+                    return int(str(ext[0].imdb_id).replace('tt', ''))
+                except (ValueError, TypeError):
+                    pass
+        return 0
+
     def results_in_string(self, tmdb_id:int, imdb_id:int)-> MediaResult:
         """
         Use id from the string filename or name folder
@@ -276,6 +304,8 @@ class DbOnline(TmdbAPI):
 
         if tmdb_id:
             if tmdb_id > 0:
+                if not imdb_id:
+                    imdb_id = self._fetch_imdb_id(tmdb_id, self.category)
                 # Request trailer and keywords
                 trailer_key = self.trailer(tmdb_id)
                 keywords_list = self.keywords(tmdb_id) if trailer_key else ''
@@ -303,10 +333,10 @@ class DbOnline(TmdbAPI):
 
         # or start an on-line search
         results = self._search(self.query, self.category)
-        # Use imdb_id when tmdb_id is not available
-        imdb_id = 0
         if results:
             if result:=self.is_like(results):
+                # Fetch imdb_id from TMDB details or external_ids
+                imdb_id = self._fetch_imdb_id(result.id, self.category)
                 # Get the trailer
                 trailer_key = self.trailer(result.id)
                 keywords_list = self.keywords(result.id)

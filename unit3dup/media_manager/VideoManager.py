@@ -373,6 +373,10 @@ class VideoManager:
             if getattr(self.cli, 'confirm', False):
                 custom_console.rule("[bold cyan]Validation release[/bold cyan]")
                 custom_console.bot_log(f"  Fichier      : {prepared.display_name}")
+                if prepared.tmdb_id:
+                    custom_console.bot_log(f"  TMDB         : {prepared.tmdb_id}")
+                if prepared.imdb_id:
+                    custom_console.bot_log(f"  IMDb         : tt{prepared.imdb_id:07d}")
                 custom_console.bot_question_log(
                     f"\n  Release name : {prepared.release_name}\n\n"
                     f"  Confirmer l'upload ? [o/N] : "

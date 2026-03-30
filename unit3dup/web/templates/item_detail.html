@@ -260,6 +260,9 @@
                 <tr><td>Resolution</td><td>{{ item.resolution or "—" }}</td></tr>
                 <tr><td>Source</td><td>{{ item.source_tag or "—" }}</td></tr>
                 <tr><td>TMDB</td><td>{{ item.tmdb_title or "—" }} {% if item.tmdb_year %}({{ item.tmdb_year }}){% endif %} {% if item.tmdb_id %}— ID: {{ item.tmdb_id }}{% endif %}</td></tr>
+                {% if item.imdb_id %}
+                <tr><td>IMDb</td><td><a href="https://www.imdb.com/title/tt{{ '%07d' % item.imdb_id }}/" target="_blank">tt{{ '%07d' % item.imdb_id }}</a></td></tr>
+                {% endif %}
                 <tr><td>Tracker</td><td>{{ item.tracker_name or "—" }}</td></tr>
                 {% set sim_url_mobile = similar_url(item) %}
                 {% if sim_url_mobile %}
