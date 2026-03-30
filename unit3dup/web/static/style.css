@@ -1032,6 +1032,10 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     .info-table td::before { display: none; }
     .info-table td:first-child { width: 90px; flex-shrink: 0; font-size: 0.75rem; white-space: normal; }
     .info-table td:last-child { flex: 1; min-width: 0; }
+    .val-table thead { display: table-header-group; }
+    .val-table tbody tr { background: transparent; border: none; border-bottom: 1px solid var(--border-color); border-radius: 0; margin-bottom: 0; padding: 0.5rem 0; }
+    .val-table tbody td { display: table-cell; text-align: left; }
+    .val-table tbody td::before { display: none; }
     .inline-edit { flex-wrap: wrap; }
     .inline-edit-input { width: 100%; max-width: 140px; }
 
