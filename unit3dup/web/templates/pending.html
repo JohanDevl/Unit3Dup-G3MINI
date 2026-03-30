@@ -15,7 +15,7 @@
             <input type="text" class="search-input" placeholder="Search pending items..."
                    oninput="tableSearch(this, 'pending-table')">
         </div>
-        <select class="filter-select" onchange="tableFilter(this, 'pending-table', 3)">
+        <select class="filter-select" data-col="3" onchange="tableFilter(this, 'pending-table', 3)">
             <option value="">All categories</option>
             <option value="movie">Movie</option>
             <option value="tv">TV</option>
@@ -23,17 +23,47 @@
             <option value="game">Game</option>
             <option value="documentary">Documentary</option>
         </select>
+        <div class="multi-filter" data-table="pending-table" data-col="5" data-filter-name="resolution" data-auto-populate="true">
+            <button type="button" class="multi-filter-trigger">Resolution <span class="multi-filter-count"></span> <span class="multi-filter-arrow">&#9662;</span></button>
+            <div class="multi-filter-dropdown"></div>
+        </div>
+        <div class="multi-filter" data-table="pending-table" data-col="4" data-filter-name="sourcetag" data-auto-populate="true">
+            <button type="button" class="multi-filter-trigger">Source Tag <span class="multi-filter-count"></span> <span class="multi-filter-arrow">&#9662;</span></button>
+            <div class="multi-filter-dropdown"></div>
+        </div>
+        <div class="multi-filter" data-table="pending-table" data-col="6" data-filter-name="validation" data-auto-populate="true">
+            <button type="button" class="multi-filter-trigger">Validation <span class="multi-filter-count"></span> <span class="multi-filter-arrow">&#9662;</span></button>
+            <div class="multi-filter-dropdown"></div>
+        </div>
+        <div class="mobile-sort">
+            <select class="filter-select" onchange="mobileSortFromDropdown(this, 'pending-table')">
+                <option value="">Sort by...</option>
+                <option value="0:alpha">Source (A-Z)</option>
+                <option value="0:alpha:desc">Source (Z-A)</option>
+                <option value="1:alpha">Release Name (A-Z)</option>
+                <option value="1:alpha:desc">Release Name (Z-A)</option>
+                <option value="2:num">Size (Low-High)</option>
+                <option value="2:num:desc">Size (High-Low)</option>
+                <option value="3:alpha">Category (A-Z)</option>
+                <option value="5:alpha">Resolution</option>
+                <option value="8:date">Discovered (Oldest)</option>
+                <option value="8:date:desc">Discovered (Newest)</option>
+            </select>
+        </div>
     </div>
 
     <div hx-get="/partials/pending-list" hx-trigger="every 10s" hx-swap="innerHTML" id="pending-container"
-         hx-on::after-swap="initPagination('pending-table', 'pending-pagination', 25)">
+         hx-on::after-swap="initPagination('pending-table', 'pending-pagination', 25); refreshMultiFilterOptions('pending-table'); reapplyFilters('pending-table')">
         {% include "partials/pending_rows.html" %}
     </div>
     <div id="pending-pagination"></div>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => initPagination('pending-table', 'pending-pagination', 25));
+    document.addEventListener('DOMContentLoaded', () => {
+        initMultiSelectDropdowns();
+        initPagination('pending-table', 'pending-pagination', 25);
+    });
 </script>
 
 {% endblock %}

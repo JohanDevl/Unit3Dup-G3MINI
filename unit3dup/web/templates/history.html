@@ -23,7 +23,7 @@
             <input type="text" class="search-input" placeholder="Search history..."
                    oninput="tableSearch(this, 'history-table')">
         </div>
-        <select class="filter-select" onchange="tableFilter(this, 'history-table', 2)">
+        <select class="filter-select" data-col="2" onchange="tableFilter(this, 'history-table', 2)">
             <option value="">All categories</option>
             <option value="movie">Movie</option>
             <option value="tv">TV</option>
@@ -31,13 +31,34 @@
             <option value="game">Game</option>
             <option value="documentary">Documentary</option>
         </select>
-        <select class="filter-select" onchange="tableFilter(this, 'history-table', 1)">
+        <select class="filter-select" data-col="1" onchange="tableFilter(this, 'history-table', 1)">
             <option value="">All statuses</option>
             <option value="uploaded">Uploaded</option>
             <option value="rejected">Rejected</option>
             <option value="skipped">Skipped</option>
             <option value="error">Error</option>
         </select>
+        <div class="multi-filter" data-table="history-table" data-col="4" data-filter-name="resolution" data-auto-populate="true">
+            <button type="button" class="multi-filter-trigger">Resolution <span class="multi-filter-count"></span> <span class="multi-filter-arrow">&#9662;</span></button>
+            <div class="multi-filter-dropdown"></div>
+        </div>
+        <div class="multi-filter" data-table="history-table" data-col="3" data-filter-name="sourcetag" data-auto-populate="true">
+            <button type="button" class="multi-filter-trigger">Source Tag <span class="multi-filter-count"></span> <span class="multi-filter-arrow">&#9662;</span></button>
+            <div class="multi-filter-dropdown"></div>
+        </div>
+        <div class="mobile-sort">
+            <select class="filter-select" onchange="mobileSortFromDropdown(this, 'history-table')">
+                <option value="">Sort by...</option>
+                <option value="0:alpha">Name (A-Z)</option>
+                <option value="0:alpha:desc">Name (Z-A)</option>
+                <option value="1:alpha">Status</option>
+                <option value="2:alpha">Category</option>
+                <option value="3:alpha">Source</option>
+                <option value="4:alpha">Resolution</option>
+                <option value="6:date">Date (Oldest)</option>
+                <option value="6:date:desc">Date (Newest)</option>
+            </select>
+        </div>
     </div>
 
     <div class="table-container">
@@ -78,7 +99,10 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => initPagination('history-table', 'history-pagination', 25));
+    document.addEventListener('DOMContentLoaded', () => {
+        initMultiSelectDropdowns();
+        initPagination('history-table', 'history-pagination', 25);
+    });
 </script>
 
 {% endblock %}

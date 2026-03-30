@@ -15,6 +15,22 @@
             <input type="text" class="search-input" placeholder="Search..."
                    oninput="tableSearch(this, 'recent-table')">
         </div>
+        <div class="multi-filter" data-table="recent-table" data-col="3" data-filter-name="sourcetag" data-auto-populate="true">
+            <button type="button" class="multi-filter-trigger">Source <span class="multi-filter-count"></span> <span class="multi-filter-arrow">&#9662;</span></button>
+            <div class="multi-filter-dropdown"></div>
+        </div>
+        <div class="mobile-sort">
+            <select class="filter-select" onchange="mobileSortFromDropdown(this, 'recent-table')">
+                <option value="">Sort by...</option>
+                <option value="0:alpha">Name (A-Z)</option>
+                <option value="0:alpha:desc">Name (Z-A)</option>
+                <option value="1:alpha">Status</option>
+                <option value="2:alpha">Category</option>
+                <option value="3:alpha">Source</option>
+                <option value="4:date">Discovered (Oldest)</option>
+                <option value="4:date:desc">Discovered (Newest)</option>
+            </select>
+        </div>
     </div>
     <div class="table-container">
         <table id="recent-table">
@@ -50,7 +66,10 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => initPagination('recent-table', 'recent-pagination', 25));
+    document.addEventListener('DOMContentLoaded', () => {
+        initMultiSelectDropdowns();
+        initPagination('recent-table', 'recent-pagination', 25);
+    });
 </script>
 
 {% endblock %}

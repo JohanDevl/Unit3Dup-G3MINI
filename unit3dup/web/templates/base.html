@@ -62,26 +62,75 @@
         // Re-init icons after HTMX swap
         document.body.addEventListener('htmx:afterSwap', () => lucide.createIcons());
 
+        // ── Filter Registry ──────────────────────────────────────────
+        // Each table has a map of filterName → Set<Element> of hidden rows.
+        // A row is hidden if ANY filter marks it. Uses DOM refs (not indices)
+        // so the registry stays valid after sort reorders the DOM.
+
+        const _filterRegistries = {};
+
+        function registerFilter(tableId, filterName, hiddenSet) {
+            if (!_filterRegistries[tableId]) _filterRegistries[tableId] = {};
+            _filterRegistries[tableId][filterName] = hiddenSet;
+            applyFilters(tableId);
+        }
+
+        function applyFilters(tableId) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+            const rows = table.querySelectorAll('tbody tr');
+            const registry = _filterRegistries[tableId] || {};
+            rows.forEach(row => {
+                let hidden = false;
+                for (const fn in registry) {
+                    if (registry[fn].has(row)) { hidden = true; break; }
+                }
+                row.dataset.hiddenByFilter = hidden ? '1' : '';
+            });
+            if (table._paginationRender) table._paginationRender();
+        }
+
         // ── Table interactivity ──────────────────────────────────────
 
         function tableSearch(inputEl, tableId) {
             const filter = inputEl.value.toLowerCase();
-            const rows = document.querySelectorAll(`#${tableId} tbody tr`);
+            const table = document.getElementById(tableId);
+            const rows = table.querySelectorAll('tbody tr');
+            const hidden = new Set();
             rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(filter) ? '' : 'none';
+                if (filter && !row.textContent.toLowerCase().includes(filter)) hidden.add(row);
             });
+            registerFilter(tableId, 'search', hidden);
         }
 
         function tableFilter(selectEl, tableId, colIndex) {
             const val = selectEl.value.toLowerCase();
-            const rows = document.querySelectorAll(`#${tableId} tbody tr`);
+            const table = document.getElementById(tableId);
+            const rows = table.querySelectorAll('tbody tr');
+            const hidden = new Set();
             rows.forEach(row => {
-                if (!val) { row.style.display = ''; return; }
+                if (!val) return;
                 const cell = row.cells[colIndex];
                 const text = cell ? cell.textContent.toLowerCase().trim() : '';
-                row.style.display = text.includes(val) ? '' : 'none';
+                if (!text.includes(val)) hidden.add(row);
             });
+            registerFilter(tableId, 'select_col_' + colIndex, hidden);
+        }
+
+        function tableMultiFilter(tableId, filterName, colIndex, selectedValues) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+            const rows = table.querySelectorAll('tbody tr');
+            const hidden = new Set();
+            if (selectedValues.length > 0) {
+                const vals = selectedValues.map(v => v.toLowerCase());
+                rows.forEach(row => {
+                    const cell = row.cells[colIndex];
+                    const text = cell ? cell.textContent.toLowerCase().trim() : '';
+                    if (!vals.some(v => text.includes(v))) hidden.add(row);
+                });
+            }
+            registerFilter(tableId, filterName, hidden);
         }
 
         function tableSort(tableId, colIndex, th) {
@@ -104,6 +153,7 @@
             });
 
             rows.forEach(row => tbody.appendChild(row));
+            if (table._paginationRender) table._paginationRender();
         }
 
         function tableSortDate(tableId, colIndex, th) {
@@ -123,6 +173,154 @@
             });
 
             rows.forEach(row => tbody.appendChild(row));
+            if (table._paginationRender) table._paginationRender();
+        }
+
+        // ── Mobile sort ──────────────────────────────────────────────
+
+        function mobileSortFromDropdown(selectEl, tableId) {
+            const val = selectEl.value;
+            if (!val) return;
+            const parts = val.split(':');
+            const colIndex = parseInt(parts[0]);
+            const sortType = parts[1];
+            const desc = parts[2] === 'desc';
+
+            const table = document.getElementById(tableId);
+            const th = table.querySelectorAll('thead th')[colIndex];
+            if (!th) return;
+
+            // Set explicit direction (idempotent, no toggle)
+            table.querySelectorAll('th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+            th.classList.add(desc ? 'sort-desc' : 'sort-asc');
+
+            const dir = desc ? -1 : 1;
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+
+            if (sortType === 'date') {
+                rows.sort((a, b) => {
+                    const aVal = a.cells[colIndex]?.getAttribute('data-sort') || '';
+                    const bVal = b.cells[colIndex]?.getAttribute('data-sort') || '';
+                    return aVal.localeCompare(bVal) * dir;
+                });
+            } else {
+                rows.sort((a, b) => {
+                    const aText = (a.cells[colIndex]?.textContent || '').trim().toLowerCase();
+                    const bText = (b.cells[colIndex]?.textContent || '').trim().toLowerCase();
+                    const aNum = parseFloat(aText);
+                    const bNum = parseFloat(bText);
+                    if (!isNaN(aNum) && !isNaN(bNum)) return (aNum - bNum) * dir;
+                    return aText.localeCompare(bText) * dir;
+                });
+            }
+
+            rows.forEach(row => tbody.appendChild(row));
+            if (table._paginationRender) table._paginationRender();
+        }
+
+        // ── Multi-select filter dropdowns ────────────────────────────
+
+        function populateMultiFilterOptions(container, tableId, colIndex) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+            const dropdown = container.querySelector('.multi-filter-dropdown');
+            const values = new Set();
+            table.querySelectorAll('tbody tr').forEach(row => {
+                const cell = row.cells[colIndex];
+                if (cell) {
+                    const text = cell.textContent.trim();
+                    if (text && text !== '\u2014') values.add(text);
+                }
+            });
+            const currentChecked = new Set(
+                Array.from(dropdown.querySelectorAll('input:checked')).map(cb => cb.value)
+            );
+            dropdown.innerHTML = '';
+            Array.from(values).sort().forEach(val => {
+                const label = document.createElement('label');
+                label.className = 'multi-filter-option';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = val;
+                if (currentChecked.has(val)) cb.checked = true;
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(' ' + val));
+                dropdown.appendChild(label);
+            });
+            const clearBtn = document.createElement('span');
+            clearBtn.className = 'multi-filter-clear';
+            clearBtn.textContent = 'Clear all';
+            clearBtn.addEventListener('click', () => {
+                dropdown.querySelectorAll('input').forEach(cb => cb.checked = false);
+                dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            dropdown.appendChild(clearBtn);
+        }
+
+        // Single delegated handler for closing multi-filter dropdowns
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.multi-filter')) {
+                document.querySelectorAll('.multi-filter.open').forEach(mf => mf.classList.remove('open'));
+            }
+        });
+
+        function initMultiSelectDropdowns() {
+            document.querySelectorAll('.multi-filter').forEach(container => {
+                if (container._initialized) return;
+                container._initialized = true;
+
+                const tableId = container.dataset.table;
+                const colIndex = parseInt(container.dataset.col);
+                const filterName = container.dataset.filterName;
+                const trigger = container.querySelector('.multi-filter-trigger');
+                const dropdown = container.querySelector('.multi-filter-dropdown');
+                const countBadge = container.querySelector('.multi-filter-count');
+
+                if (container.dataset.autoPopulate === 'true') {
+                    populateMultiFilterOptions(container, tableId, colIndex);
+                }
+
+                trigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.querySelectorAll('.multi-filter.open').forEach(mf => {
+                        if (mf !== container) mf.classList.remove('open');
+                    });
+                    container.classList.toggle('open');
+                });
+
+                dropdown.addEventListener('change', () => {
+                    const checked = Array.from(dropdown.querySelectorAll('input:checked')).map(cb => cb.value);
+                    tableMultiFilter(tableId, filterName, colIndex, checked);
+                    countBadge.textContent = checked.length > 0 ? checked.length : '';
+                    trigger.classList.toggle('has-selection', checked.length > 0);
+                });
+            });
+        }
+
+        function refreshMultiFilterOptions(tableId) {
+            document.querySelectorAll('.multi-filter[data-table="' + tableId + '"]').forEach(container => {
+                const colIndex = parseInt(container.dataset.col);
+                populateMultiFilterOptions(container, tableId, colIndex);
+            });
+        }
+
+        function reapplyFilters(tableId) {
+            _filterRegistries[tableId] = {};
+            document.querySelectorAll('.multi-filter[data-table="' + tableId + '"]').forEach(container => {
+                const dropdown = container.querySelector('.multi-filter-dropdown');
+                if (dropdown) dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            const card = document.getElementById(tableId)?.closest('.card, #pending-card');
+            if (card) {
+                const searchInput = card.querySelector('.search-input');
+                if (searchInput && searchInput.value) tableSearch(searchInput, tableId);
+                card.querySelectorAll('select.filter-select[data-col]:not(.page-size)').forEach(sel => {
+                    if (sel.value && sel.closest('.mobile-sort') === null) {
+                        tableFilter(sel, tableId, parseInt(sel.dataset.col));
+                    }
+                });
+            }
         }
 
         // ── Pagination ───────────────────────────────────────────────
@@ -136,10 +334,6 @@
 
             let perPage = defaultPerPage || 25;
             let currentPage = 1;
-
-            function getVisibleRows() {
-                return Array.from(tbody.querySelectorAll('tr')).filter(r => r.style.display !== 'none');
-            }
 
             function render() {
                 const allRows = Array.from(tbody.querySelectorAll('tr'));
@@ -163,7 +357,6 @@
                     idx++;
                 });
 
-                // Update info
                 const start = perPage === 0 ? 1 : (currentPage - 1) * perPage + 1;
                 const end = perPage === 0 ? totalVisible : Math.min(currentPage * perPage, totalVisible);
                 const infoEl = controls.querySelector('.page-info');
@@ -174,14 +367,12 @@
                 const pageNumEl = controls.querySelector('.page-num');
                 if (pageNumEl) pageNumEl.textContent = `Page ${currentPage} of ${totalPages}`;
 
-                // Update buttons
                 const prevBtn = controls.querySelector('.page-prev');
                 const nextBtn = controls.querySelector('.page-next');
                 if (prevBtn) prevBtn.disabled = currentPage <= 1 || perPage === 0;
                 if (nextBtn) nextBtn.disabled = currentPage >= totalPages || perPage === 0;
             }
 
-            // Build controls HTML
             controls.innerHTML = `
                 <div class="pagination">
                     <span class="page-info secondary"></span>
@@ -208,37 +399,9 @@
             controls.querySelector('.page-prev').addEventListener('click', () => { currentPage--; render(); });
             controls.querySelector('.page-next').addEventListener('click', () => { currentPage++; render(); });
 
-            // Expose render so search/filter can call it
             table._paginationRender = render;
             render();
         }
-
-        // Patch search & filter to work with pagination
-        const _origSearch = tableSearch;
-        tableSearch = function(inputEl, tableId) {
-            const filter = inputEl.value.toLowerCase();
-            const table = document.getElementById(tableId);
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.dataset.hiddenByFilter = text.includes(filter) ? '' : '1';
-            });
-            if (table._paginationRender) table._paginationRender();
-        };
-
-        const _origFilter = tableFilter;
-        tableFilter = function(selectEl, tableId, colIndex) {
-            const val = selectEl.value.toLowerCase();
-            const table = document.getElementById(tableId);
-            const rows = table.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                if (!val) { row.dataset.hiddenByFilter = ''; return; }
-                const cell = row.cells[colIndex];
-                const text = cell ? cell.textContent.toLowerCase().trim() : '';
-                row.dataset.hiddenByFilter = text.includes(val) ? '' : '1';
-            });
-            if (table._paginationRender) table._paginationRender();
-        };
     </script>
 </body>
 </html>
