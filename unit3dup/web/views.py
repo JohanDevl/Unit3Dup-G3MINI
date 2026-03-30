@@ -11,6 +11,8 @@ from fastapi.templating import Jinja2Templates
 
 from unit3dup.state_db import StateDB
 from unit3dup.web.bbcode_renderer import bbcode_to_html
+from common.trackers.data import trackers_api_data
+from common.trackers.gemini import gemini_data
 
 router = APIRouter(tags=["views"])
 
@@ -31,6 +33,25 @@ def init_views(state_db: StateDB):
     templates.env.filters["datefmt"] = _format_datetime
     # Global context: pending count for sidebar badge
     templates.env.globals["get_pending_count"] = lambda: state_db.count_by_status().get("pending", 0)
+    templates.env.globals["similar_url"] = _build_similar_url
+
+
+def _build_similar_url(item: dict) -> str | None:
+    name = item.get("tracker_name")
+    category = item.get("content_category")
+    if not name or not category:
+        return None
+    tracker = trackers_api_data.get(name.upper())
+    if not tracker:
+        return None
+    base_url = tracker["url"]
+    cat_id = gemini_data["CATEGORY"].get(category)
+    if cat_id is None:
+        return None
+    meta_id = item.get("igdb_id") if category == "game" else item.get("tmdb_id")
+    if not meta_id:
+        return None
+    return f"{base_url}/torrents/similar/{cat_id}.{meta_id}"
 
 
 def _db() -> StateDB:

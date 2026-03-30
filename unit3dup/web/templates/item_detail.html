@@ -116,6 +116,10 @@
             </tr>
             <tr><td>Size</td><td>{{ item.file_size | filesize }}</td></tr>
             <tr><td>Tracker</td><td>{{ item.tracker_name or "—" }}</td></tr>
+            {% set sim_url = similar_url(item) %}
+            {% if sim_url %}
+            <tr><td>Similar</td><td><a href="{{ sim_url }}" target="_blank">View similar torrents on tracker</a></td></tr>
+            {% endif %}
             <tr>
                 <td>TMDB</td>
                 <td>
@@ -257,6 +261,10 @@
                 <tr><td>Source</td><td>{{ item.source_tag or "—" }}</td></tr>
                 <tr><td>TMDB</td><td>{{ item.tmdb_title or "—" }} {% if item.tmdb_year %}({{ item.tmdb_year }}){% endif %} {% if item.tmdb_id %}— ID: {{ item.tmdb_id }}{% endif %}</td></tr>
                 <tr><td>Tracker</td><td>{{ item.tracker_name or "—" }}</td></tr>
+                {% set sim_url_mobile = similar_url(item) %}
+                {% if sim_url_mobile %}
+                <tr><td>Similar</td><td><a href="{{ sim_url_mobile }}" target="_blank">View similar torrents on tracker</a></td></tr>
+                {% endif %}
             </table>
             {% if item.has_errors %}
             <div class="alert alert-error" style="margin-bottom:1rem">
