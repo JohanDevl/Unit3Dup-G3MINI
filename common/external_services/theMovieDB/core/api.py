@@ -105,7 +105,7 @@ class TmdbAPI(MyHttp):
 
     params = {
         "api_key": config.TMDB_APIKEY,
-        "language": "it-IT",
+        "language": "fr-FR",
     }
 
     # Mappatura automatica degli endpoint

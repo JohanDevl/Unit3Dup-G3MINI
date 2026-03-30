@@ -306,15 +306,15 @@ class UploadService:
             if not details:
                 return {"success": False, "message": f"TMDB ID {new_tmdb_id} not found for category '{tmdb_category}'"}
 
-            result = details  # MovieDetails or TVShowDetails object
-            title = result.get_title() if hasattr(result, 'get_title') else str(result)
+            result = details[0]  # MovieDetails or TVShowDetails object
+            title = result.get_title()
 
             # If French title is empty, fallback to English
             if not title or title == str(new_tmdb_id):
                 api.params["language"] = "en-US"
                 details_en = api.details(video_id=new_tmdb_id, category=tmdb_category)
                 if details_en:
-                    title = details_en.get_title() if hasattr(details_en, 'get_title') else title
+                    title = details_en[0].get_title()
 
             # Restore original language
             api.params["language"] = original_lang
