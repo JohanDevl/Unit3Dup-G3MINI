@@ -8,7 +8,7 @@ from fastapi import APIRouter, Body, HTTPException
 from unit3dup.state_db import StateDB
 from unit3dup.web.models import (
     ApproveRequest, RejectRequest, BulkApproveRequest, BulkRejectRequest,
-    RescanTmdbRequest, UpdateSourceTypeRequest, UpdateResolutionRequest,
+    RescanTmdbRequest, UpdateCategoryRequest, UpdateSourceTypeRequest, UpdateResolutionRequest,
     StatsResponse, ItemDetail, ItemListResponse, ItemSummary,
 )
 from unit3dup.web.upload_service import UploadService
@@ -118,6 +118,22 @@ def rescan_item(item_id: int):
     if not result["success"]:
         raise HTTPException(400, result["message"])
     return result
+
+
+@router.post("/items/{item_id}/update-category")
+def update_category(item_id: int, req: UpdateCategoryRequest):
+    """Update the category (category_id) for an item."""
+    import json
+    item = _db().get_item(item_id)
+    if not item:
+        raise HTTPException(404, "Item not found")
+    tracker_payload = item.get("tracker_payload")
+    if isinstance(tracker_payload, str):
+        tracker_payload = json.loads(tracker_payload)
+    if tracker_payload:
+        tracker_payload["category_id"] = req.category_id
+    _db().update_item(item_id, content_category=req.category_label, tracker_payload=tracker_payload)
+    return {"success": True, "message": f"Category updated to {req.category_label}"}
 
 
 @router.post("/items/{item_id}/update-resolution")

@@ -36,6 +36,11 @@ class UpdateSourceTypeRequest(BaseModel):
     source_label: str
 
 
+class UpdateCategoryRequest(BaseModel):
+    category_id: int
+    category_label: str
+
+
 class UpdateResolutionRequest(BaseModel):
     resolution_id: int
     resolution_label: str

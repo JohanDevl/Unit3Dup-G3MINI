@@ -29,7 +29,28 @@
             <tr><td>Source Name</td><td>{{ item.source_basename }}</td></tr>
             <tr><td>Release Name</td><td>{{ item.release_name or "—" }}</td></tr>
             <tr><td>Display Name</td><td>{{ item.display_name or "—" }}</td></tr>
-            <tr><td>Category</td><td>{{ item.content_category or "—" }}</td></tr>
+            <tr>
+                <td>Category</td>
+                <td>
+                    {{ item.content_category or "—" }}
+                    {% if item.status == 'pending' %}
+                    {% set current_cat_id = item.tracker_payload.category_id if item.tracker_payload and item.tracker_payload.category_id else '' %}
+                    <div class="inline-edit">
+                        <select id="category_select" class="filter-select">
+                            <option value="">— Select —</option>
+                            <option value="1" data-label="movie" {% if current_cat_id == 1 %}selected{% endif %}>Movie</option>
+                            <option value="2" data-label="tv" {% if current_cat_id == 2 %}selected{% endif %}>TV</option>
+                            <option value="4" data-label="game" {% if current_cat_id == 4 %}selected{% endif %}>Game</option>
+                            <option value="7" data-label="animation" {% if current_cat_id == 7 %}selected{% endif %}>Animation</option>
+                            <option value="6" data-label="tv_animation" {% if current_cat_id == 6 %}selected{% endif %}>TV Animation</option>
+                        </select>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="updateCategory({{ item.id }})">
+                            <i data-lucide="save" style="width:14px;height:14px"></i> Update
+                        </button>
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
             <tr>
                 <td>Resolution</td>
                 <td>
@@ -417,6 +438,32 @@ function updateResolution(id) {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({resolution_id: resId, resolution_label: label})
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            document.getElementById("action-result").innerHTML =
+                `<div class="alert alert-error">${data.detail || data.message}</div>`;
+        }
+    }).catch(err => {
+        document.getElementById("action-result").innerHTML =
+            `<div class="alert alert-error">Error: ${err}</div>`;
+    });
+}
+
+function updateCategory(id) {
+    const select = document.getElementById('category_select');
+    const catId = parseInt(select.value);
+    if (!catId) {
+        document.getElementById("action-result").innerHTML =
+            '<div class="alert alert-error">Please select a category</div>';
+        return;
+    }
+    const label = select.options[select.selectedIndex].getAttribute('data-label');
+    fetch(`/api/v1/items/${id}/update-category`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({category_id: catId, category_label: label})
     }).then(r => r.json()).then(data => {
         if (data.success) {
             window.location.reload();
