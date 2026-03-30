@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 from datetime import datetime
 
@@ -281,7 +282,8 @@ class UploadService:
         """Re-fetch TMDB data for an item with a corrected TMDB ID.
 
         Updates: tmdb_id, tmdb_title, tmdb_year, imdb_id, keywords,
-        and the corresponding fields in tracker_payload.
+        release_name, display_name, tracker_payload (including name),
+        and clears user_edited_name.
         """
         item = self.state_db.get_item(item_id)
         if not item:
@@ -343,6 +345,29 @@ class UploadService:
                 except (ValueError, TypeError):
                     pass
 
+            # --- Update release_name and display_name ---
+            old_release = item.get("release_name") or ""
+            old_display = item.get("display_name") or ""
+            old_title = item.get("tmdb_title") or ""
+            old_year = item.get("tmdb_year")
+
+            new_release = old_release
+            new_display = old_display
+
+            if old_title and title:
+                old_title_dotted = old_title.replace(" ", ".")
+                new_title_dotted = title.replace(" ", ".")
+                if old_title_dotted in new_release:
+                    new_release = new_release.replace(old_title_dotted, new_title_dotted, 1)
+                if old_title in new_display:
+                    new_display = new_display.replace(old_title, title, 1)
+
+            if old_year and year and str(old_year) != str(year):
+                year_pattern = re.compile(r'\b' + re.escape(str(old_year)) + r'\b')
+                new_year_str = str(year)
+                new_release = year_pattern.sub(new_year_str, new_release, count=1)
+                new_display = year_pattern.sub(new_year_str, new_display, count=1)
+
             # Update tracker payload
             tracker_payload = item.get("tracker_payload")
             if isinstance(tracker_payload, str):
@@ -352,6 +377,8 @@ class UploadService:
                 tracker_payload["imdb"] = imdb_id
                 if keywords_list:
                     tracker_payload["keywords"] = keywords_list
+                if new_release != old_release:
+                    tracker_payload["name"] = new_release
 
             # Update DB
             self.state_db.update_item(
@@ -361,6 +388,9 @@ class UploadService:
                 tmdb_year=year,
                 imdb_id=imdb_id,
                 tracker_payload=tracker_payload,
+                release_name=new_release,
+                display_name=new_display,
+                user_edited_name=None,
                 status="pending",  # Reset to pending for re-review
             )
 
@@ -372,6 +402,7 @@ class UploadService:
                 "tmdb_title": title,
                 "tmdb_year": year,
                 "imdb_id": imdb_id,
+                "release_name": new_release,
             }
 
         except Exception as e:
