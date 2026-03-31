@@ -244,6 +244,25 @@ class Bot:
                             from datetime import datetime
                             prepared_items = single_bot.prepare()
 
+                            # Handle stale already_in_archive: if torrent files exist
+                            # but the DB has no confirmed upload, remove stale files
+                            # so the item gets fully prepared on the next cycle.
+                            if prepared_items and all(
+                                getattr(p, 'skip_reason', None) == "already_in_archive"
+                                for p in prepared_items
+                            ):
+                                existing = state_db.get_item_by_basename(src.name)
+                                if not existing or existing.get("status") != "uploaded":
+                                    for p in prepared_items:
+                                        archive_path = getattr(p, 'torrent_filepath', None)
+                                        if archive_path and os.path.exists(archive_path):
+                                            os.remove(archive_path)
+                                            custom_console.bot_log(
+                                                f"[Watcher/Web] Removed stale archive: {os.path.basename(archive_path)}"
+                                            )
+                                    custom_console.bot_log(f"[Watcher/Web] Will re-process {src.name} next cycle")
+                                    continue  # Skip to next entry; next cycle will fully prepare it
+
                             for item in prepared_items:
                                 if item.skip_reason:
                                     state_db.add_item(
