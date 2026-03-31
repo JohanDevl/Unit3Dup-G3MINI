@@ -2,7 +2,7 @@
 """Pydantic models for the web dashboard API."""
 
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ApproveRequest(BaseModel):
@@ -44,6 +44,11 @@ class UpdateCategoryRequest(BaseModel):
 class UpdateResolutionRequest(BaseModel):
     resolution_id: int
     resolution_label: str
+
+
+class UpdateSeasonEpisodeRequest(BaseModel):
+    season_number: int = Field(ge=0)
+    episode_number: int = Field(ge=0)
 
 
 class StatsResponse(BaseModel):

@@ -135,6 +135,43 @@
                     {% endif %}
                 </td>
             </tr>
+            {% if item.content_category in ('tv', 'tv_show', 'tv_animation') %}
+            {% set sn = item.tracker_payload.season_number if item.tracker_payload and item.tracker_payload.season_number is defined else None %}
+            {% set en = item.tracker_payload.episode_number if item.tracker_payload and item.tracker_payload.episode_number is defined else None %}
+            <tr>
+                <td>Season / Episode</td>
+                <td>
+                    <span id="season_episode_label">
+                        {% if sn is not none and en is not none %}
+                            {% if sn == 0 and en == 0 %}
+                                Complete Series
+                            {% elif en == 0 %}
+                                Complete Season {{ sn }}
+                            {% else %}
+                                S{{ '%02d' % sn }}E{{ '%02d' % en }}
+                            {% endif %}
+                        {% else %}
+                            <span class="secondary">Not set</span>
+                        {% endif %}
+                    </span>
+                    {% if item.status == 'pending' %}
+                    <div class="inline-edit">
+                        <label style="font-size:0.8rem;color:var(--text-muted);margin:0">S</label>
+                        <input type="number" id="season_input" class="form-input inline-edit-input"
+                               style="width:70px" value="{{ sn if sn is not none else '' }}" min="0" placeholder="S"
+                               oninput="updateSeasonEpisodeLabel()">
+                        <label style="font-size:0.8rem;color:var(--text-muted);margin:0">E</label>
+                        <input type="number" id="episode_input" class="form-input inline-edit-input"
+                               style="width:70px" value="{{ en if en is not none else '' }}" min="0" placeholder="E"
+                               oninput="updateSeasonEpisodeLabel()">
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="updateSeasonEpisode({{ item.id }})">
+                            <i data-lucide="save" style="width:14px;height:14px"></i> Update
+                        </button>
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
             <tr><td>Size</td><td>{{ item.file_size | filesize }}</td></tr>
             <tr><td>Tracker</td><td>{{ item.tracker_name or "—" }}</td></tr>
             {% set sim_url = similar_url(item) %}
@@ -280,6 +317,9 @@
                 <tr><td>Category</td><td>{{ item.content_category or "—" }}</td></tr>
                 <tr><td>Resolution</td><td>{{ item.resolution or "—" }}</td></tr>
                 <tr><td>Source</td><td>{{ item.source_tag or "—" }}</td></tr>
+                {% if item.content_category in ('tv', 'tv_show', 'tv_animation') %}
+                <tr><td>Season / Episode</td><td id="approve-preview-season-episode"></td></tr>
+                {% endif %}
                 <tr><td>TMDB</td><td>{{ item.tmdb_title or "—" }} {% if item.tmdb_year %}({{ item.tmdb_year }}){% endif %} {% if item.tmdb_id %}— ID: {{ item.tmdb_id }}{% endif %}</td></tr>
                 {% if item.imdb_id %}
                 <tr><td>IMDb</td><td><a href="https://www.imdb.com/title/tt{{ '%07d' % item.imdb_id }}/" target="_blank">tt{{ '%07d' % item.imdb_id }}</a></td></tr>
@@ -351,11 +391,74 @@
 <script>
 let _approveItemId = null;
 
+function formatSeasonEpisode(sn, en) {
+    if (sn === 0 && en === 0) return 'Complete Series';
+    if (en === 0) return 'Complete Season ' + sn;
+    return 'S' + String(sn).padStart(2, '0') + 'E' + String(en).padStart(2, '0');
+}
+
+function updateSeasonEpisodeLabel() {
+    const sInput = document.getElementById('season_input');
+    const eInput = document.getElementById('episode_input');
+    if (!sInput || !eInput) return;
+    const sn = parseInt(sInput.value);
+    const en = parseInt(eInput.value);
+    const label = document.getElementById('season_episode_label');
+    if (isNaN(sn) || isNaN(en)) {
+        label.innerHTML = '<span class="secondary">Not set</span>';
+    } else {
+        label.textContent = formatSeasonEpisode(sn, en);
+    }
+}
+
+function updateSeasonEpisode(id) {
+    const sn = parseInt(document.getElementById('season_input').value);
+    const en = parseInt(document.getElementById('episode_input').value);
+    if (isNaN(sn) || sn < 0) {
+        document.getElementById("action-result").innerHTML =
+            '<div class="alert alert-error">Please enter a valid season number</div>';
+        return;
+    }
+    if (isNaN(en) || en < 0) {
+        document.getElementById("action-result").innerHTML =
+            '<div class="alert alert-error">Please enter a valid episode number</div>';
+        return;
+    }
+    fetch(`/api/v1/items/${id}/update-season-episode`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({season_number: sn, episode_number: en})
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            document.getElementById("action-result").innerHTML =
+                `<div class="alert alert-error">${data.detail || data.message}</div>`;
+        }
+    }).catch(err => {
+        document.getElementById("action-result").innerHTML =
+            `<div class="alert alert-error">Error: ${err}</div>`;
+    });
+}
+
 function openApproveModal(id) {
     _approveItemId = id;
     const name = document.getElementById('release_name').value || '{{ item.release_name or item.display_name or "" }}';
     const desc = document.getElementById('description_edit').value;
     document.getElementById('approve-preview-name').textContent = name;
+    // Populate season/episode preview in modal
+    const sePreview = document.getElementById('approve-preview-season-episode');
+    if (sePreview) {
+        const sInput = document.getElementById('season_input');
+        const eInput = document.getElementById('episode_input');
+        const sn = sInput ? parseInt(sInput.value) : NaN;
+        const en = eInput ? parseInt(eInput.value) : NaN;
+        if (!isNaN(sn) && !isNaN(en)) {
+            sePreview.textContent = formatSeasonEpisode(sn, en);
+        } else {
+            sePreview.textContent = 'Not set';
+        }
+    }
     const descNote = document.getElementById('approve-desc-note');
     descNote.style.display = desc ? 'block' : 'none';
     document.getElementById('approve-modal').classList.add('open');
