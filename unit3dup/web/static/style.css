@@ -900,6 +900,45 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
 .alert-success { background: var(--success-bg); color: var(--success); border: 1px solid rgba(34,197,94,0.2); }
 .alert-error   { background: var(--danger-bg);  color: var(--danger);  border: 1px solid rgba(239,68,68,0.2); }
 
+/* ── Bulk Action Bar ──────────────────────────────────────────── */
+.bulk-bar {
+    position: fixed;
+    bottom: 0;
+    left: var(--sidebar-width);
+    right: 0;
+    z-index: 150;
+    padding: 0.75rem 2rem;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--accent);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
+    animation: bulkBarSlideUp 0.2s ease;
+}
+
+@keyframes bulkBarSlideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
+
+.bulk-bar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.bulk-bar-inner > span {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--accent);
+}
+
+.bulk-bar-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 /* ── Responsive ────────────────────────────────────────────────── */
 
 /* Tablet */
@@ -912,6 +951,7 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     .nav-badge { display: none; }
     .main-content { margin-left: var(--sidebar-collapsed); }
     .detail-grid { grid-template-columns: 1fr; }
+    .bulk-bar { left: var(--sidebar-collapsed); }
 }
 
 /* Mobile */
@@ -932,6 +972,7 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     .main-content { margin-left: 0; min-width: 0; overflow-x: hidden; }
     .content { padding: 0.75rem; }
     .top-bar { padding: 0 0.75rem; }
+    .bulk-bar { left: 0; padding: 0.75rem; }
     .top-bar h1 { font-size: 1rem; }
 
     .sidebar-overlay {

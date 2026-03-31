@@ -2,21 +2,30 @@
     <table id="pending-table">
         <thead>
             <tr>
-                <th onclick="tableSort('pending-table', 0, this)" style="width:22%">Source <span class="sort-arrow">&#8597;</span></th>
-                <th onclick="tableSort('pending-table', 1, this)" style="width:22%">Release Name <span class="sort-arrow">&#8597;</span></th>
-                <th onclick="tableSort('pending-table', 2, this)">Size <span class="sort-arrow">&#8597;</span></th>
-                <th onclick="tableSort('pending-table', 3, this)">Category <span class="sort-arrow">&#8597;</span></th>
-                <th onclick="tableSort('pending-table', 4, this)">Source Tag <span class="sort-arrow">&#8597;</span></th>
-                <th onclick="tableSort('pending-table', 5, this)">Resolution <span class="sort-arrow">&#8597;</span></th>
+                <th style="width:36px;cursor:default" onclick="event.stopPropagation()">
+                    <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this)"
+                           style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer">
+                </th>
+                <th onclick="tableSort('pending-table', 1, this)" style="width:22%">Source <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 2, this)" style="width:22%">Release Name <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 3, this)">Size <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 4, this)">Category <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 5, this)">Source Tag <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 6, this)">Resolution <span class="sort-arrow">&#8597;</span></th>
                 <th>Validation</th>
-                <th onclick="tableSort('pending-table', 7, this)">Reason <span class="sort-arrow">&#8597;</span></th>
-                <th onclick="tableSortDate('pending-table', 8, this)">Discovered <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 8, this)">Reason <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSortDate('pending-table', 9, this)">Discovered <span class="sort-arrow">&#8597;</span></th>
                 <th style="width:70px"></th>
             </tr>
         </thead>
         <tbody>
         {% for item in items %}
             <tr>
+                <td data-label="" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="row-select-cb" value="{{ item.id }}"
+                           onchange="onRowCheckChange(this)"
+                           style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer">
+                </td>
                 <td class="truncate" data-label="Source">{{ item.source_basename }}</td>
                 <td class="truncate" data-label="Release">
                     <a href="/pending/{{ item.id }}">
@@ -39,7 +48,7 @@
                 </td>
             </tr>
         {% else %}
-            <tr><td colspan="10" class="secondary" style="text-align:center;padding:2rem">No pending items. Waiting for watcher to discover new media...</td></tr>
+            <tr><td colspan="11" class="secondary" style="text-align:center;padding:2rem">No pending items. Waiting for watcher to discover new media...</td></tr>
         {% endfor %}
         </tbody>
     </table>
