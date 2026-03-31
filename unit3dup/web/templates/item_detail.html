@@ -614,12 +614,33 @@ document.addEventListener('keydown', function(e) {
 <div class="card" style="margin-top:1.5rem">
     <div class="card-header"><h3>Actions</h3></div>
     <button type="button" class="btn btn-primary"
-            hx-post="/api/v1/items/{{ item.id }}/retry"
-            hx-swap="none"
-            hx-on::after-request="window.location.href='/pending'">
+            onclick="rescanItemAndRedirect({{ item.id }})">
         <i data-lucide="refresh-cw"></i> Rescan / Move to Pending
     </button>
 </div>
+<script>
+function rescanItemAndRedirect(id) {
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Rescanning...';
+    fetch(`/api/v1/items/${id}/rescan`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"}
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            window.location.href = '/pending';
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="refresh-cw"></i> Rescan / Move to Pending';
+            alert(data.detail || data.message);
+        }
+    }).catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="refresh-cw"></i> Rescan / Move to Pending';
+        alert('Rescan failed: ' + err);
+    });
+}
+</script>
 {% endif %}
 
 {% endblock %}
