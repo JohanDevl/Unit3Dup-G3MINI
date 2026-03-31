@@ -384,7 +384,7 @@ function confirmApprove() {
         if (data.success) {
             document.getElementById("action-result").innerHTML =
                 `<div class="alert alert-success">${data.message || 'Upload successful!'}</div>`;
-            setTimeout(() => window.location.href = '/history', 1500);
+            setTimeout(() => window.location.href = '/pending', 1500);
         } else {
             btn.disabled = false;
             btn.innerHTML = '<i data-lucide="upload"></i> Upload Now';
@@ -588,7 +588,7 @@ function confirmReject() {
     }).then(r => r.json()).then(data => {
         closeRejectModal();
         if (data.success) {
-            window.location.href = "/history";
+            window.location.href = "/pending";
         } else {
             document.getElementById("action-result").innerHTML =
                 `<div class="alert alert-error">${data.detail || data.message}</div>`;
