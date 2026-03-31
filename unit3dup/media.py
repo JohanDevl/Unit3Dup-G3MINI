@@ -183,7 +183,7 @@ class Media:
 
             # Search for Season and Episode o torrent_pack
             if 'tv' in self.category:
-                serie = f"S{str(self.guess_season).zfill(2)}" if self.guess_season else ''
+                serie = f"S{str(self.guess_season).zfill(2)}" if self.guess_season is not None else ''
                 if not self.torrent_pack:
                     serie+= f"E{str(self.guess_episode).zfill(2)}"
             else:
@@ -239,14 +239,14 @@ class Media:
 
     @property
     def guess_season(self):
-        if not self._guess_season:
+        if self._guess_season is None:
             if 'tv' in self.category:
                 self._guess_season = self.guess_filename.guessit_season
         return self._guess_season
 
     @property
     def guess_episode(self):
-        if not self._episode:
+        if self._episode is None:
             if 'tv' in self.category:
                 self._episode = self.guess_filename.guessit_episode
         return self._episode
@@ -315,7 +315,7 @@ class Media:
             return self._category
 
         # Search for a tv_show
-        elif self.guess_filename.guessit_season:
+        elif self.guess_filename.guessit_season is not None:
             self._category = System.category_list.get(System.TV_SHOW)
         else:
             self._category = System.category_list.get(System.MOVIE)

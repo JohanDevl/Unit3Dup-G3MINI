@@ -34,7 +34,7 @@ class CompareTitles:
 
         # Compare season and episode only if it is a serie
         # Return true if they have at least the same season and episode otherwise false
-        if self.content_file.guessit_season and self.tracker_file.guessit_season:
+        if self.content_file.guessit_season is not None and self.tracker_file.guessit_season is not None:
             same_season = self.content_file.guessit_season == self.tracker_file.guessit_season
             same_episode = self.content_file.guessit_episode == self.tracker_file.guessit_episode
             return same_season and same_episode

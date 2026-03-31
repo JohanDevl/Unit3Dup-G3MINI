@@ -361,7 +361,7 @@ class DbOnline(TmdbAPI):
 
         custom_console.bot_warning_log(f"Title:   '{self.query}'\ncategory:'{self.category}'")
         if self.category in 'tv':
-            serie = f"S{str(self.media.guess_season).zfill(2)}" if self.media.guess_season else ''
+            serie = f"S{str(self.media.guess_season).zfill(2)}" if self.media.guess_season is not None else ''
             if not self.media.torrent_pack:
                 serie += f"E{str(self.media.guess_episode).zfill(2)}"
             custom_console.bot_warning_log(f"details: '{serie}' Pack: '{self.media.torrent_pack}'")
