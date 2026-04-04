@@ -99,13 +99,18 @@
 
         // ── Table interactivity ──────────────────────────────────────
 
+        function normalizeSeparators(s) {
+            return s.replace(/[.\-_]/g, ' ').replace(/ {2,}/g, ' ');
+        }
+
         function tableSearch(inputEl, tableId) {
-            const filter = inputEl.value.toLowerCase();
+            const filter = normalizeSeparators(inputEl.value.toLowerCase());
             const table = document.getElementById(tableId);
             const rows = table.querySelectorAll('tbody tr');
             const hidden = new Set();
             rows.forEach(row => {
-                if (filter && !row.textContent.toLowerCase().includes(filter)) hidden.add(row);
+                if (filter && !normalizeSeparators(row.textContent.toLowerCase()).includes(filter))
+                    hidden.add(row);
             });
             registerFilter(tableId, 'search', hidden);
         }
