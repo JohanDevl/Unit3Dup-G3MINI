@@ -31,6 +31,7 @@ def create_app(state_db: StateDB) -> FastAPI:
 
     # Initialize services
     upload_service = UploadService(state_db=state_db)
+    upload_service.start_worker()
     init_api(state_db, upload_service)
     init_views(state_db)
 
@@ -42,6 +43,10 @@ def create_app(state_db: StateDB) -> FastAPI:
     # Include routers
     app.include_router(api_router)
     app.include_router(views_router)
+
+    @app.on_event("shutdown")
+    def shutdown_event():
+        upload_service.stop_worker()
 
     return app
 

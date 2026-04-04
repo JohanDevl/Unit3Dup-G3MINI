@@ -65,6 +65,9 @@
         <span id="bulk-count">0 selected</span>
         <div class="bulk-bar-actions">
             <button type="button" class="btn btn-ghost btn-sm" onclick="clearSelection()">Clear</button>
+            <button type="button" class="btn btn-success btn-sm" onclick="openBulkApproveModal()">
+                <i data-lucide="upload"></i> Bulk Approve
+            </button>
             <button type="button" class="btn btn-danger btn-sm" onclick="openBulkRejectModal()">
                 <i data-lucide="x-circle"></i> Bulk Reject
             </button>
@@ -102,6 +105,39 @@
             <button class="btn btn-ghost" onclick="closeBulkRejectModal()">Cancel</button>
             <button class="btn btn-danger" id="bulk-reject-confirm-btn" onclick="confirmBulkReject()">
                 <i data-lucide="x-circle"></i> Reject
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Approve Modal -->
+<div class="modal-overlay" id="bulk-approve-modal">
+    <div class="modal" style="max-width:800px;width:95vw">
+        <div class="modal-header">
+            <h3><i data-lucide="upload" style="width:20px;height:20px;color:var(--success)"></i> Bulk Approve</h3>
+            <button class="modal-close" onclick="closeBulkApproveModal()">
+                <i data-lucide="x" style="width:18px;height:18px"></i>
+            </button>
+        </div>
+        <div class="modal-body" style="max-height:60vh;overflow-y:auto">
+            <p id="bulk-approve-info" style="margin-bottom:1rem">Review and edit items before queueing:</p>
+            <table id="bulk-approve-table" style="width:100%;border-collapse:collapse">
+                <thead>
+                    <tr>
+                        <th style="width:45%">Release Name</th>
+                        <th>Category</th>
+                        <th>Resolution</th>
+                        <th>Tracker</th>
+                        <th style="width:36px"></th>
+                    </tr>
+                </thead>
+                <tbody id="bulk-approve-items"></tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeBulkApproveModal()">Cancel</button>
+            <button class="btn btn-success" id="bulk-approve-confirm-btn" onclick="confirmBulkApprove()">
+                <i data-lucide="upload"></i> Queue All (<span id="bulk-approve-count">0</span>)
             </button>
         </div>
     </div>
@@ -315,12 +351,126 @@
         });
     }
 
-    // Close modal on overlay click or Escape
+    // ── Bulk Approve Modal ─────────────────────────────────────
+
+    let _bulkApproveItems = [];
+
+    function openBulkApproveModal() {
+        if (_selectedIds.size === 0) return;
+        _bulkApproveItems = [];
+        // Collect item data from table row data attributes
+        document.querySelectorAll('.row-select-cb:checked').forEach(cb => {
+            const row = cb.closest('tr');
+            if (!row || row.dataset.status === 'queued') return;
+            _bulkApproveItems.push({
+                id: parseInt(cb.value),
+                releaseName: row.dataset.releaseName || '',
+                category: row.dataset.category || '—',
+                resolution: row.dataset.resolution || '—',
+                tracker: row.dataset.tracker || '—',
+                hasErrors: row.dataset.hasErrors === '1',
+                hasWarnings: row.dataset.hasWarnings === '1',
+            });
+        });
+        if (_bulkApproveItems.length === 0) return;
+        renderBulkApproveItems();
+        document.getElementById('bulk-approve-modal').classList.add('open');
+        setTimeout(() => lucide.createIcons(), 100);
+    }
+
+    function renderBulkApproveItems() {
+        const tbody = document.getElementById('bulk-approve-items');
+        tbody.innerHTML = '';
+        _bulkApproveItems.forEach((item, idx) => {
+            const row = document.createElement('tr');
+            const validClass = item.hasErrors ? 'pill-error' : item.hasWarnings ? 'pill-warn' : '';
+            const validIcon = item.hasErrors ? '⚠' : '';
+            row.innerHTML =
+                '<td><input type="text" class="form-input" style="font-size:0.85rem;padding:0.4rem 0.6rem" ' +
+                    'value="' + item.releaseName.replace(/"/g, '&quot;') + '" ' +
+                    'data-bulk-idx="' + idx + '" onchange="updateBulkApproveName(this)">' +
+                (validIcon ? ' <span class="pill ' + validClass + '" style="font-size:0.7rem">' + (item.hasErrors ? 'Error' : 'Warn') + '</span>' : '') +
+                '</td>' +
+                '<td class="secondary" style="font-size:0.85rem">' + item.category + '</td>' +
+                '<td class="secondary" style="font-size:0.85rem">' + item.resolution + '</td>' +
+                '<td class="secondary" style="font-size:0.85rem">' + item.tracker + '</td>' +
+                '<td><button class="btn btn-ghost btn-sm" style="padding:0.2rem" onclick="removeBulkApproveItem(' + idx + ')" title="Remove">' +
+                    '<i data-lucide="x" style="width:14px;height:14px"></i></button></td>';
+            tbody.appendChild(row);
+        });
+        document.getElementById('bulk-approve-count').textContent = _bulkApproveItems.length;
+        const btn = document.getElementById('bulk-approve-confirm-btn');
+        btn.disabled = _bulkApproveItems.length === 0;
+    }
+
+    function updateBulkApproveName(input) {
+        const idx = parseInt(input.dataset.bulkIdx);
+        if (_bulkApproveItems[idx]) {
+            _bulkApproveItems[idx].releaseName = input.value;
+        }
+    }
+
+    function removeBulkApproveItem(idx) {
+        const removed = _bulkApproveItems.splice(idx, 1)[0];
+        if (removed) _selectedIds.delete(removed.id);
+        renderBulkApproveItems();
+        updateBulkBar();
+        setTimeout(() => lucide.createIcons(), 50);
+        if (_bulkApproveItems.length === 0) closeBulkApproveModal();
+    }
+
+    function closeBulkApproveModal() {
+        document.getElementById('bulk-approve-modal').classList.remove('open');
+    }
+
+    function confirmBulkApprove() {
+        if (_bulkApproveItems.length === 0) return;
+        const btn = document.getElementById('bulk-approve-confirm-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader"></i> Queueing...';
+        lucide.createIcons();
+
+        const promises = _bulkApproveItems.map(item =>
+            fetch('/api/v1/items/' + item.id + '/approve', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({release_name: item.releaseName || null, description: null})
+            }).then(r => r.json()).then(data => ({id: item.id, ...data}))
+              .catch(err => ({id: item.id, success: false, message: String(err)}))
+        );
+
+        Promise.all(promises).then(results => {
+            closeBulkApproveModal();
+            const ok = results.filter(r => r.success).length;
+            const total = results.length;
+            _selectedIds.clear();
+            updateBulkBar();
+            const card = document.getElementById('pending-card');
+            const alert = document.createElement('div');
+            alert.style.marginBottom = '1rem';
+            if (ok === total) {
+                alert.className = 'alert alert-success';
+                alert.textContent = ok + '/' + total + ' queued for upload';
+            } else {
+                alert.className = 'alert alert-error';
+                alert.textContent = ok + '/' + total + ' queued (some items failed)';
+            }
+            card.insertBefore(alert, card.firstChild);
+            setTimeout(() => alert.remove(), 5000);
+            const container = document.getElementById('pending-container');
+            if (container) htmx.ajax('GET', '/partials/pending-list', {target: '#pending-container', swap: 'innerHTML'});
+        });
+    }
+
+    // Close modals on overlay click or Escape
     document.getElementById('bulk-reject-modal').addEventListener('click', function(e) {
         if (e.target === this) closeBulkRejectModal();
     });
+    document.getElementById('bulk-approve-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeBulkApproveModal();
+    });
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') closeBulkRejectModal();
+        if (e.key === 'Escape') { closeBulkRejectModal(); closeBulkApproveModal(); }
     });
 </script>
 

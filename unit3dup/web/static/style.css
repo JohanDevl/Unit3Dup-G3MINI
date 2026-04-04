@@ -242,6 +242,7 @@ h3 { font-size: 1.15rem; }
 .stat-icon svg { width: 22px; height: 22px; }
 
 .stat-icon.pending   { background: var(--warning-bg); color: var(--warning); }
+.stat-icon.queued    { background: rgba(147, 130, 242, 0.12); color: #9382f2; }
 .stat-icon.uploaded  { background: var(--success-bg); color: var(--success); }
 .stat-icon.rejected  { background: var(--danger-bg);  color: var(--danger); }
 .stat-icon.error     { background: var(--danger-bg);  color: var(--danger); }
@@ -478,6 +479,7 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
 .pill-skipped  { background: rgba(92, 96, 120, 0.15); color: var(--text-muted); }
 .pill-error    { background: var(--danger-bg);  color: var(--danger); }
 .pill-approved { background: var(--info-bg);    color: var(--info); }
+.pill-queued   { background: rgba(147, 130, 242, 0.12); color: #9382f2; }
 .pill-ok       { background: var(--success-bg); color: var(--success); }
 .pill-warn     { background: var(--warning-bg); color: var(--warning); }
 
@@ -938,6 +940,9 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     gap: 0.5rem;
     align-items: center;
 }
+
+#bulk-approve-table th { text-align: left; padding: 0.5rem; font-size: 0.8rem; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+#bulk-approve-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
 
 /* ── Responsive ────────────────────────────────────────────────── */
 

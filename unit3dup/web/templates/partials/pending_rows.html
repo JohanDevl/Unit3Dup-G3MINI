@@ -20,7 +20,15 @@
         </thead>
         <tbody>
         {% for item in items %}
-            <tr>
+            <tr data-item-id="{{ item.id }}"
+                data-release-name="{{ item.release_name or item.display_name or '' }}"
+                data-category="{{ item.content_category or '' }}"
+                data-resolution="{{ item.resolution or '' }}"
+                data-source-tag="{{ item.source_tag or '' }}"
+                data-tracker="{{ item.tracker_name or '' }}"
+                data-has-errors="{{ item.has_errors|int }}"
+                data-has-warnings="{{ item.has_warnings|int }}"
+                data-status="{{ item.status }}">
                 <td data-label="" onclick="event.stopPropagation()">
                     <input type="checkbox" class="row-select-cb" value="{{ item.id }}"
                            onchange="onRowCheckChange(this)"
@@ -31,6 +39,11 @@
                     <a href="/pending/{{ item.id }}">
                         {{ item.release_name or item.display_name or "—" }}
                     </a>
+                    {% if item.status == 'queued' %}
+                    <span class="pill pill-queued" style="margin-left:0.5rem">Queued</span>
+                    {% elif item.status == 'approved' %}
+                    <span class="pill pill-approved" style="margin-left:0.5rem">Uploading</span>
+                    {% endif %}
                 </td>
                 <td class="secondary" data-label="Size">{{ item.file_size | filesize }}</td>
                 <td class="secondary" data-label="Category">{{ item.content_category or "—" }}</td>

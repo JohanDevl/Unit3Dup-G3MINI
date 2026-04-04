@@ -10,7 +10,7 @@ from unit3dup.web.models import (
     ApproveRequest, RejectRequest, BulkApproveRequest, BulkRejectRequest,
     RescanTmdbRequest, UpdateCategoryRequest, UpdateSourceTypeRequest, UpdateResolutionRequest,
     UpdateSeasonEpisodeRequest,
-    StatsResponse, ItemDetail, ItemListResponse, ItemSummary,
+    StatsResponse, ItemDetail, ItemListResponse, ItemSummary, QueueStatusResponse,
 )
 from unit3dup.web.upload_service import UploadService
 
@@ -44,6 +44,7 @@ def get_stats():
     counts = _db().count_by_status()
     return StatsResponse(
         pending=counts.get("pending", 0),
+        queued=counts.get("queued", 0),
         uploaded=counts.get("uploaded", 0),
         rejected=counts.get("rejected", 0),
         skipped=counts.get("skipped", 0),
@@ -201,6 +202,11 @@ def delete_item(item_id: int):
     if not success:
         raise HTTPException(404, "Item not found")
     return {"success": True, "message": "Item deleted"}
+
+
+@router.get("/queue/status", response_model=QueueStatusResponse)
+def queue_status():
+    return _svc().queue_status()
 
 
 @router.post("/items/bulk-approve")

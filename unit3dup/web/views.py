@@ -31,8 +31,11 @@ def init_views(state_db: StateDB):
     templates.env.filters["filesize"] = _format_filesize
     templates.env.filters["reason_label"] = _format_reason
     templates.env.filters["datefmt"] = _format_datetime
-    # Global context: pending count for sidebar badge
-    templates.env.globals["get_pending_count"] = lambda: state_db.count_by_status().get("pending", 0)
+    # Global context: pending + queued count for sidebar badge
+    def _pending_and_queued():
+        counts = state_db.count_by_status()
+        return counts.get("pending", 0) + counts.get("queued", 0)
+    templates.env.globals["get_pending_count"] = _pending_and_queued
     templates.env.globals["similar_url"] = _build_similar_url
 
 
@@ -116,11 +119,18 @@ def dashboard(request: Request):
     })
 
 
+def _get_pending_and_queued() -> list[dict]:
+    """Fetch pending + queued items, sorted by discovered date descending."""
+    items = _db().list_items(status="pending", per_page=500)
+    items += _db().list_items(status="queued", per_page=500)
+    items.sort(key=lambda x: x.get("discovered_at", ""), reverse=True)
+    return items
+
+
 @router.get("/pending", response_class=HTMLResponse)
 def pending_list(request: Request):
-    items = _db().list_items(status="pending", per_page=500)
     return templates.TemplateResponse(request, "pending.html", {
-        "items": items,
+        "items": _get_pending_and_queued(),
         "page_title": "Pending",
     })
 
@@ -168,9 +178,8 @@ def history_detail(request: Request, item_id: int):
 
 @router.get("/partials/pending-list", response_class=HTMLResponse)
 def partial_pending_list(request: Request):
-    items = _db().list_items(status="pending", per_page=500)
     return templates.TemplateResponse(request, "partials/pending_rows.html", {
-        "items": items,
+        "items": _get_pending_and_queued(),
     })
 
 

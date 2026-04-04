@@ -300,6 +300,13 @@ class StateDB:
             upload_error=error,
         )
 
+    def mark_queued(self, item_id: int) -> bool:
+        return self.update_item(
+            item_id,
+            status="queued",
+            decided_at=datetime.now().isoformat(),
+        )
+
     def retry_item(self, item_id: int) -> bool:
         """Move a rejected/error/skipped item back to pending for reprocessing."""
         return self.update_item(

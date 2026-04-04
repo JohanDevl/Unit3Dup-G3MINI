@@ -53,6 +53,7 @@ class UpdateSeasonEpisodeRequest(BaseModel):
 
 class StatsResponse(BaseModel):
     pending: int = 0
+    queued: int = 0
     uploaded: int = 0
     rejected: int = 0
     skipped: int = 0
@@ -110,3 +111,8 @@ class ItemListResponse(BaseModel):
     total: int
     page: int
     per_page: int
+
+
+class QueueStatusResponse(BaseModel):
+    queue_size: int = 0
+    uploading_item_id: int | None = None

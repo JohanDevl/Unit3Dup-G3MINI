@@ -475,7 +475,7 @@ function confirmApprove() {
     const desc = document.getElementById('description_edit').value || null;
     const btn = document.getElementById('approve-confirm-btn');
     btn.disabled = true;
-    btn.innerHTML = '<i data-lucide="loader"></i> Uploading...';
+    btn.innerHTML = '<i data-lucide="loader"></i> Queueing...';
     lucide.createIcons();
 
     fetch(`/api/v1/items/${_approveItemId}/approve`, {
@@ -486,8 +486,8 @@ function confirmApprove() {
         closeApproveModal();
         if (data.success) {
             document.getElementById("action-result").innerHTML =
-                `<div class="alert alert-success">${data.message || 'Upload successful!'}</div>`;
-            setTimeout(() => window.location.href = '/pending', 1500);
+                `<div class="alert alert-success">${data.message || 'Queued for upload!'}</div>`;
+            setTimeout(() => window.location.href = '/pending', 500);
         } else {
             btn.disabled = false;
             btn.innerHTML = '<i data-lucide="upload"></i> Upload Now';
@@ -711,6 +711,25 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') { closeRejectModal(); closeApproveModal(); }
 });
 </script>
+{% elif item.status == 'queued' %}
+<div class="card" style="margin-top:1.5rem">
+    <div class="card-header"><h3>Upload Status</h3></div>
+    <div style="padding:1.5rem;text-align:center">
+        <div style="font-size:2rem;margin-bottom:0.5rem"><i data-lucide="clock" style="width:32px;height:32px;color:var(--info)"></i></div>
+        <p style="font-size:1.1rem;font-weight:600;color:var(--info)">Queued for upload</p>
+        <p class="secondary" style="margin-top:0.5rem">This item is waiting in the upload queue. It will be processed automatically.</p>
+    </div>
+</div>
+
+{% elif item.status == 'approved' %}
+<div class="card" style="margin-top:1.5rem">
+    <div class="card-header"><h3>Upload Status</h3></div>
+    <div style="padding:1.5rem;text-align:center">
+        <div style="font-size:2rem;margin-bottom:0.5rem"><i data-lucide="upload" style="width:32px;height:32px;color:var(--accent)"></i></div>
+        <p style="font-size:1.1rem;font-weight:600;color:var(--accent)">Uploading...</p>
+        <p class="secondary" style="margin-top:0.5rem">This item is currently being uploaded to the tracker.</p>
+    </div>
+</div>
 {% endif %}
 
 {% if item.status in ('rejected', 'skipped') %}

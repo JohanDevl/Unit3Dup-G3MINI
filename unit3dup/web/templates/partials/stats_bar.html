@@ -9,6 +9,15 @@
         </div>
     </div>
     <div class="stat-card">
+        <div class="stat-icon queued">
+            <i data-lucide="list-ordered"></i>
+        </div>
+        <div class="stat-info">
+            <h3>{{ stats.get('queued', 0) }}</h3>
+            <p>Queued</p>
+        </div>
+    </div>
+    <div class="stat-card">
         <div class="stat-icon uploaded">
             <i data-lucide="check-circle"></i>
         </div>

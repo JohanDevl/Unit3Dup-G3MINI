@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import re
 import threading
 from datetime import datetime
@@ -21,7 +22,42 @@ class UploadService:
 
     def __init__(self, state_db: StateDB):
         self.state_db = state_db
-        self._upload_lock = threading.Lock()
+        self._queue: queue.Queue = queue.Queue()
+        self._worker_thread: threading.Thread | None = None
+        self._shutdown = threading.Event()
+        self._current_item_id: int | None = None
+
+    def start_worker(self):
+        """Start the background upload worker. Re-enqueues items left in queued/approved status from a previous crash."""
+        for status in ("queued", "approved"):
+            items = self.state_db.list_items(status=status)
+            for item in items:
+                self._queue.put((item["id"], None, None))
+                custom_console.bot_log(f"[Web] Re-enqueued {status} item #{item['id']}: {item.get('release_name', '?')}")
+        self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
+        self._worker_thread.start()
+
+    def stop_worker(self):
+        """Signal the worker to stop and wait for it."""
+        self._shutdown.set()
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=5)
+
+    def _worker_loop(self):
+        """Background loop: pick items from queue and upload one at a time."""
+        while not self._shutdown.is_set():
+            try:
+                item_id, name_override, desc_override = self._queue.get(timeout=1)
+            except queue.Empty:
+                continue
+            try:
+                self._current_item_id = item_id
+                self._do_upload(item_id, name_override, desc_override)
+            except Exception as e:
+                custom_console.bot_error_log(f"[Web] Worker error for item #{item_id}: {e}")
+            finally:
+                self._current_item_id = None
+                self._queue.task_done()
 
     def approve_and_upload(
         self,
@@ -29,18 +65,29 @@ class UploadService:
         release_name_override: str | None = None,
         description_override: str | None = None,
     ) -> dict:
-        """Approve an item and upload it to the tracker.
+        """Queue an item for upload. Returns immediately."""
+        item = self.state_db.get_item(item_id)
+        if not item:
+            return {"success": False, "message": "Item not found"}
 
-        Args:
-            item_id: Database item ID
-            release_name_override: Optional new release name
-            description_override: Optional new description
+        transitioned = self.state_db.atomic_transition(
+            item_id,
+            from_statuses=("pending", "error"),
+            to_status="queued",
+            decided_at=datetime.now().isoformat(),
+        )
+        if not transitioned:
+            return {"success": False, "message": f"Item cannot be queued (current status: {item['status']})"}
 
-        Returns:
-            dict with keys: success (bool), message (str), tracker_response (str|None)
-        """
-        with self._upload_lock:
-            return self._do_upload(item_id, release_name_override, description_override)
+        # Save user edits immediately
+        if release_name_override:
+            self.state_db.update_item(item_id, user_edited_name=release_name_override)
+        if description_override:
+            self.state_db.update_item(item_id, user_edited_desc=description_override)
+
+        self._queue.put((item_id, release_name_override, description_override))
+        custom_console.bot_log(f"[Web] Queued → {item.get('release_name', 'unknown')}")
+        return {"success": True, "message": "Queued for upload"}
 
     def _do_upload(
         self,
@@ -48,7 +95,7 @@ class UploadService:
         release_name_override: str | None = None,
         description_override: str | None = None,
     ) -> dict:
-        """Execute upload logic (must be called with lock held).
+        """Execute upload logic. Called by the background worker thread.
 
         Args:
             item_id: Database item ID
@@ -63,9 +110,10 @@ class UploadService:
             return {"success": False, "message": "Item not found"}
 
         # Use atomic transition to prevent TOCTOU race
+        # Accept both "queued" (normal) and "approved" (crash recovery re-enqueue)
         transitioned = self.state_db.atomic_transition(
             item_id,
-            from_statuses=("pending", "error"),
+            from_statuses=("queued", "approved"),
             to_status="approved",
             decided_at=datetime.now().isoformat(),
         )
@@ -73,11 +121,10 @@ class UploadService:
             return {"success": False, "message": f"Item cannot be approved (current status: {item['status']})"}
 
         try:
-            # Save user edits
-            if release_name_override:
-                self.state_db.update_item(item_id, user_edited_name=release_name_override)
-            if description_override:
-                self.state_db.update_item(item_id, user_edited_desc=description_override)
+            # Resolve user overrides: prefer passed values, fall back to DB columns
+            # (important for crash recovery where overrides are None)
+            release_name_override = release_name_override or item.get("user_edited_name")
+            description_override = description_override or item.get("user_edited_desc")
 
             # Build tracker payload
             tracker_payload = item.get("tracker_payload")
@@ -154,8 +201,8 @@ class UploadService:
         item = self.state_db.get_item(item_id)
         if not item:
             return {"success": False, "message": "Item not found"}
-        if item["status"] == "uploaded":
-            return {"success": False, "message": "Cannot reject an already uploaded item"}
+        if item["status"] in ("uploaded", "queued", "approved"):
+            return {"success": False, "message": f"Cannot reject item with status '{item['status']}'"}
 
         self.state_db.mark_rejected(item_id, reason)
         return {"success": True, "message": "Item rejected"}
@@ -164,10 +211,21 @@ class UploadService:
         item = self.state_db.get_item(item_id)
         if not item:
             return {"success": False, "message": "Item not found"}
-        if item["status"] not in ("rejected", "error", "skipped"):
+
+        transitioned = self.state_db.atomic_transition(
+            item_id,
+            from_statuses=("rejected", "error", "skipped"),
+            to_status="pending",
+            decided_at=None,
+            uploaded_at=None,
+            rejection_reason=None,
+            upload_error=None,
+            skip_reason=None,
+            tracker_response=None,
+        )
+        if not transitioned:
             return {"success": False, "message": f"Cannot retry item with status '{item['status']}'"}
 
-        self.state_db.retry_item(item_id)
         return {"success": True, "message": "Item moved back to pending"}
 
     def rescan_item(self, item_id: int) -> dict:
@@ -270,13 +328,19 @@ class UploadService:
             return {"success": False, "message": f"Rescan failed: {str(e)}"}
 
     def bulk_approve(self, ids: list[int]) -> dict:
-        results = []
-        with self._upload_lock:
-            for item_id in ids:
-                result = self._do_upload(item_id)
-                results.append({"id": item_id, **result})
-        successes = sum(1 for r in results if r["success"])
-        return {"success": True, "message": f"{successes}/{len(ids)} uploaded", "results": results}
+        count = 0
+        for item_id in ids:
+            result = self.approve_and_upload(item_id)
+            if result["success"]:
+                count += 1
+        return {"success": True, "message": f"{count}/{len(ids)} queued"}
+
+    def queue_status(self) -> dict:
+        """Return current queue state."""
+        return {
+            "queue_size": self._queue.qsize(),
+            "uploading_item_id": self._current_item_id,
+        }
 
     def rescan_tmdb(self, item_id: int, new_tmdb_id: int) -> dict:
         """Re-fetch TMDB data for an item with a corrected TMDB ID.
