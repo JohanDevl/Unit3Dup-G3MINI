@@ -21,11 +21,13 @@ templates = Jinja2Templates(directory=_templates_dir)
 
 # Will be set by app factory
 _state_db: StateDB | None = None
+_upload_service = None
 
 
-def init_views(state_db: StateDB):
-    global _state_db
+def init_views(state_db: StateDB, upload_service=None):
+    global _state_db, _upload_service
     _state_db = state_db
+    _upload_service = upload_service
     # Register custom filters
     templates.env.filters["bbcode"] = bbcode_to_html
     templates.env.filters["filesize"] = _format_filesize
@@ -36,6 +38,11 @@ def init_views(state_db: StateDB):
         counts = state_db.count_by_status()
         return counts.get("pending", 0) + counts.get("queued", 0)
     templates.env.globals["get_pending_count"] = _pending_and_queued
+    # Global context: queue count (queued + uploading) for sidebar badge
+    def _queue_count():
+        counts = state_db.count_by_status()
+        return counts.get("queued", 0) + counts.get("approved", 0)
+    templates.env.globals["get_queue_count"] = _queue_count
     templates.env.globals["similar_url"] = _build_similar_url
 
 
@@ -188,4 +195,31 @@ def partial_stats(request: Request):
     counts = _db().count_by_status()
     return templates.TemplateResponse(request, "partials/stats_bar.html", {
         "stats": counts,
+    })
+
+
+def _get_queue_items() -> tuple[list[dict], int | None]:
+    """Fetch uploading + queued items and the currently uploading item ID."""
+    uploading = _db().list_items(status="approved", per_page=10)
+    queued = _db().list_items(status="queued", per_page=100)
+    uploading_id = _upload_service._current_item_id if _upload_service else None
+    return uploading + queued, uploading_id
+
+
+@router.get("/queue", response_class=HTMLResponse)
+def queue_page(request: Request):
+    items, uploading_id = _get_queue_items()
+    return templates.TemplateResponse(request, "queue.html", {
+        "items": items,
+        "uploading_id": uploading_id,
+        "page_title": "Queue",
+    })
+
+
+@router.get("/partials/queue-list", response_class=HTMLResponse)
+def partial_queue_list(request: Request):
+    items, uploading_id = _get_queue_items()
+    return templates.TemplateResponse(request, "partials/queue_rows.html", {
+        "items": items,
+        "uploading_id": uploading_id,
     })

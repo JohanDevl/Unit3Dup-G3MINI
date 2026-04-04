@@ -1,0 +1,41 @@
+{% if items %}
+<div class="queue-list">
+    {% set ns = namespace(position=0) %}
+    {% for item in items %}
+    {% set is_uploading = item.status == 'approved' or item.id == uploading_id %}
+    {% if not is_uploading %}{% set ns.position = ns.position + 1 %}{% endif %}
+    <div class="queue-item {% if is_uploading %}queue-item-uploading{% endif %}">
+        <div class="queue-item-status">
+            {% if is_uploading %}
+            <span class="queue-badge queue-badge-uploading">
+                <span class="pulse-dot"></span> Uploading
+            </span>
+            {% else %}
+            <span class="queue-badge queue-badge-waiting">#{{ ns.position }}</span>
+            {% endif %}
+        </div>
+        <div class="queue-item-info">
+            <a href="/pending/{{ item.id }}" class="queue-item-name">
+                {{ item.release_name or item.display_name or item.source_basename or "—" }}
+            </a>
+            <div class="queue-item-meta">
+                <span>{{ item.content_category or "—" }}</span>
+                <span>{{ item.resolution or "—" }}</span>
+                <span>{{ item.source_tag or "—" }}</span>
+                <span>{{ item.tracker_name or "—" }}</span>
+                <span>{{ item.file_size | filesize }}</span>
+            </div>
+        </div>
+        <div class="queue-item-time secondary">
+            {{ item.decided_at | datefmt }}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div style="padding:3rem;text-align:center">
+    <i data-lucide="inbox" style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem"></i>
+    <p style="color:var(--text-muted);font-size:1rem">Queue is empty</p>
+    <p style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.25rem">Approve items from the <a href="/pending">pending list</a> to start uploading.</p>
+</div>
+{% endif %}

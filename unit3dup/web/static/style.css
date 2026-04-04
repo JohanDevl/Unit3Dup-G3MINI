@@ -136,6 +136,7 @@ h3 { font-size: 1.15rem; }
     min-width: 20px;
     text-align: center;
 }
+.nav-badge-queue { background: #9382f2; }
 
 .sidebar-footer {
     padding: 1rem 1.5rem;
@@ -943,6 +944,84 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
 
 #bulk-approve-table th { text-align: left; padding: 0.5rem; font-size: 0.8rem; color: var(--text-muted); border-bottom: 1px solid var(--border); }
 #bulk-approve-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+
+/* ── Queue Page ────────────────────────────────────────────────── */
+
+.queue-list { display: flex; flex-direction: column; }
+
+.queue-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+}
+.queue-item:last-child { border-bottom: none; }
+.queue-item:hover { background: rgba(255,255,255,0.02); }
+.queue-item-uploading { background: rgba(147, 130, 242, 0.05); }
+
+.queue-item-status { flex-shrink: 0; min-width: 100px; }
+
+.queue-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+}
+.queue-badge-uploading {
+    background: rgba(147, 130, 242, 0.15);
+    color: #9382f2;
+}
+.queue-badge-waiting {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #9382f2;
+    animation: pulse-glow 1.5s ease-in-out infinite;
+}
+@keyframes pulse-glow {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(147, 130, 242, 0.5); }
+    50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(147, 130, 242, 0); }
+}
+
+.queue-item-info { flex: 1; min-width: 0; }
+
+.queue-item-name {
+    display: block;
+    font-weight: 500;
+    color: var(--text-primary);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.queue-item-name:hover { color: var(--accent); }
+
+.queue-item-meta {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.queue-item-meta span::before {
+    content: "·";
+    margin-right: 0.75rem;
+    color: var(--border);
+}
+.queue-item-meta span:first-child::before { display: none; }
+
+.queue-item-time { flex-shrink: 0; font-size: 0.8rem; }
 
 /* ── Responsive ────────────────────────────────────────────────── */
 

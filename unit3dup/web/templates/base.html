@@ -27,6 +27,12 @@
                 {% set pc = get_pending_count() %}
                 {% if pc > 0 %}<span class="nav-badge">{{ pc }}</span>{% endif %}
             </a>
+            <a href="/queue" class="nav-item {% if page_title == 'Queue' %}active{% endif %}">
+                <i data-lucide="list-ordered"></i>
+                <span class="nav-label">Queue</span>
+                {% set qc = get_queue_count() %}
+                {% if qc > 0 %}<span class="nav-badge nav-badge-queue">{{ qc }}</span>{% endif %}
+            </a>
             <a href="/history" class="nav-item {% if page_title == 'History' %}active{% endif %}">
                 <i data-lucide="history"></i>
                 <span class="nav-label">History</span>

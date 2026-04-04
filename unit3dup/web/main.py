@@ -33,7 +33,7 @@ def create_app(state_db: StateDB) -> FastAPI:
     upload_service = UploadService(state_db=state_db)
     upload_service.start_worker()
     init_api(state_db, upload_service)
-    init_views(state_db)
+    init_views(state_db, upload_service)
 
     # Mount static files (directory is part of the installed package)
     static_dir = os.path.join(os.path.dirname(__file__), "static")
