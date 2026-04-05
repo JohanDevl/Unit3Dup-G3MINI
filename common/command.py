@@ -124,7 +124,9 @@ class CommandLine:
                                         System.category_list[System.TV_SHOW],
                                         System.category_list[System.DOCUMENTARY],
                                         System.category_list[System.ANIMATION],
-                                        System.category_list[System.TV_ANIMATION]]:
+                                        System.category_list[System.TV_ANIMATION],
+                                        System.category_list[System.DOCUMENTARY_FILM],
+                                        System.category_list[System.TV_DOCUMENTARY]]:
                 self.args.force = None
                 print("Invalid -force category")
                 exit()

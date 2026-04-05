@@ -5,7 +5,9 @@ gemini_data = {
                  "tv": 2,
                  "animation": 7,
                  "tv_animation": 6,
-                 "game": 4},
+                 "game": 4,
+                 "documentary": 13,
+                 "tv_documentary": 14},
 
     "FREELECH":{ "size20": 100,
                  "size15": 75,

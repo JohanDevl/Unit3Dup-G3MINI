@@ -241,7 +241,7 @@ class Duplicate:
         formatted_size_th = f"{delta_size:<{self.DELTA_SIZE_WIDTH}}"
         output = 'not available'
 
-        if self.category in {'movie', 'tv'}:
+        if self.category in {'movie', 'tv', 'animation', 'tv_animation', 'documentary', 'tv_documentary'}:
             output = (
                 f"Tracker - size: '{formatted_size}' "
                 f"delta={formatted_size_th}% - "

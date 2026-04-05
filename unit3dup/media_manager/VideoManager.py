@@ -125,6 +125,15 @@ class VideoManager:
                         content.category = System.category_list[System.TV_ANIMATION]
                         custom_console.bot_log("Category → 'tv_animation' (TMDB genre)")
 
+                # Override category for documentary content based on TMDB genre
+                if db.is_documentary():
+                    if content.category == System.category_list[System.MOVIE]:
+                        content.category = System.category_list[System.DOCUMENTARY_FILM]
+                        custom_console.bot_log("Category → 'documentary' (TMDB genre)")
+                    elif content.category == System.category_list[System.TV_SHOW]:
+                        content.category = System.category_list[System.TV_DOCUMENTARY]
+                        custom_console.bot_log("Category → 'tv_documentary' (TMDB genre)")
+
                 # Update display name with Serie Title when requested by the user (-notitle)
                 if self.cli.notitle:
                     # Add generated metadata to the display_title

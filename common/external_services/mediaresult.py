@@ -3,6 +3,7 @@
 from datetime import datetime
 
 ANIMATION_GENRE_ID = 16
+DOCUMENTARY_GENRE_ID = 99
 
 
 class MediaResult:
@@ -32,6 +33,16 @@ class MediaResult:
         # Details results (MovieDetails/TVShowDetails): genres as list[Genre]
         if hasattr(self.result, 'genres') and self.result.genres:
             return any(g.id == ANIMATION_GENRE_ID for g in self.result.genres)
+        return False
+
+    def is_documentary(self) -> bool:
+        """Check if the TMDB result has the Documentary genre (ID 99)."""
+        if not self.result:
+            return False
+        if hasattr(self.result, 'genre_ids') and self.result.genre_ids:
+            return DOCUMENTARY_GENRE_ID in self.result.genre_ids
+        if hasattr(self.result, 'genres') and self.result.genres:
+            return any(g.id == DOCUMENTARY_GENRE_ID for g in self.result.genres)
         return False
 
 

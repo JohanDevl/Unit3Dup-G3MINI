@@ -72,6 +72,8 @@ class TorrentManager:
                 System.category_list.get(System.TV_SHOW),
                 System.category_list.get(System.ANIMATION),
                 System.category_list.get(System.TV_ANIMATION),
+                System.category_list.get(System.DOCUMENTARY_FILM),
+                System.category_list.get(System.TV_DOCUMENTARY),
             }
         ]
 
