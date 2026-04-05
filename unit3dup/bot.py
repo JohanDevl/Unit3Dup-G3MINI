@@ -440,7 +440,7 @@ class Bot:
                     custom_console.bot_counter_log(
                         f"WATCHDOG: {remaining_time:.1f} seconds Ctrl-c to Exit "
                     )
-                    time.sleep(0.01)
+                    time.sleep(1)
                 print()
 
         except KeyboardInterrupt:
