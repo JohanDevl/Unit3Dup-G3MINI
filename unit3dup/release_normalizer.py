@@ -201,7 +201,18 @@ def _is_silent_from_mediainfo(mi: str) -> bool:
             m = re.search(r'Language\s*:\s*(\S+)', line, re.IGNORECASE)
             if m:
                 audio_langs.append(m.group(1).strip().lower())
-    return bool(audio_langs) and all(l == 'zxx' for l in audio_langs)    
+    return bool(audio_langs) and all(l == 'zxx' for l in audio_langs)
+
+
+def _count_audio_tracks_from_mediainfo(mi: str) -> int:
+    """Compte le nombre de pistes audio dans le texte brut MediaInfo."""
+    if not mi:
+        return 0
+    count = 0
+    for line in mi.splitlines():
+        if re.match(r'^Audio\s*$|^Audio #', line):
+            count += 1
+    return count
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -527,7 +538,22 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         lang = "MUET"
     elif (not lang or lang == "MULTi") and mi:
         mi_lang = _get_lang_from_mediainfo(mi)
-        lang = f"MULTi.{mi_lang}" if mi_lang else "MULTi.VFF"
+        n_audio = _count_audio_tracks_from_mediainfo(mi)
+
+        if lang == "MULTi":
+            # MULTI explicitly in original name → always keep MULTi prefix
+            lang = f"MULTi.{mi_lang}" if mi_lang else "MULTi.VFF"
+        elif n_audio == 1:
+            # Single audio track, no lang token in original → bare tag
+            if mi_lang:
+                lang = mi_lang  # VFF, VFQ, VFB, VOF, VOQ, VOB
+            else:
+                # No French audio detected → check for French subtitles
+                subfr = _get_subfr_from_mediainfo(mi)
+                lang = "VOSTFR" if subfr == "yes" else ""
+        else:
+            # Multiple audio tracks (or 0 = unknown) → MULTi
+            lang = f"MULTi.{mi_lang}" if mi_lang else "MULTi.VFF"
 
     # ── 10. HDR / SDR — tous les tokens collectés ─────────────────────────────
     hdr_parts = []

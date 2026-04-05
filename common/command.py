@@ -48,6 +48,8 @@ class CommandLine:
                             help="Skip tracker rule validation checks")
 
         parser.add_argument("-ftp", "--ftp", action="store_true", help="Connect to FTP")
+        parser.add_argument("-web", "--web", action="store_true",
+                            help="Start web dashboard (use with -watcher for full mode)")
 
         # optional
         parser.add_argument("-dump", "--dump", action="store_true", help="Download all torrent titles")

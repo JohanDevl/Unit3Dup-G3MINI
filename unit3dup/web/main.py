@@ -1,46 +1,65 @@
-from fastapi import FastAPI, APIRouter
-from random import randint
-from common.torrent_clients import TransmissionClient, QbittorrentClient, RTorrentClient
-from common.command import CommandLine
-from common.settings import Load,DEFAULT_JSON_PATH
+# -*- coding: utf-8 -*-
+"""FastAPI application factory for the Unit3Dup web dashboard."""
 
-from unit3dup.torrent import View
-from unit3dup import pvtTracker
-from unit3dup.bot import Bot
-from view import custom_console
+from __future__ import annotations
 
+import os
 
-import uvicorn
-import argparse
-from random import randint
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
-app = FastAPI()
-
-# Classe che gestisce gli endpoint
-class WebApp:
-    def __init__(self, config: Load):
-        self.router = APIRouter()
-        self.numb = randint(0, 100)
-        self._setup_routes()
-
-    def _setup_routes(self):
-        # Add the endpoints
-        self.router.add_api_route("/", self.root, methods=["GET"])
-        self.router.add_api_route("/upload/{name}", self.upload, methods=["GET"])
-
-    async def root(self):
-        return {"message": f"Hello World {self.numb}"}
-
-    async def upload(self, name: str):
+from unit3dup.state_db import StateDB
+from unit3dup.web.api import router as api_router, init_api
+from unit3dup.web.views import router as views_router, init_views
+from unit3dup.web.upload_service import UploadService
 
 
+def create_app(state_db: StateDB) -> FastAPI:
+    """Create and configure the FastAPI application.
 
-        return {"message": f"Hello {name}, numb is {self.numb}"}
+    Args:
+        state_db: initialized StateDB instance (shared with watcher thread)
+
+    Returns:
+        Configured FastAPI app
+    """
+    app = FastAPI(
+        title="Unit3Dup Dashboard",
+        description="Web dashboard for Unit3Dup torrent uploader",
+        docs_url="/docs",
+    )
+
+    # Initialize services
+    upload_service = UploadService(state_db=state_db)
+    upload_service.start_worker()
+    init_api(state_db, upload_service)
+    init_views(state_db, upload_service)
+
+    # Mount static files (directory is part of the installed package)
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    if os.path.isdir(static_dir):
+        app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+    # Include routers
+    app.include_router(api_router)
+    app.include_router(views_router)
+
+    @app.on_event("shutdown")
+    def shutdown_event():
+        upload_service.stop_worker()
+
+    return app
 
 
-def web():
-    web_app = WebApp(config=Load().load_config())
-    app.include_router(web_app.router)
-    uvicorn.run("unit3dup.web.main:app", host="127.0.0.1", port=8000, reload=True)
+def start_web(state_db: StateDB, host: str = "0.0.0.0", port: int = 8000):
+    """Start the web server (blocking call).
 
+    Args:
+        state_db: initialized StateDB instance
+        host: bind address
+        port: bind port
+    """
+    import uvicorn
 
+    app = create_app(state_db)
+    uvicorn.run(app, host=host, port=port, log_level="info")

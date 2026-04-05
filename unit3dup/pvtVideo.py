@@ -30,6 +30,12 @@ class Video:
         return hashlib.md5(key.encode('utf-8')).hexdigest()
 
     @staticmethod
+    def _strip_mediainfo_path(mediainfo_text: str) -> str:
+        """Replace the full file path with just the filename in the 'Complete name' field."""
+        pattern = r'(Complete name\s+:\s+)(.+[/\\])([^/\\]+\.\w+)'
+        return re.sub(pattern, lambda m: m.group(1) + m.group(3), mediainfo_text)
+
+    @staticmethod
     def generate_nfo_file(media_info: MediaFile, output_path: str) -> bool:
         """Génère un fichier NFO avec la sortie brute de Mediainfo.
 
@@ -37,22 +43,10 @@ class Video:
         - Remplace le chemin complet par juste le nom du fichier dans "Complete name"
         """
         try:
-            mediainfo_output = media_info.info
+            mediainfo_output = Video._strip_mediainfo_path(media_info.info)
 
-            # Pattern pour trouver "Complete name" suivi du chemin complet
-            pattern = r'(Complete name\s+:\s+)(.+[/\\])([^/\\]+\.\w+)'
-
-            def replace_path(match: re.Match) -> str:
-                # Garder seulement le nom de fichier
-                return match.group(1) + match.group(3)
-
-            # Appliquer le remplacement
-            mediainfo_output = re.sub(pattern, replace_path, mediainfo_output)
-
-            # Écrire le fichier NFO avec la sortie modifiée
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(mediainfo_output)
-
             return True
         except Exception as e:
             custom_console.bot_warning_log(f"[NFO] Erreur lors de la génération du NFO: {e}")
@@ -63,7 +57,7 @@ class Video:
 
         # media_info
         media_info = MediaFile(self.file_name)
-        self.mediainfo = media_info.info
+        self.mediainfo = self._strip_mediainfo_path(media_info.info)
 
         # Generate prez BBCode description
         self.description = generate_prez(media_info)

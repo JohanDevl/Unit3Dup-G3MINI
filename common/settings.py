@@ -145,6 +145,8 @@ class UserPreferences(BaseModel):
     CACHE_DBONLINE: bool = False
     PERSONAL_RELEASE: bool = False
     FAST_LOAD: int = 0
+    WEB_HOST: str = "0.0.0.0"
+    WEB_PORT: int = 8000
 
 
 class Options(BaseModel):
@@ -466,10 +468,19 @@ class Config(BaseModel):
                 if field in ['TORRENT_COMMENT','WATCHER_PATH','DEFAULT_TRACKER']:
                     section[field] = Validate.string(value=section[field], field_name=field)
 
+                if field in ['WEB_HOST']:
+                    if isinstance(section[field], str) and section[field].strip() == '':
+                        defaults = UserPreferences.model_fields
+                        section[field] = defaults[field].default if field in defaults else "0.0.0.0"
+
                 if field in ['NUMBER_OF_SCREENSHOTS','COMPRESS_SCSHOT','IMGBB_PRIORITY','FREE_IMAGE_PRIORITY',
                              'LENSDUMP_PRIORITY','PASSIMA_PRIORITY','IMARIDE_PRIORITY', 'WATCHER_INTERVAL','SIZE_TH',
-                             'FAST_LOAD']:
-                    section[field] = Validate.integer(value=section[field], field_name=field)
+                             'FAST_LOAD', 'WEB_PORT']:
+                    if isinstance(section[field], str) and section[field].strip() == '':
+                        defaults = UserPreferences.model_fields
+                        section[field] = defaults[field].default if field in defaults else 0
+                    else:
+                        section[field] = Validate.integer(value=section[field], field_name=field)
 
                 if field == 'PREFERRED_LANG':
                     section[field] =Validate.iso3166(value=section[field], field_name=field)

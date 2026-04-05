@@ -1,0 +1,68 @@
+<div class="table-container">
+    <table id="pending-table">
+        <thead>
+            <tr>
+                <th style="width:36px;cursor:default" onclick="event.stopPropagation()">
+                    <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this)"
+                           style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer">
+                </th>
+                <th onclick="tableSort('pending-table', 1, this)" style="width:22%">Source <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 2, this)" style="width:22%">Release Name <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 3, this)">Size <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 4, this)">Category <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 5, this)">Source Tag <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSort('pending-table', 6, this)">Resolution <span class="sort-arrow">&#8597;</span></th>
+                <th>Validation</th>
+                <th onclick="tableSort('pending-table', 8, this)">Reason <span class="sort-arrow">&#8597;</span></th>
+                <th onclick="tableSortDate('pending-table', 9, this)">Discovered <span class="sort-arrow">&#8597;</span></th>
+                <th style="width:70px"></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+            <tr data-item-id="{{ item.id }}"
+                data-release-name="{{ item.release_name or item.display_name or '' }}"
+                data-category="{{ item.content_category or '' }}"
+                data-resolution="{{ item.resolution or '' }}"
+                data-source-tag="{{ item.source_tag or '' }}"
+                data-tracker="{{ item.tracker_name or '' }}"
+                data-has-errors="{{ item.has_errors|int }}"
+                data-has-warnings="{{ item.has_warnings|int }}"
+                data-status="{{ item.status }}">
+                <td data-label="" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="row-select-cb" value="{{ item.id }}"
+                           onchange="onRowCheckChange(this)"
+                           style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer">
+                </td>
+                <td class="truncate" data-label="Source">{{ item.source_basename }}</td>
+                <td class="truncate" data-label="Release">
+                    <a href="/pending/{{ item.id }}">
+                        {{ item.release_name or item.display_name or "—" }}
+                    </a>
+                    {% if item.status == 'queued' %}
+                    <span class="pill pill-queued" style="margin-left:0.5rem">Queued</span>
+                    {% elif item.status == 'approved' %}
+                    <span class="pill pill-approved" style="margin-left:0.5rem">Uploading</span>
+                    {% endif %}
+                </td>
+                <td class="secondary" data-label="Size">{{ item.file_size | filesize }}</td>
+                <td class="secondary" data-label="Category">{{ item.content_category or "—" }}</td>
+                <td class="secondary" data-label="Tag">{{ item.source_tag or "—" }}</td>
+                <td class="secondary" data-label="Resolution">{{ item.resolution or "—" }}</td>
+                <td data-label="Validation">
+                    {% if item.has_errors %}<span class="pill pill-error">Error</span>
+                    {% elif item.has_warnings %}<span class="pill pill-warn">Warn</span>
+                    {% else %}<span class="pill pill-ok">OK</span>{% endif %}
+                </td>
+                <td class="secondary" data-label="Reason">{{ item.skip_reason | reason_label }}</td>
+                <td class="secondary" data-sort="{{ item.discovered_at or '' }}" data-label="Discovered">{{ item.discovered_at | datefmt }}</td>
+                <td data-label="">
+                    <a href="/pending/{{ item.id }}" class="btn btn-ghost btn-sm">Review</a>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="11" class="secondary" style="text-align:center;padding:2rem">No pending items. Waiting for watcher to discover new media...</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>

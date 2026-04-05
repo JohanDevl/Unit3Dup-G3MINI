@@ -122,7 +122,19 @@ def main():
                   torrent_archive_path=tracker_archive)
         bot.run()
 
-    # Watcher
+    # Web-only mode (no watcher)
+    if getattr(cli.args, 'web', False) and not cli.args.watcher:
+        import os
+        from unit3dup.state_db import StateDB
+        from unit3dup.web.main import start_web
+
+        db_path = os.path.join(str(DEFAULT_JSON_PATH.parent), "unit3dup.db")
+        state_db = StateDB(db_path=db_path)
+        custom_console.bot_log(f"[Web] Starting web dashboard on {config.user_preferences.WEB_HOST}:{config.user_preferences.WEB_PORT}")
+        start_web(state_db, host=config.user_preferences.WEB_HOST, port=config.user_preferences.WEB_PORT)
+        return
+
+    # Watcher (with optional web dashboard)
     if cli.args.watcher:
         if not watcher_folders:
             custom_console.bot_error_log("No watcher folders configured. Set WATCHER_PATHS or WATCHER_PATH in config.")
@@ -131,6 +143,35 @@ def main():
         bot = Bot(path='', cli=cli.args, mode="auto", trackers_name_list=tracker_name_list,
                   torrent_archive_path=tracker_archive)
 
+        # Watcher + Web mode: run watcher in background thread, web server in main thread
+        if getattr(cli.args, 'web', False):
+            import os
+            import threading
+            from unit3dup.state_db import StateDB
+            from unit3dup.web.main import start_web
+
+            db_path = os.path.join(str(DEFAULT_JSON_PATH.parent), "unit3dup.db")
+            state_db = StateDB(db_path=db_path)
+
+            # Start watcher in a daemon thread
+            watcher_thread = threading.Thread(
+                target=bot.watcher,
+                kwargs={
+                    "duration": config.user_preferences.WATCHER_INTERVAL,
+                    "watcher_folders": watcher_folders,
+                    "state_dir": str(DEFAULT_JSON_PATH.parent),
+                },
+                daemon=True,
+                name="watcher",
+            )
+            watcher_thread.start()
+            custom_console.bot_log(f"[Web] Watcher started in background thread")
+            custom_console.bot_log(f"[Web] Starting web dashboard on {config.user_preferences.WEB_HOST}:{config.user_preferences.WEB_PORT}")
+
+            start_web(state_db, host=config.user_preferences.WEB_HOST, port=config.user_preferences.WEB_PORT)
+            return
+
+        # Standard watcher (no web)
         bot.watcher(duration=config.user_preferences.WATCHER_INTERVAL,
                     watcher_folders=watcher_folders,
                     state_dir=str(DEFAULT_JSON_PATH.parent))

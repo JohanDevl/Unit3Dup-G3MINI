@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+    <div>
+        <h2 style="margin-bottom:0.25rem">History</h2>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0">{{ items | length }} item(s)</p>
+    </div>
+</div>
+
+<div class="filter-tabs">
+    <a href="/history" class="filter-tab {% if not current_status %}active{% endif %}">All</a>
+    <a href="/history?status=uploaded" class="filter-tab {% if current_status == 'uploaded' %}active{% endif %}">Uploaded</a>
+    <a href="/history?status=rejected" class="filter-tab {% if current_status == 'rejected' %}active{% endif %}">Rejected</a>
+    <a href="/history?status=skipped" class="filter-tab {% if current_status == 'skipped' %}active{% endif %}">Skipped</a>
+    <a href="/history?status=error" class="filter-tab {% if current_status == 'error' %}active{% endif %}">Error</a>
+</div>
+
+<div class="card">
+    <div class="table-toolbar">
+        <div class="search-wrapper">
+            <i data-lucide="search"></i>
+            <input type="text" class="search-input" placeholder="Search history..."
+                   oninput="tableSearch(this, 'history-table')">
+        </div>
+        <select class="filter-select" data-col="2" onchange="tableFilter(this, 'history-table', 2)">
+            <option value="">All categories</option>
+            <option value="movie">Movie</option>
+            <option value="tv">TV</option>
+            <option value="animation">Animation</option>
+            <option value="game">Game</option>
+            <option value="documentary">Documentary</option>
+        </select>
+        <select class="filter-select" data-col="1" onchange="tableFilter(this, 'history-table', 1)">
+            <option value="">All statuses</option>
+            <option value="uploaded">Uploaded</option>
+            <option value="rejected">Rejected</option>
+            <option value="skipped">Skipped</option>
+            <option value="error">Error</option>
+        </select>
+        <div class="multi-filter" data-table="history-table" data-col="4" data-filter-name="resolution" data-auto-populate="true">
+            <button type="button" class="multi-filter-trigger">Resolution <span class="multi-filter-count"></span> <span class="multi-filter-arrow">&#9662;</span></button>
+            <div class="multi-filter-dropdown"></div>
+        </div>
+        <div class="multi-filter" data-table="history-table" data-col="3" data-filter-name="sourcetag" data-auto-populate="true">
+            <button type="button" class="multi-filter-trigger">Source Tag <span class="multi-filter-count"></span> <span class="multi-filter-arrow">&#9662;</span></button>
+            <div class="multi-filter-dropdown"></div>
+        </div>
+        <div class="mobile-sort">
+            <select class="filter-select" onchange="mobileSortFromDropdown(this, 'history-table')">
+                <option value="">Sort by...</option>
+                <option value="0:alpha">Name (A-Z)</option>
+                <option value="0:alpha:desc">Name (Z-A)</option>
+                <option value="1:alpha">Status</option>
+                <option value="2:alpha">Category</option>
+                <option value="3:alpha">Source</option>
+                <option value="4:alpha">Resolution</option>
+                <option value="6:date">Date (Oldest)</option>
+                <option value="6:date:desc">Date (Newest)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table id="history-table">
+            <thead>
+                <tr>
+                    <th onclick="tableSort('history-table', 0, this)" style="width:28%">Name <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSort('history-table', 1, this)">Status <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSort('history-table', 2, this)">Category <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSort('history-table', 3, this)">Source <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSort('history-table', 4, this)">Resolution <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSort('history-table', 5, this)" style="width:18%">Reason <span class="sort-arrow">&#8597;</span></th>
+                    <th onclick="tableSortDate('history-table', 6, this)">Date <span class="sort-arrow">&#8597;</span></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in items %}
+                <tr>
+                    <td class="truncate" data-label="Name">
+                        <a href="/history/{{ item.id }}">
+                            {{ item.release_name or item.display_name or item.source_basename }}
+                        </a>
+                    </td>
+                    <td data-label="Status"><span class="pill pill-{{ item.status }}">{{ item.status }}</span></td>
+                    <td class="secondary" data-label="Category">{{ item.content_category or "—" }}</td>
+                    <td class="secondary" data-label="Source">{{ item.source_tag or "—" }}</td>
+                    <td class="secondary" data-label="Resolution">{{ item.resolution or "—" }}</td>
+                    <td class="secondary truncate" data-label="Reason">{{ (item.rejection_reason or item.skip_reason) | reason_label }}</td>
+                    <td class="secondary" data-sort="{{ item.uploaded_at or item.discovered_at or '' }}" data-label="Date">{{ (item.uploaded_at or item.discovered_at) | datefmt }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="7" class="secondary" style="text-align:center;padding:2rem">No items in history.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div id="history-pagination"></div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        initMultiSelectDropdowns();
+        initPagination('history-table', 'history-pagination', 25);
+    });
+</script>
+
+{% endblock %}

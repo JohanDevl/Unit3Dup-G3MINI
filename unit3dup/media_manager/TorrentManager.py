@@ -11,6 +11,7 @@ from unit3dup.media_manager.SeedManager import SeedManager
 
 from unit3dup import config_settings
 from unit3dup.media import Media
+from unit3dup.prepared_item import PreparedItem
 
 from common.bittorrent import BittorrentData
 from common.constants import my_language
@@ -79,6 +80,53 @@ class TorrentManager:
         self.doc = [
             content for content in contents if content.category == System.category_list.get(System.DOCUMENTARY)
         ]
+
+    def prepare_all(self, trackers_name_list: list) -> list[PreparedItem]:
+        """
+        Prepare content for each selected tracker using the prepare() method of each manager.
+        Collects all PreparedItem objects from video, game, and doc managers.
+
+        Args:
+            trackers_name_list: list of tracker names to prepare content for
+
+        Returns:
+            list[PreparedItem]: all prepared items combined from all managers and trackers
+        """
+        all_prepared = []
+
+        for selected_tracker in trackers_name_list:
+            # Prepare each GAME
+            if self.games:
+                game_manager = GameManager(contents=self.games[:self.fast_load],
+                                           cli=self.cli, qbit_category=self.qbit_category)
+                game_prepared, game_skips = game_manager.prepare(selected_tracker=selected_tracker,
+                                                                tracker_name_list=trackers_name_list,
+                                                                tracker_archive=self.tracker_archive)
+                all_prepared.extend(game_prepared)
+                self.skip_reasons.extend(game_skips)
+
+            # Prepare each VIDEO
+            if self.videos:
+                video_manager = VideoManager(contents=self.videos[:self.fast_load],
+                                             cli=self.cli, qbit_category=self.qbit_category)
+                video_prepared, video_skips = video_manager.prepare(selected_tracker=selected_tracker,
+                                                                   tracker_name_list=trackers_name_list,
+                                                                   tracker_archive=self.tracker_archive)
+                all_prepared.extend(video_prepared)
+                self.skip_reasons.extend(video_skips)
+                self.validation_reports.update(video_manager.validation_reports)
+
+            # Prepare each DOC
+            if self.doc and not self.cli.reseed:
+                docu_manager = DocuManager(contents=self.doc[:self.fast_load],
+                                           cli=self.cli, qbit_category=self.qbit_category)
+                docu_prepared, docu_skips = docu_manager.prepare(selected_tracker=selected_tracker,
+                                                                tracker_name_list=trackers_name_list,
+                                                                tracker_archive=self.tracker_archive)
+                all_prepared.extend(docu_prepared)
+                self.skip_reasons.extend(docu_skips)
+
+        return all_prepared
 
     def run(self, trackers_name_list: list):
         """

@@ -9,6 +9,7 @@ from unit3dup.media_manager.common import UserContent
 from unit3dup.upload import UploadBot
 from unit3dup import config_settings
 from unit3dup.media import Media
+from unit3dup.prepared_item import PreparedItem
 
 from view import custom_console
 
@@ -28,12 +29,12 @@ class GameManager:
         self.qbit_category = qbit_category
         self.igdb = IGDBClient()
 
-    def process(self, selected_tracker: str, tracker_name_list: list,  tracker_archive: str) -> tuple[list[BittorrentData], list[dict]]:
+    def prepare(self, selected_tracker: str, tracker_name_list: list, tracker_archive: str) -> tuple[list[PreparedItem], list[dict]]:
         """
-        Process the game contents to filter duplicates and create torrents
+        Prepare game contents for upload without sending them.
 
         Returns:
-            tuple: (list of Bittorrent objects, list of skip reasons dicts)
+            tuple: (list of PreparedItem objects, list of skip reason dicts)
         """
 
         login = self.igdb.connect()
@@ -48,15 +49,14 @@ class GameManager:
             custom_console.bot_error_log("Game upload works only with the '-f' flag.You need to specify a folder name.")
             return [], []
 
-
-        #  Init the torrent list
-        bittorrent_list = []
+        prepared_items = []
         skip_reasons = []
+
         for content in self.contents:
             # get the archive path
             archive = os.path.join(tracker_archive, selected_tracker)
             os.makedirs(archive, exist_ok=True)
-            torrent_filepath = os.path.join(tracker_archive,selected_tracker, f"{content.torrent_name}.torrent")
+            torrent_filepath = os.path.join(tracker_archive, selected_tracker, f"{content.torrent_name}.torrent")
 
             # Filter contents based on existing torrents or duplicates
             if self.cli.watcher:
@@ -64,17 +64,36 @@ class GameManager:
                     custom_console.bot_log(f"Watcher Active.. skip the old upload '{content.file_name}'")
                     skip_reasons.append({"torrent_name": content.torrent_name, "reason": "already_in_archive",
                                          "source": content.source or ""})
+                    prepared_items.append(PreparedItem(
+                        content=content,
+                        source_path=content.torrent_path or content.file_name or "",
+                        source_type="folder" if os.path.isdir(content.torrent_path or "") else "file",
+                        display_name=content.display_name,
+                        content_category=content.category,
+                        qbit_category=self.qbit_category,
+                        source_tag=content.source or "",
+                        skip_reason="already_in_archive",
+                    ))
                     continue
 
             torrent_response = UserContent.torrent(content=content, tracker_name_list=tracker_name_list,
                                                        selected_tracker=selected_tracker, this_path=torrent_filepath)
-
 
             # Skip if it is a duplicate
             if ((self.cli.duplicate or config_settings.user_preferences.DUPLICATE_ON)
                     and UserContent.is_duplicate(content=content, tracker_name=selected_tracker, cli=self.cli)):
                 skip_reasons.append({"torrent_name": content.torrent_name, "reason": "duplicate_on_tracker",
                                      "source": content.source or ""})
+                prepared_items.append(PreparedItem(
+                    content=content,
+                    source_path=content.torrent_path or content.file_name or "",
+                    source_type="folder" if os.path.isdir(content.torrent_path or "") else "file",
+                    display_name=content.display_name,
+                    content_category=content.category,
+                    qbit_category=self.qbit_category,
+                    source_tag=content.source or "",
+                    skip_reason="duplicate_on_tracker",
+                ))
                 continue
 
             # Search for the game on IGDB using the content's title and platform tags
@@ -86,10 +105,20 @@ class GameManager:
             if not game_data_results:
                 skip_reasons.append({"torrent_name": content.torrent_name, "reason": "no_igdb_result",
                                      "source": content.source or ""})
+                prepared_items.append(PreparedItem(
+                    content=content,
+                    source_path=content.torrent_path or content.file_name or "",
+                    source_type="folder" if os.path.isdir(content.torrent_path or "") else "file",
+                    display_name=content.display_name,
+                    content_category=content.category,
+                    qbit_category=self.qbit_category,
+                    source_tag=content.source or "",
+                    skip_reason="no_igdb_result",
+                ))
                 continue
 
             # Tracker instance
-            unit3d_up = UploadBot(content=content, tracker_name=selected_tracker, cli = self.cli)
+            unit3d_up = UploadBot(content=content, tracker_name=selected_tracker, cli=self.cli)
 
             # Get the data
             unit3d_up.data_game(igdb=game_data_results)
@@ -101,36 +130,114 @@ class GameManager:
                 custom_console.bot_warning_log(f"Tag '{tag}' exclu (EXCLUDED_TAGS). Skip: {release_name_check}")
                 skip_reasons.append({"torrent_name": content.torrent_name, "reason": "excluded_tag",
                                      "source": content.source or ""})
+                prepared_items.append(PreparedItem(
+                    content=content,
+                    source_path=content.torrent_path or content.file_name or "",
+                    source_type="folder" if os.path.isdir(content.torrent_path or "") else "file",
+                    display_name=content.display_name,
+                    content_category=content.category,
+                    qbit_category=self.qbit_category,
+                    source_tag=content.source or "",
+                    skip_reason="excluded_tag",
+                ))
                 continue
 
+            # Read NFO content if it exists
+            nfo_content = None
+            if os.path.exists(content.game_nfo):
+                try:
+                    with open(content.game_nfo, 'r', encoding='utf-8') as f:
+                        nfo_content = f.read()
+                except Exception:
+                    nfo_content = None
+
+            # Determine source type
+            source_path = content.torrent_path or content.file_name
+            source_type = "folder" if os.path.isdir(source_path) else "file"
+
+            # Create PreparedItem
+            prepared = PreparedItem(
+                content=content,
+                source_path=source_path,
+                source_type=source_type,
+                torrent_response=torrent_response,
+                torrent_filepath=torrent_filepath,
+                tracker_data=dict(unit3d_up.tracker.data),
+                tracker_name=selected_tracker,
+                trackers_list=tracker_name_list,
+                release_name=unit3d_up.tracker.data.get("name", content.display_name),
+                display_name=content.display_name,
+                source_tag=content.source or "",
+                content_category=content.category,
+                qbit_category=self.qbit_category,
+                description=unit3d_up.tracker.data.get("description", ""),
+                igdb_id=game_data_results.id if game_data_results else 0,
+                nfo_content=nfo_content,
+            )
+            prepared_items.append(prepared)
+
+        return prepared_items, skip_reasons
+
+    @staticmethod
+    def upload_item(prepared: PreparedItem, cli: argparse.Namespace) -> BittorrentData | None:
+        """
+        Upload a prepared game item to the tracker.
+
+        Args:
+            prepared: PreparedItem with all required data
+            cli: Command line arguments
+
+        Returns:
+            BittorrentData with upload results, or None on failure
+        """
+        # Create UploadBot and restore tracker data
+        unit3d_up = UploadBot(content=prepared.content, tracker_name=prepared.tracker_name, cli=cli)
+        unit3d_up.tracker.data = prepared.tracker_data
+
+        # Send to the tracker
+        tracker_response, tracker_message = unit3d_up.send(torrent_archive=prepared.torrent_filepath, nfo_path=prepared.content.game_nfo)
+
+        return BittorrentData(
+            tracker_response=tracker_response,
+            torrent_response=prepared.torrent_response,
+            content=prepared.content,
+            tracker_message=tracker_message,
+            archive_path=prepared.torrent_filepath,
+            release_name=prepared.release_name,
+            qbit_category=prepared.qbit_category,
+        )
+
+    def process(self, selected_tracker: str, tracker_name_list: list, tracker_archive: str) -> tuple[list[BittorrentData], list[dict]]:
+        """
+        Process the game contents to filter duplicates and create torrents.
+        Backward-compatible wrapper around prepare() and upload_item().
+
+        Returns:
+            tuple: (list of Bittorrent objects, list of skip reasons dicts)
+        """
+        # Prepare all items
+        prepared_items, skip_reasons = self.prepare(selected_tracker, tracker_name_list, tracker_archive)
+
+        # Upload prepared items
+        bittorrent_list = []
+        for prepared in prepared_items:
             # Don't upload if -noup is set to True
             if self.cli.noup:
-                release_name = unit3d_up.tracker.data.get("name", content.display_name)
-                custom_console.bot_warning_log(f"[DRY-RUN] No upload → {release_name}")
+                custom_console.bot_warning_log(f"[DRY-RUN] No upload → {prepared.release_name}")
                 bittorrent_list.append(
                     BittorrentData(
                         tracker_response=None,
-                        torrent_response=torrent_response,
-                        content=content,
+                        torrent_response=prepared.torrent_response,
+                        content=prepared.content,
                         tracker_message="dry-run",
-                        archive_path=torrent_filepath,
-                        release_name=release_name,
-                        qbit_category=self.qbit_category,
+                        archive_path=prepared.torrent_filepath,
+                        release_name=prepared.release_name,
+                        qbit_category=prepared.qbit_category,
                     ))
-                continue
+            else:
+                result = self.upload_item(prepared, self.cli)
+                if result:
+                    bittorrent_list.append(result)
 
-            # Send to the tracker
-            tracker_response, tracker_message = unit3d_up.send(torrent_archive=torrent_filepath, nfo_path=content.game_nfo)
-
-            bittorrent_list.append(
-                BittorrentData(
-                    tracker_response=tracker_response,
-                    torrent_response=torrent_response,
-                    content=content,
-                    tracker_message=tracker_message,
-                    archive_path=torrent_filepath,
-                    release_name=unit3d_up.tracker.data.get("name", content.display_name),
-                    qbit_category=self.qbit_category,
-                ))
         return bittorrent_list, skip_reasons
 

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+    <div>
+        <h2 style="margin-bottom:0.25rem">Upload Queue</h2>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0">{{ items | length }} item(s) in the upload pipeline</p>
+    </div>
+</div>
+
+<div class="card">
+    <div hx-get="/partials/queue-list" hx-trigger="every 5s" hx-swap="innerHTML" id="queue-container">
+        {% include "partials/queue_rows.html" %}
+    </div>
+</div>
+
+{% endblock %}
