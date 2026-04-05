@@ -52,7 +52,7 @@
                         </a>
                     </td>
                     <td data-label="Status"><span class="pill pill-{{ item.status }}">{{ item.status }}</span></td>
-                    <td class="secondary" data-label="Category">{{ item.content_category or "—" }}</td>
+                    <td class="secondary" data-label="Category">{{ item.content_category | category_label }}</td>
                     <td class="secondary" data-label="Source">{{ item.source_tag or "—" }}</td>
                     <td class="secondary" data-sort="{{ item.discovered_at or '' }}" data-label="Discovered">{{ item.discovered_at | datefmt }}</td>
                 </tr>

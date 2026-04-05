@@ -25,12 +25,13 @@
         </div>
         <select class="filter-select" data-col="2" onchange="tableFilter(this, 'history-table', 2)">
             <option value="">All categories</option>
-            <option value="movie">Movie</option>
-            <option value="tv">TV</option>
-            <option value="animation">Animation</option>
-            <option value="game">Game</option>
-            <option value="documentary">Documentary</option>
-            <option value="tv_documentary">TV Documentary</option>
+            <option value="Movie">Movie</option>
+            <option value="TV">TV</option>
+            <option value="Animation">Animation</option>
+            <option value="TV Animation">TV Animation</option>
+            <option value="Game">Game</option>
+            <option value="Documentary">Documentary</option>
+            <option value="TV Documentary">TV Documentary</option>
         </select>
         <select class="filter-select" data-col="1" onchange="tableFilter(this, 'history-table', 1)">
             <option value="">All statuses</option>
@@ -84,7 +85,7 @@
                         </a>
                     </td>
                     <td data-label="Status"><span class="pill pill-{{ item.status }}">{{ item.status }}</span></td>
-                    <td class="secondary" data-label="Category">{{ item.content_category or "—" }}</td>
+                    <td class="secondary" data-label="Category">{{ item.content_category | category_label }}</td>
                     <td class="secondary" data-label="Source">{{ item.source_tag or "—" }}</td>
                     <td class="secondary" data-label="Resolution">{{ item.resolution or "—" }}</td>
                     <td class="secondary truncate" data-label="Reason">{{ (item.rejection_reason or item.skip_reason) | reason_label }}</td>

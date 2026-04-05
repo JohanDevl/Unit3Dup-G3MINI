@@ -19,7 +19,7 @@
                 {{ item.release_name or item.display_name or item.source_basename or "—" }}
             </a>
             <div class="queue-item-meta">
-                <span>{{ item.content_category or "—" }}</span>
+                <span>{{ item.content_category | category_label }}</span>
                 <span>{{ item.resolution or "—" }}</span>
                 <span>{{ item.source_tag or "—" }}</span>
                 <span>{{ item.tracker_name or "—" }}</span>

@@ -33,6 +33,7 @@ def init_views(state_db: StateDB, upload_service=None):
     templates.env.filters["filesize"] = _format_filesize
     templates.env.filters["reason_label"] = _format_reason
     templates.env.filters["datefmt"] = _format_datetime
+    templates.env.filters["category_label"] = _format_category
     # Global context: pending + queued count for sidebar badge
     def _pending_and_queued():
         counts = state_db.count_by_status()
@@ -80,6 +81,18 @@ _REASON_LABELS = {
     "no_processable_media": "No media found",
 }
 
+_CATEGORY_LABELS = {
+    "movie": "Movie",
+    "tv": "TV",
+    "tv_show": "TV Show",
+    "game": "Game",
+    "animation": "Animation",
+    "tv_animation": "TV Animation",
+    "documentary": "Documentary",
+    "tv_documentary": "TV Documentary",
+    "edicola": "Edicola",
+}
+
 
 def _format_datetime(value: str | None) -> str:
     if not value:
@@ -103,6 +116,12 @@ def _format_reason(reason: str | None) -> str:
     if not reason:
         return "—"
     return _REASON_LABELS.get(reason, reason.replace("_", " ").capitalize())
+
+
+def _format_category(value: str | None) -> str:
+    if not value:
+        return "—"
+    return _CATEGORY_LABELS.get(value, value.replace("_", " ").title())
 
 
 def _format_filesize(size: int | None) -> str:

@@ -22,7 +22,7 @@
         {% for item in items %}
             <tr data-item-id="{{ item.id }}"
                 data-release-name="{{ item.release_name or item.display_name or '' }}"
-                data-category="{{ item.content_category or '' }}"
+                data-category="{{ item.content_category | category_label }}"
                 data-resolution="{{ item.resolution or '' }}"
                 data-source-tag="{{ item.source_tag or '' }}"
                 data-tracker="{{ item.tracker_name or '' }}"
@@ -46,7 +46,7 @@
                     {% endif %}
                 </td>
                 <td class="secondary" data-label="Size">{{ item.file_size | filesize }}</td>
-                <td class="secondary" data-label="Category">{{ item.content_category or "—" }}</td>
+                <td class="secondary" data-label="Category">{{ item.content_category | category_label }}</td>
                 <td class="secondary" data-label="Tag">{{ item.source_tag or "—" }}</td>
                 <td class="secondary" data-label="Resolution">{{ item.resolution or "—" }}</td>
                 <td data-label="Validation">
