@@ -29,6 +29,13 @@
         <div class="queue-item-time secondary">
             {{ item.decided_at | datefmt }}
         </div>
+        {% if not is_uploading %}
+        <div class="queue-item-actions">
+            <button type="button" class="btn btn-sm btn-danger" onclick="cancelQueueItem({{ item.id }}, this)" title="Cancel upload">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        {% endif %}
     </div>
     {% endfor %}
 </div>

@@ -207,6 +207,45 @@ class UploadService:
         self.state_db.mark_rejected(item_id, reason)
         return {"success": True, "message": "Item rejected"}
 
+    def cancel_item(self, item_id: int) -> dict:
+        """Cancel a queued item, moving it back to pending."""
+        item = self.state_db.get_item(item_id)
+        if not item:
+            return {"success": False, "message": "Item not found"}
+
+        transitioned = self.state_db.atomic_transition(
+            item_id,
+            from_statuses=("queued",),
+            to_status="pending",
+            decided_at=None,
+        )
+        if not transitioned:
+            return {"success": False, "message": f"Cannot cancel item with status '{item['status']}'"}
+
+        custom_console.bot_log(f"[Web] Cancelled → {item.get('release_name', 'unknown')}")
+        return {"success": True, "message": "Item removed from queue"}
+
+    def reset_uploaded_item(self, item_id: int) -> dict:
+        """Reset an uploaded item back to pending for re-review."""
+        item = self.state_db.get_item(item_id)
+        if not item:
+            return {"success": False, "message": "Item not found"}
+
+        transitioned = self.state_db.atomic_transition(
+            item_id,
+            from_statuses=("uploaded",),
+            to_status="pending",
+            decided_at=None,
+            uploaded_at=None,
+            tracker_response=None,
+            upload_error=None,
+        )
+        if not transitioned:
+            return {"success": False, "message": f"Cannot reset item with status '{item['status']}'"}
+
+        custom_console.bot_log(f"[Web] Reset → {item.get('release_name', 'unknown')}")
+        return {"success": True, "message": "Item moved back to pending"}
+
     def retry_item(self, item_id: int) -> dict:
         item = self.state_db.get_item(item_id)
         if not item:
