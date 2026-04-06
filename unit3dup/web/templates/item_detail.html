@@ -15,7 +15,7 @@
     <h1>{{ item.release_name or item.display_name or item.source_basename }}</h1>
     <div class="detail-meta">
         <span class="pill pill-{{ item.status }}">{{ item.status }}</span>
-        {% if item.content_category %}<span class="badge badge-blue">{{ item.content_category }}</span>{% endif %}
+        {% if item.content_category %}<span class="badge badge-blue">{{ item.content_category | category_label }}</span>{% endif %}
         {% if item.resolution %}<span class="badge badge-gray">{{ item.resolution }}</span>{% endif %}
         {% if item.source_tag %}<span class="badge badge-red">{{ item.source_tag }}</span>{% endif %}
     </div>
@@ -32,7 +32,7 @@
             <tr>
                 <td>Category</td>
                 <td>
-                    {{ item.content_category or "—" }}
+                    {{ item.content_category | category_label }}
                     {% if item.status == 'pending' %}
                     {% set current_cat_id = item.tracker_payload.category_id if item.tracker_payload and item.tracker_payload.category_id else '' %}
                     <div class="inline-edit">
@@ -43,6 +43,8 @@
                             <option value="4" data-label="game" {% if current_cat_id == 4 %}selected{% endif %}>Game</option>
                             <option value="7" data-label="animation" {% if current_cat_id == 7 %}selected{% endif %}>Animation</option>
                             <option value="6" data-label="tv_animation" {% if current_cat_id == 6 %}selected{% endif %}>TV Animation</option>
+                            <option value="13" data-label="documentary" {% if current_cat_id == 13 %}selected{% endif %}>Documentary</option>
+                            <option value="14" data-label="tv_documentary" {% if current_cat_id == 14 %}selected{% endif %}>TV Documentary</option>
                         </select>
                         <button type="button" class="btn btn-ghost btn-sm" onclick="updateCategory({{ item.id }})">
                             <i data-lucide="save" style="width:14px;height:14px"></i> Update
@@ -135,7 +137,7 @@
                     {% endif %}
                 </td>
             </tr>
-            {% if item.content_category in ('tv', 'tv_show', 'tv_animation') %}
+            {% if item.content_category in ('tv', 'tv_show', 'tv_animation', 'tv_documentary') %}
             {% set sn = item.tracker_payload.season_number if item.tracker_payload and item.tracker_payload.season_number is defined else None %}
             {% set en = item.tracker_payload.episode_number if item.tracker_payload and item.tracker_payload.episode_number is defined else None %}
             <tr>
@@ -182,7 +184,7 @@
                 <td>TMDB</td>
                 <td>
                     {% if item.tmdb_id %}
-                        <a href="https://www.themoviedb.org/{{ 'tv' if item.content_category in ('tv', 'tv_show', 'tv_animation') else 'movie' }}/{{ item.tmdb_id }}" target="_blank" style="margin-right:0.5rem">
+                        <a href="https://www.themoviedb.org/{{ 'tv' if item.content_category in ('tv', 'tv_show', 'tv_animation', 'tv_documentary') else 'movie' }}/{{ item.tmdb_id }}" target="_blank" style="margin-right:0.5rem">
                             {{ item.tmdb_title or "" }} ({{ item.tmdb_year or "" }})
                         </a>
                         <span class="badge badge-gray">ID: {{ item.tmdb_id }}</span>
@@ -314,10 +316,10 @@
             <p>You are about to upload this item to the tracker. Please review:</p>
             <table class="info-table" style="margin-bottom:1rem">
                 <tr><td>Release Name</td><td id="approve-preview-name" style="font-weight:600;word-break:break-all"></td></tr>
-                <tr><td>Category</td><td>{{ item.content_category or "—" }}</td></tr>
+                <tr><td>Category</td><td>{{ item.content_category | category_label }}</td></tr>
                 <tr><td>Resolution</td><td>{{ item.resolution or "—" }}</td></tr>
                 <tr><td>Source</td><td>{{ item.source_tag or "—" }}</td></tr>
-                {% if item.content_category in ('tv', 'tv_show', 'tv_animation') %}
+                {% if item.content_category in ('tv', 'tv_show', 'tv_animation', 'tv_documentary') %}
                 <tr><td>Season / Episode</td><td id="approve-preview-season-episode"></td></tr>
                 {% endif %}
                 <tr><td>TMDB</td><td>{{ item.tmdb_title or "—" }} {% if item.tmdb_year %}({{ item.tmdb_year }}){% endif %} {% if item.tmdb_id %}— ID: {{ item.tmdb_id }}{% endif %}</td></tr>

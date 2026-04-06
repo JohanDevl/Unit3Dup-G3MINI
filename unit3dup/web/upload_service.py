@@ -365,7 +365,7 @@ class UploadService:
 
             category = item.get("content_category", "movie")
             # Map to TMDB category
-            tmdb_category = "tv" if category in ("tv", "tv_show", "tv_animation") else "movie"
+            tmdb_category = "tv" if category in ("tv", "tv_show", "tv_animation", "tv_documentary") else "movie"
 
             # Fetch details in French
             details = api.details(video_id=new_tmdb_id, category=tmdb_category)

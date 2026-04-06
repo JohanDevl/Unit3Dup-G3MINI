@@ -248,12 +248,16 @@ class System:
     GAME = 3
     ANIMATION = 5
     TV_ANIMATION = 6
+    DOCUMENTARY_FILM = 7
+    TV_DOCUMENTARY = 8
 
     category_list = {
         MOVIE: 'movie', TV_SHOW: 'tv', GAME: 'game',
         DOCUMENTARY: 'edicola',
         ANIMATION: 'animation',
         TV_ANIMATION: 'tv_animation',
+        DOCUMENTARY_FILM: 'documentary',
+        TV_DOCUMENTARY: 'tv_documentary',
     }
 
     RESOLUTIONS= [ "8640", "4320",  "2160", "1080", "720", "576", "480"]

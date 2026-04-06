@@ -72,6 +72,7 @@ class GameManager:
                         content_category=content.category,
                         qbit_category=self.qbit_category,
                         source_tag=content.source or "",
+                        torrent_filepath=torrent_filepath,
                         skip_reason="already_in_archive",
                     ))
                     continue

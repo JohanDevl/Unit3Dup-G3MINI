@@ -81,7 +81,7 @@ class ContentManager:
 
         # add category filter to the regex result caused by a possible substring (e.g., S06) in the whole path
         # and not part of the title
-        if media.category=='tv':
+        if media.category in {'tv', 'tv_animation', 'tv_documentary'}:
             # Search for the first result (Sx) in self.path
             torrent_pack = bool(re.search(r"(S\d+(?!.*E\d+))|(S\d+E\d+-E?\d+)", self.path))
         else:

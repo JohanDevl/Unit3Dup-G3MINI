@@ -47,6 +47,7 @@ class DocuManager:
                             content=content,
                             source_path=content.torrent_path or content.file_name,
                             source_type="folder" if os.path.isdir(content.torrent_path) else "file",
+                            torrent_filepath=torrent_filepath,
                             skip_reason="already_in_archive",
                         )
                     )
