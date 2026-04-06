@@ -37,7 +37,7 @@ def init_views(state_db: StateDB, upload_service=None):
     # Global context: pending + queued count for sidebar badge
     def _pending_and_queued():
         counts = state_db.count_by_status()
-        return counts.get("pending", 0) + counts.get("queued", 0)
+        return counts.get("analyzing", 0) + counts.get("pending", 0) + counts.get("queued", 0)
     templates.env.globals["get_pending_count"] = _pending_and_queued
     # Global context: queue count (queued + uploading) for sidebar badge
     def _queue_count():
@@ -146,8 +146,9 @@ def dashboard(request: Request):
 
 
 def _get_pending_and_queued() -> list[dict]:
-    """Fetch pending + queued items, sorted by discovered date descending."""
-    items = _db().list_items(status="pending", per_page=500)
+    """Fetch analyzing + pending + queued items, sorted by discovered date descending."""
+    items = _db().list_items(status="analyzing", per_page=500)
+    items += _db().list_items(status="pending", per_page=500)
     items += _db().list_items(status="queued", per_page=500)
     items.sort(key=lambda x: x.get("discovered_at", ""), reverse=True)
     return items

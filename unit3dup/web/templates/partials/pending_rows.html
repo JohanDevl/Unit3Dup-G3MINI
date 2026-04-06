@@ -30,12 +30,23 @@
                 data-has-warnings="{{ item.has_warnings|int }}"
                 data-status="{{ item.status }}">
                 <td data-label="" onclick="event.stopPropagation()">
+                    {% if item.status == 'analyzing' %}
+                    <input type="checkbox" disabled
+                           style="accent-color:var(--accent);width:16px;height:16px;opacity:0.3">
+                    {% else %}
                     <input type="checkbox" class="row-select-cb" value="{{ item.id }}"
                            onchange="onRowCheckChange(this)"
                            style="accent-color:var(--accent);width:16px;height:16px;cursor:pointer">
+                    {% endif %}
                 </td>
                 <td class="truncate" data-label="Source">{{ item.source_basename }}</td>
                 <td class="truncate" data-label="Release">
+                    {% if item.status == 'analyzing' %}
+                    <span class="analyzing-name">{{ item.source_basename }}</span>
+                    <span class="pill pill-analyzing" style="margin-left:0.5rem">
+                        <span class="pulse-dot pulse-dot-analyzing"></span> Analyzing
+                    </span>
+                    {% else %}
                     <a href="/pending/{{ item.id }}">
                         {{ item.release_name or item.display_name or "—" }}
                     </a>
@@ -44,20 +55,27 @@
                     {% elif item.status == 'approved' %}
                     <span class="pill pill-approved" style="margin-left:0.5rem">Uploading</span>
                     {% endif %}
+                    {% endif %}
                 </td>
                 <td class="secondary" data-label="Size">{{ item.file_size | filesize }}</td>
                 <td class="secondary" data-label="Category">{{ item.content_category | category_label }}</td>
                 <td class="secondary" data-label="Tag">{{ item.source_tag or "—" }}</td>
                 <td class="secondary" data-label="Resolution">{{ item.resolution or "—" }}</td>
                 <td data-label="Validation">
-                    {% if item.has_errors %}<span class="pill pill-error">Error</span>
+                    {% if item.status == 'analyzing' %}
+                    <span class="pill pill-analyzing">...</span>
+                    {% elif item.has_errors %}<span class="pill pill-error">Error</span>
                     {% elif item.has_warnings %}<span class="pill pill-warn">Warn</span>
                     {% else %}<span class="pill pill-ok">OK</span>{% endif %}
                 </td>
                 <td class="secondary" data-label="Reason">{{ item.skip_reason | reason_label }}</td>
                 <td class="secondary" data-sort="{{ item.discovered_at or '' }}" data-label="Discovered">{{ item.discovered_at | datefmt }}</td>
                 <td data-label="">
+                    {% if item.status == 'analyzing' %}
+                    <span class="btn btn-ghost btn-sm" style="opacity:0.4;cursor:default">Analyzing...</span>
+                    {% else %}
                     <a href="/pending/{{ item.id }}" class="btn btn-ghost btn-sm">Review</a>
+                    {% endif %}
                 </td>
             </tr>
         {% else %}

@@ -183,6 +183,10 @@ class Bot:
                     migrated = state_db.migrate_from_json(watcher_state.state_file)
                     if migrated:
                         custom_console.bot_log(f"[Watcher] Migrated {migrated} entries from JSON to SQLite")
+                # Clean up items left in 'analyzing' from a prior crash
+                recovered = state_db.recover_analyzing()
+                if recovered:
+                    custom_console.bot_log(f"[Watcher] Cleaned up {recovered} item(s) stuck in 'analyzing' status")
 
             if dry_run:
                 custom_console.bot_log("[Watcher] DRY-RUN mode: results written to watcher_dryrun.json only")
@@ -242,7 +246,41 @@ class Bot:
                             # Web mode: prepare only, don't upload
                             import json
                             from datetime import datetime
-                            prepared_items = single_bot.prepare()
+
+                            # Insert a lightweight "analyzing" placeholder so
+                            # the web UI shows this item is being processed.
+                            try:
+                                analyzing_id = state_db.add_item(
+                                    source_basename=src.name,
+                                    source_path=str(src),
+                                    folder_path=watcher_path,
+                                    source_type="folder" if src.is_dir() else "file",
+                                    status="analyzing",
+                                    discovered_at=datetime.now().isoformat(),
+                                )
+                            except Exception:
+                                analyzing_id = 0
+
+                            try:
+                                prepared_items = single_bot.prepare()
+                            except Exception as exc:
+                                # Transition analyzing record to error so it
+                                # doesn't stay stuck forever.
+                                error_msg = f"prepare() failed: {exc}"
+                                if analyzing_id:
+                                    state_db.update_item(analyzing_id, status="error", upload_error=error_msg)
+                                else:
+                                    state_db.add_item(
+                                        source_basename=src.name,
+                                        source_path=str(src),
+                                        folder_path=watcher_path,
+                                        source_type="folder" if src.is_dir() else "file",
+                                        status="error",
+                                        upload_error=error_msg,
+                                        discovered_at=datetime.now().isoformat(),
+                                    )
+                                custom_console.bot_error_log(f"[Watcher/Web] Error → {src.name} ({exc})")
+                                continue
 
                             # Torrent archive exists = previously uploaded.
                             # Record as "uploaded" to match non-web watcher behavior.
@@ -250,38 +288,38 @@ class Bot:
                                 getattr(p, 'skip_reason', None) == "already_in_archive"
                                 for p in prepared_items
                             ):
-                                existing = state_db.get_item_by_basename(src.name)
-                                if not existing or existing.get("status") != "uploaded":
-                                    first = prepared_items[0]
+                                first = prepared_items[0]
+                                fields = dict(
+                                    status="uploaded",
+                                    content_category=first.content_category,
+                                    qbit_category=first.qbit_category,
+                                    display_name=first.display_name,
+                                    torrent_name=first.content.torrent_name if first.content else "",
+                                    release_name=first.release_name or src.name,
+                                    source_tag=first.source_tag,
+                                    file_size=first.content.size if first.content else 0,
+                                    skip_reason="already_in_archive",
+                                    uploaded_at=datetime.now().isoformat(),
+                                )
+                                if analyzing_id:
+                                    state_db.update_item(analyzing_id, **fields)
+                                else:
                                     state_db.add_item(
                                         source_basename=src.name,
                                         source_path=str(src),
                                         folder_path=watcher_path,
                                         source_type="folder" if src.is_dir() else "file",
-                                        status="uploaded",
-                                        content_category=first.content_category,
-                                        qbit_category=first.qbit_category,
-                                        display_name=first.display_name,
-                                        torrent_name=first.content.torrent_name if first.content else "",
-                                        release_name=first.release_name or src.name,
-                                        source_tag=first.source_tag,
-                                        file_size=first.content.size if first.content else 0,
-                                        skip_reason="already_in_archive",
                                         discovered_at=datetime.now().isoformat(),
-                                        uploaded_at=datetime.now().isoformat(),
+                                        **fields,
                                     )
-                                    custom_console.bot_log(
-                                        f"[Watcher/Web] Already uploaded → {first.release_name or src.name}"
-                                    )
+                                custom_console.bot_log(
+                                    f"[Watcher/Web] Already uploaded → {first.release_name or src.name}"
+                                )
                                 continue
 
                             for item in prepared_items:
                                 if item.skip_reason:
-                                    state_db.add_item(
-                                        source_basename=src.name,
-                                        source_path=str(src),
-                                        folder_path=watcher_path,
-                                        source_type="folder" if src.is_dir() else "file",
+                                    fields = dict(
                                         status="skipped",
                                         content_category=item.content_category,
                                         qbit_category=item.qbit_category,
@@ -307,16 +345,23 @@ class Bot:
                                         has_errors=int(item.has_errors),
                                         has_warnings=int(item.has_warnings),
                                         skip_reason=item.skip_reason,
-                                        discovered_at=datetime.now().isoformat(),
                                         prepared_at=None,
                                     )
+                                    if analyzing_id:
+                                        state_db.update_item(analyzing_id, **fields)
+                                        analyzing_id = 0  # Only update once
+                                    else:
+                                        state_db.add_item(
+                                            source_basename=src.name,
+                                            source_path=str(src),
+                                            folder_path=watcher_path,
+                                            source_type="folder" if src.is_dir() else "file",
+                                            discovered_at=datetime.now().isoformat(),
+                                            **fields,
+                                        )
                                     custom_console.bot_warning_log(f"[Watcher/Web] Skipped → {src.name} ({item.skip_reason})")
                                 else:
-                                    state_db.add_item(
-                                        source_basename=src.name,
-                                        source_path=str(src),
-                                        folder_path=watcher_path,
-                                        source_type="folder" if src.is_dir() else "file",
+                                    fields = dict(
                                         status="pending",
                                         content_category=item.content_category,
                                         qbit_category=item.qbit_category,
@@ -341,21 +386,38 @@ class Bot:
                                         validation_report=item.validation_report,
                                         has_errors=int(item.has_errors),
                                         has_warnings=int(item.has_warnings),
-                                        discovered_at=datetime.now().isoformat(),
                                         prepared_at=datetime.now().isoformat(),
                                     )
+                                    if analyzing_id:
+                                        state_db.update_item(analyzing_id, **fields)
+                                        analyzing_id = 0  # Only update once
+                                    else:
+                                        state_db.add_item(
+                                            source_basename=src.name,
+                                            source_path=str(src),
+                                            folder_path=watcher_path,
+                                            source_type="folder" if src.is_dir() else "file",
+                                            discovered_at=datetime.now().isoformat(),
+                                            **fields,
+                                        )
                                     custom_console.bot_log(f"[Watcher/Web] Pending → {item.release_name or src.name}")
 
                             if not prepared_items:
-                                state_db.add_item(
-                                    source_basename=src.name,
-                                    source_path=str(src),
-                                    folder_path=watcher_path,
-                                    source_type="folder" if src.is_dir() else "file",
+                                fields = dict(
                                     status="skipped",
                                     skip_reason="no_processable_media",
-                                    discovered_at=datetime.now().isoformat(),
                                 )
+                                if analyzing_id:
+                                    state_db.update_item(analyzing_id, **fields)
+                                else:
+                                    state_db.add_item(
+                                        source_basename=src.name,
+                                        source_path=str(src),
+                                        folder_path=watcher_path,
+                                        source_type="folder" if src.is_dir() else "file",
+                                        discovered_at=datetime.now().isoformat(),
+                                        **fields,
+                                    )
                                 custom_console.bot_warning_log(f"[Watcher/Web] Skipped → {src.name} (no_processable_media)")
 
                             continue  # Skip the normal (non-web) processing below

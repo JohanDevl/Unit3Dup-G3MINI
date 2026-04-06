@@ -1,4 +1,15 @@
 <div class="stats-grid">
+    {% if stats.get('analyzing', 0) > 0 %}
+    <div class="stat-card stat-card-analyzing">
+        <div class="stat-icon analyzing">
+            <i data-lucide="scan-search"></i>
+        </div>
+        <div class="stat-info">
+            <h3>{{ stats.get('analyzing', 0) }}</h3>
+            <p>Analyzing</p>
+        </div>
+    </div>
+    {% endif %}
     <div class="stat-card">
         <div class="stat-icon pending">
             <i data-lucide="clock"></i>
