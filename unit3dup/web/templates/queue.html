@@ -14,4 +14,26 @@
     </div>
 </div>
 
+<script>
+function cancelQueueItem(id, btn) {
+    btn.disabled = true;
+    fetch(`/api/v1/items/${id}/cancel`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"}
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            htmx.trigger("#queue-container", "htmx:load");
+            document.getElementById("queue-container").dispatchEvent(new Event("refresh"));
+            location.reload();
+        } else {
+            btn.disabled = false;
+            alert(data.detail || data.message);
+        }
+    }).catch(err => {
+        btn.disabled = false;
+        alert('Cancel failed: ' + err);
+    });
+}
+</script>
+
 {% endblock %}

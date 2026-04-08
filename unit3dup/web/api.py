@@ -97,6 +97,22 @@ def retry_item(item_id: int):
     return result
 
 
+@router.post("/items/{item_id}/cancel")
+def cancel_item(item_id: int):
+    result = _svc().cancel_item(item_id)
+    if not result["success"]:
+        raise HTTPException(400, result["message"])
+    return result
+
+
+@router.post("/items/{item_id}/reset")
+def reset_uploaded_item(item_id: int):
+    result = _svc().reset_uploaded_item(item_id)
+    if not result["success"]:
+        raise HTTPException(400, result["message"])
+    return result
+
+
 @router.post("/items/{item_id}/save")
 def save_item(item_id: int, req: ApproveRequest):
     """Save release name / description edits without changing status."""

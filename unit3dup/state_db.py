@@ -320,6 +320,21 @@ class StateDB:
             tracker_response=None,
         )
 
+    def recover_analyzing(self) -> int:
+        """Delete items stuck in 'analyzing' (orphaned by a prior crash).
+
+        These items have no prepared data, so the watcher will
+        re-discover and re-process them on the next cycle.
+        """
+        with self._lock:
+            conn = self._connect()
+            try:
+                cursor = conn.execute("DELETE FROM items WHERE status = 'analyzing'")
+                conn.commit()
+                return cursor.rowcount
+            finally:
+                conn.close()
+
     def delete_item(self, item_id: int) -> bool:
         with self._lock:
             conn = self._connect()

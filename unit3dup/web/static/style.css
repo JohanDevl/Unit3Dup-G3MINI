@@ -242,6 +242,7 @@ h3 { font-size: 1.15rem; }
 
 .stat-icon svg { width: 22px; height: 22px; }
 
+.stat-icon.analyzing { background: rgba(56, 189, 248, 0.12); color: #38bdf8; }
 .stat-icon.pending   { background: var(--warning-bg); color: var(--warning); }
 .stat-icon.queued    { background: rgba(147, 130, 242, 0.12); color: #9382f2; }
 .stat-icon.uploaded  { background: var(--success-bg); color: var(--success); }
@@ -474,6 +475,7 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     letter-spacing: 0.3px;
 }
 
+.pill-analyzing { background: rgba(56, 189, 248, 0.12); color: #38bdf8; gap: 6px; }
 .pill-pending  { background: var(--warning-bg); color: var(--warning); }
 .pill-uploaded { background: var(--success-bg); color: var(--success); }
 .pill-rejected { background: var(--danger-bg);  color: var(--danger); }
@@ -993,6 +995,19 @@ tbody td.truncate { max-width: 250px; overflow: hidden; text-overflow: ellipsis;
     0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(147, 130, 242, 0.5); }
     50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(147, 130, 242, 0); }
 }
+
+/* ── Analyzing status ────────────────────────────────────────────── */
+.stat-card-analyzing { border-color: rgba(56, 189, 248, 0.3); }
+.pulse-dot-analyzing {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #38bdf8;
+    animation: pulse-glow-analyzing 1.5s ease-in-out infinite;
+}
+@keyframes pulse-glow-analyzing {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.5); }
+    50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(56, 189, 248, 0); }
+}
+.analyzing-name { color: var(--text-secondary); font-style: italic; }
 
 .queue-item-info { flex: 1; min-width: 0; }
 
