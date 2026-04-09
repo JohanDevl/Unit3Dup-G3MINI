@@ -35,7 +35,7 @@ def _normalize_lang(raw: str) -> str:
     if r == "VOQ":                          return "VOQ"
     if r == "VOB":                          return "VOB"
     if r == "VOSTFR":                       return "VOSTFR"
-    if r == "SUBFRENCH":                    return "SUBFRENCH"
+    if r == "SUBFRENCH":                    return "VOSTFR"
     return raw
 
 
