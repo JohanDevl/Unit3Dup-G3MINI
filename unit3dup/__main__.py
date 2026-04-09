@@ -124,9 +124,15 @@ def main():
 
     # Web-only mode (no watcher)
     if getattr(cli.args, 'web', False) and not cli.args.watcher:
+        try:
+            from unit3dup.web.main import start_web
+        except ImportError:
+            custom_console.bot_error_log(
+                "Web dependencies are not installed. Run: pip install Unit3Dup[web]"
+            )
+            return
         import os
         from unit3dup.state_db import StateDB
-        from unit3dup.web.main import start_web
 
         db_path = os.path.join(str(DEFAULT_JSON_PATH.parent), "unit3dup.db")
         state_db = StateDB(db_path=db_path)
@@ -145,10 +151,16 @@ def main():
 
         # Watcher + Web mode: run watcher in background thread, web server in main thread
         if getattr(cli.args, 'web', False):
+            try:
+                from unit3dup.web.main import start_web
+            except ImportError:
+                custom_console.bot_error_log(
+                    "Web dependencies are not installed. Run: pip install Unit3Dup[web]"
+                )
+                return
             import os
             import threading
             from unit3dup.state_db import StateDB
-            from unit3dup.web.main import start_web
 
             db_path = os.path.join(str(DEFAULT_JSON_PATH.parent), "unit3dup.db")
             state_db = StateDB(db_path=db_path)

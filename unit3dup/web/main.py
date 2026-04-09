@@ -7,6 +7,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+import uvicorn
 
 from unit3dup.state_db import StateDB
 from unit3dup.web.api import router as api_router, init_api
@@ -59,7 +60,5 @@ def start_web(state_db: StateDB, host: str = "0.0.0.0", port: int = 8000):
         host: bind address
         port: bind port
     """
-    import uvicorn
-
     app = create_app(state_db)
     uvicorn.run(app, host=host, port=port, log_level="info")

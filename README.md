@@ -36,7 +36,8 @@ cd ~/unit3dup
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e .          # CLI only
+pip install -e ".[web]"   # CLI + web dashboard
 ```
 
 L'option `-e` (editable) permet de recevoir les mises à jour du fork simplement avec un `git pull`, sans réinstaller.
@@ -146,7 +147,8 @@ Pas besoin de réinstaller grâce au mode `-e`. Si des nouvelles dépendances on
 
 ```bash
 source .venv/bin/activate
-pip install -e .
+pip install -e .          # CLI only
+pip install -e ".[web]"   # CLI + web dashboard
 ```
 
 ---
