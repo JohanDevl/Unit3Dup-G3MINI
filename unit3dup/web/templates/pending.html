@@ -67,7 +67,7 @@
         <span id="bulk-count">0 selected</span>
         <div class="bulk-bar-actions">
             <button type="button" class="btn btn-ghost btn-sm" onclick="clearSelection()">Clear</button>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="confirmBulkRescan()">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="openBulkRescanModal()">
                 <i data-lucide="refresh-cw"></i> Bulk Rescan
             </button>
             <button type="button" class="btn btn-success btn-sm" onclick="openBulkApproveModal()">
@@ -144,6 +144,30 @@
             <button class="btn btn-ghost" onclick="closeBulkApproveModal()">Cancel</button>
             <button class="btn btn-success" id="bulk-approve-confirm-btn" onclick="confirmBulkApprove()">
                 <i data-lucide="upload"></i> Queue All (<span id="bulk-approve-count">0</span>)
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Rescan Modal -->
+<div class="modal-overlay" id="bulk-rescan-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i data-lucide="refresh-cw" style="width:20px;height:20px;color:#fbbf24"></i> Bulk Rescan</h3>
+            <button class="modal-close" onclick="closeBulkRescanModal()">
+                <i data-lucide="x" style="width:18px;height:18px"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p id="bulk-rescan-info">Rescan <strong>0</strong> item(s)? They will be queued for re-analysis.</p>
+            <p style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.5rem">
+                Items will appear in the queue while being rescanned. This may take a while depending on the number of items.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeBulkRescanModal()">Cancel</button>
+            <button class="btn btn-primary" id="bulk-rescan-confirm-btn" onclick="confirmBulkRescan()">
+                <i data-lucide="refresh-cw"></i> Rescan
             </button>
         </div>
     </div>
@@ -357,11 +381,29 @@
         });
     }
 
-    // ── Bulk Rescan ───────────────────────────────────────────
+    // ── Bulk Rescan Modal ────────────────────────────────────
+
+    function openBulkRescanModal() {
+        if (_selectedIds.size === 0) return;
+        document.getElementById('bulk-rescan-info').innerHTML =
+            'Rescan <strong>' + _selectedIds.size + '</strong> item' +
+            (_selectedIds.size > 1 ? 's' : '') + '? They will be queued for re-analysis.';
+        const btn = document.getElementById('bulk-rescan-confirm-btn');
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="refresh-cw"></i> Rescan';
+        document.getElementById('bulk-rescan-modal').classList.add('open');
+        setTimeout(() => lucide.createIcons(), 100);
+    }
+
+    function closeBulkRescanModal() {
+        document.getElementById('bulk-rescan-modal').classList.remove('open');
+    }
 
     function confirmBulkRescan() {
-        if (_selectedIds.size === 0) return;
-        if (!confirm('Rescan ' + _selectedIds.size + ' item(s)? They will be queued for re-analysis.')) return;
+        const btn = document.getElementById('bulk-rescan-confirm-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader"></i> Rescanning...';
+        lucide.createIcons();
 
         fetch('/api/v1/items/bulk-rescan', {
             method: 'POST',
@@ -373,6 +415,7 @@
             return r.json();
         })
         .then(data => {
+            closeBulkRescanModal();
             _selectedIds.clear();
             updateBulkBar();
             const card = document.getElementById('pending-card');
@@ -393,6 +436,10 @@
             if (container) htmx.ajax('GET', '/partials/pending-list', {target: '#pending-container', swap: 'innerHTML'});
         })
         .catch(err => {
+            closeBulkRescanModal();
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="refresh-cw"></i> Rescan';
+            lucide.createIcons();
             const card = document.getElementById('pending-card');
             const alert = document.createElement('div');
             alert.className = 'alert alert-error';
@@ -556,8 +603,11 @@
     document.getElementById('bulk-approve-modal').addEventListener('click', function(e) {
         if (e.target === this) closeBulkApproveModal();
     });
+    document.getElementById('bulk-rescan-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeBulkRescanModal();
+    });
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') { closeBulkRejectModal(); closeBulkApproveModal(); }
+        if (e.key === 'Escape') { closeBulkRejectModal(); closeBulkApproveModal(); closeBulkRescanModal(); }
     });
 </script>
 
