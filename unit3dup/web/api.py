@@ -9,7 +9,7 @@ from unit3dup.state_db import StateDB
 from unit3dup.web.models import (
     ApproveRequest, RejectRequest, BulkApproveRequest, BulkRejectRequest,
     RescanTmdbRequest, UpdateCategoryRequest, UpdateSourceTypeRequest, UpdateResolutionRequest,
-    UpdateSeasonEpisodeRequest,
+    UpdateSeasonEpisodeRequest, UpdateTracksRequest,
     StatsResponse, ItemDetail, ItemListResponse, ItemSummary, QueueStatusResponse,
 )
 from unit3dup.web.upload_service import UploadService
@@ -202,6 +202,19 @@ def update_season_episode(item_id: int, req: UpdateSeasonEpisodeRequest):
     tracker_payload["episode_number"] = req.episode_number
     _db().update_item(item_id, tracker_payload=tracker_payload)
     return {"success": True, "message": f"Season/episode updated to S{req.season_number:02d}E{req.episode_number:02d}"}
+
+
+@router.post("/items/{item_id}/update-tracks")
+def update_tracks(item_id: int, req: UpdateTracksRequest):
+    """Update audio/subtitle tracks and regenerate the prez description."""
+    result = _svc().regenerate_prez(
+        item_id,
+        [t.model_dump() for t in req.audio_tracks],
+        [t.model_dump() for t in req.subtitle_tracks],
+    )
+    if not result["success"]:
+        raise HTTPException(400, result["message"])
+    return result
 
 
 @router.post("/items/{item_id}/rescan-tmdb")

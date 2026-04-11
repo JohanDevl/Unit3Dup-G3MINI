@@ -250,6 +250,74 @@
 </details>
 {% endif %}
 
+<!-- Audio & Subtitles Track Editor -->
+{% if item.status in ('pending', 'error') %}
+<details class="accordion" open>
+    <summary><i data-lucide="languages" style="width:16px;height:16px"></i> Audio & Sous-titres</summary>
+    <div class="accordion-body">
+        <!-- Audio Tracks -->
+        {% if audio_tracks %}
+        <h4 style="margin-bottom:0.5rem">Audio</h4>
+        <table class="table" id="audio-tracks-table">
+            <thead><tr><th>Langue</th><th>Format</th><th>Canaux</th><th>Débit</th><th></th></tr></thead>
+            <tbody>
+            {% for track in audio_tracks %}
+            <tr>
+                <td>
+                    <select class="filter-select track-lang" data-field="language">
+                        <option value="">— Inconnu —</option>
+                        {% for code, name in lang_options.items() %}
+                        <option value="{{ code }}" {% if track.get('language','') == code %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </td>
+                <td>{{ track.get('format', '') }}</td>
+                <td>{{ track.get('channel_s', '') }}</td>
+                <td>{{ track.get('bit_rate', '') }}</td>
+                <td><button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('tr').remove()"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="addAudioRow()"><i data-lucide="plus" style="width:14px;height:14px"></i> Add Audio</button>
+        {% endif %}
+
+        <!-- Subtitle Tracks -->
+        {% if subtitle_tracks %}
+        <h4 style="margin:1rem 0 0.5rem">Sous-titres</h4>
+        <table class="table" id="sub-tracks-table">
+            <thead><tr><th>Langue</th><th>Format</th><th>Forcé</th><th></th></tr></thead>
+            <tbody>
+            {% for track in subtitle_tracks %}
+            <tr>
+                <td>
+                    <select class="filter-select track-lang" data-field="language">
+                        <option value="">— Inconnu —</option>
+                        {% for code, name in lang_options.items() %}
+                        <option value="{{ code }}" {% if track.get('language','') == code %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </td>
+                <td>{{ track.get('format', '') }}</td>
+                <td><input type="checkbox" {% if track.get('forced','') | lower == 'yes' %}checked{% endif %}></td>
+                <td><button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('tr').remove()"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="addSubRow()"><i data-lucide="plus" style="width:14px;height:14px"></i> Add Subtitle</button>
+        {% endif %}
+
+        <div style="margin-top:1rem">
+            <button type="button" class="btn btn-success btn-sm" onclick="updateTracks({{ item.id }})">
+                <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Regenerate Description
+            </button>
+            <span id="tracks-result" style="margin-left:0.5rem"></span>
+        </div>
+    </div>
+</details>
+{% endif %}
+
 <!-- MediaInfo -->
 {% if item.mediainfo %}
 <details class="accordion">
@@ -712,6 +780,76 @@ document.getElementById('reject-modal').addEventListener('click', function(e) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') { closeRejectModal(); closeApproveModal(); }
 });
+
+function updateTracks(itemId) {
+    const audioRows = document.querySelectorAll('#audio-tracks-table tbody tr');
+    const subRows = document.querySelectorAll('#sub-tracks-table tbody tr');
+
+    const audio_tracks = Array.from(audioRows).map(row => {
+        const cells = row.querySelectorAll('td');
+        return {
+            language: cells[0].querySelector('select').value,
+            format: cells[1].textContent.trim(),
+            channel_s: cells[2].textContent.trim(),
+            bit_rate: cells[3].textContent.trim(),
+        };
+    });
+
+    const subtitle_tracks = Array.from(subRows).map(row => {
+        const cells = row.querySelectorAll('td');
+        return {
+            language: cells[0].querySelector('select').value,
+            format: cells[1].textContent.trim(),
+            forced: cells[2].querySelector('input').checked ? 'Yes' : 'No',
+        };
+    });
+
+    const resultEl = document.getElementById('tracks-result');
+    resultEl.textContent = 'Regenerating...';
+
+    fetch(`/api/v1/items/${itemId}/update-tracks`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({audio_tracks, subtitle_tracks})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            resultEl.textContent = '✓ Description updated';
+            resultEl.style.color = 'var(--success)';
+            setTimeout(() => location.reload(), 800);
+        } else {
+            resultEl.textContent = '✗ ' + data.message;
+            resultEl.style.color = 'var(--danger)';
+        }
+    })
+    .catch(e => {
+        resultEl.textContent = '✗ Error: ' + e.message;
+        resultEl.style.color = 'var(--danger)';
+    });
+}
+
+function addTrackRow(tableId, extraCells) {
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    if (!tbody) return;
+    const srcSelect = document.querySelector('.track-lang');
+    const newSelect = srcSelect ? srcSelect.cloneNode(true) : document.createElement('select');
+    newSelect.selectedIndex = 0;
+    newSelect.className = 'filter-select track-lang';
+    const tr = document.createElement('tr');
+    const langTd = document.createElement('td');
+    langTd.appendChild(newSelect);
+    tr.appendChild(langTd);
+    extraCells.forEach(html => { const td = document.createElement('td'); td.innerHTML = html; tr.appendChild(td); });
+    const removeTd = document.createElement('td');
+    removeTd.innerHTML = '<button type="button" class="btn btn-ghost btn-sm" onclick="this.closest(\'tr\').remove()"><i data-lucide="trash-2" style="width:14px;height:14px"></i></button>';
+    tr.appendChild(removeTd);
+    tbody.appendChild(tr);
+    if (window.lucide) lucide.createIcons();
+}
+
+function addAudioRow() { addTrackRow('audio-tracks-table', ['', '', '']); }
+function addSubRow() { addTrackRow('sub-tracks-table', ['<input type="checkbox">']); }
 </script>
 {% elif item.status == 'queued' %}
 <div class="card" style="margin-top:1.5rem">

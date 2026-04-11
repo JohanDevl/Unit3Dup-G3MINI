@@ -51,6 +51,26 @@ class UpdateSeasonEpisodeRequest(BaseModel):
     episode_number: int = Field(ge=0)
 
 
+class AudioTrackData(BaseModel):
+    language: str = Field(default="", max_length=10)
+    title: str = Field(default="", max_length=200)
+    format: str = Field(default="", max_length=50)
+    channel_s: str = Field(default="", max_length=20)
+    bit_rate: str = Field(default="", max_length=30)
+
+
+class SubtitleTrackData(BaseModel):
+    language: str = Field(default="", max_length=10)
+    title: str = Field(default="", max_length=200)
+    format: str = Field(default="", max_length=50)
+    forced: str = Field(default="", max_length=10)
+
+
+class UpdateTracksRequest(BaseModel):
+    audio_tracks: list[AudioTrackData] = Field(max_length=50)
+    subtitle_tracks: list[SubtitleTrackData] = Field(max_length=50)
+
+
 class StatsResponse(BaseModel):
     pending: int = 0
     queued: int = 0

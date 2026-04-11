@@ -44,6 +44,8 @@ class PreparedItem:
     description: str = ""                     # BBCode prez
     mediainfo: str = ""                       # raw mediainfo text
     nfo_content: str | None = None            # NFO file contents (read at prepare time)
+    audio_tracks: list[dict] = field(default_factory=list)
+    subtitle_tracks: list[dict] = field(default_factory=list)
 
     # ── External IDs ─────────────────────────────────────────────────
     tmdb_id: int = 0

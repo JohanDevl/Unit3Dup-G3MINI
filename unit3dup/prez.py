@@ -41,6 +41,22 @@ LANG_TO_COUNTRY = {
 
 VARIANT_COUNTRY = {"VFQ": "CA", "VFB": "BE"}
 
+_LANG_NAME_TO_ISO: dict[str, str] = {v.lower(): k for k, v in ISO_TO_LANG_NAME.items()}
+_LANG_NAME_TO_ISO.update({
+    "english": "en", "french": "fr", "german": "de", "spanish": "es",
+    "italian": "it", "japanese": "ja", "korean": "ko", "portuguese": "pt",
+    "russian": "ru", "chinese": "zh", "arabic": "ar", "dutch": "nl",
+    "polish": "pl", "turkish": "tr", "hindi": "hi", "swedish": "sv",
+    "norwegian": "no", "danish": "da", "finnish": "fi", "greek": "el",
+    "hungarian": "hu", "romanian": "ro", "czech": "cs", "hebrew": "he",
+    "thai": "th", "vietnamese": "vi", "indonesian": "id", "malay": "ms",
+    "bulgarian": "bg", "croatian": "hr", "serbian": "sr", "slovak": "sk",
+    "slovenian": "sl", "ukrainian": "uk", "catalan": "ca", "basque": "eu",
+    "estonian": "et", "latvian": "lv", "lithuanian": "lt", "icelandic": "is",
+    "georgian": "ka", "armenian": "hy", "persian": "fa", "bengali": "bn",
+    "tamil": "ta", "telugu": "te", "urdu": "ur", "tagalog": "tl",
+})
+
 # ── Codec normalization ───────────────────────────────────────────────
 
 CODEC_SHORT = {
@@ -75,6 +91,23 @@ def _lang_name(iso_code: str) -> str:
     if not iso_code:
         return "Inconnu"
     return ISO_TO_LANG_NAME.get(iso_code.lower().split("-")[0], iso_code.capitalize())
+
+
+def _infer_lang_from_title(title: str) -> str:
+    """Try to extract an ISO language code from a track title."""
+    if not title:
+        return ""
+    # Try exact match first
+    key = title.strip().lower()
+    if key in _LANG_NAME_TO_ISO:
+        return _LANG_NAME_TO_ISO[key]
+    # Split on common delimiters and check each token
+    import re
+    for token in re.split(r'[\s(),/\-]+', key):
+        iso = _LANG_NAME_TO_ISO.get(token)
+        if iso:
+            return iso
+    return ""
 
 
 def _lang_flag(lang_name: str, variant: str | None = None) -> str:
@@ -178,7 +211,7 @@ def _codec_label(video_format: str | None) -> str:
 
 # ── Main generator ────────────────────────────────────────────────────
 
-def generate_prez(media_file: MediaFile) -> str:
+def generate_prez(media_file: MediaFile, *, audio_tracks=None, sub_tracks=None) -> str:
     """Generate prez style 3 BBCode from a MediaFile instance."""
     bb = ""
 
@@ -204,8 +237,8 @@ def generate_prez(media_file: MediaFile) -> str:
         bb += "[/card-body]\n[/card]\n\n"
 
     # ── Audio + Subtitles grid ──
-    audio_tracks = media_file.audio_track
-    sub_tracks = media_file.subtitle_track
+    audio_tracks = audio_tracks if audio_tracks is not None else media_file.audio_track
+    sub_tracks = sub_tracks if sub_tracks is not None else media_file.subtitle_track
 
     if not audio_tracks and not sub_tracks:
         return bb
@@ -226,6 +259,8 @@ def generate_prez(media_file: MediaFile) -> str:
             channels = track.get("channel_s", "")
             bitrate = track.get("bit_rate", "")
 
+            if not lang and title:
+                lang = _infer_lang_from_title(title)
             name = _lang_name(lang)
             audio_type = _detect_audio_type(title)
             flag = _lang_flag(name, audio_type)
@@ -257,6 +292,8 @@ def generate_prez(media_file: MediaFile) -> str:
             forced = track.get("forced", "")
             fmt = track.get("format", "")
 
+            if not lang and title:
+                lang = _infer_lang_from_title(title)
             name = _lang_name(lang)
             flag = _lang_flag(name)
             qualifier = _detect_sub_qualifier(title, forced)

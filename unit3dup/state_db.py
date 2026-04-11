@@ -22,12 +22,15 @@ _ALLOWED_COLUMNS = {
     "torrent_name", "release_name", "source_tag", "file_size", "resolution",
     "tmdb_id", "imdb_id", "igdb_id", "tmdb_title", "tmdb_year",
     "description", "mediainfo", "nfo_content",
+    "audio_tracks", "subtitle_tracks",
     "tracker_payload", "tracker_name", "trackers_list", "torrent_archive_path",
     "validation_report", "has_errors", "has_warnings",
     "rejection_reason", "user_edited_name", "user_edited_desc",
     "discovered_at", "prepared_at", "decided_at", "uploaded_at",
     "tracker_response", "upload_error", "skip_reason",
 }
+
+_JSON_FIELDS = ("tracker_payload", "trackers_list", "validation_report", "audio_tracks", "subtitle_tracks")
 
 
 _SCHEMA = """
@@ -58,6 +61,8 @@ CREATE TABLE IF NOT EXISTS items (
     description         TEXT,
     mediainfo           TEXT,
     nfo_content         TEXT,
+    audio_tracks        TEXT,
+    subtitle_tracks     TEXT,
 
     tracker_payload     TEXT,
     tracker_name        TEXT,
@@ -113,6 +118,21 @@ class StateDB:
                 conn.commit()
             finally:
                 conn.close()
+        self._ensure_columns()
+
+    def _ensure_columns(self):
+        """Add columns that may be missing from older databases."""
+        new_cols = [("audio_tracks", "TEXT"), ("subtitle_tracks", "TEXT")]
+        with self._lock:
+            conn = self._connect()
+            try:
+                existing = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
+                for col_name, col_type in new_cols:
+                    if col_name not in existing:
+                        conn.execute(f"ALTER TABLE items ADD COLUMN {col_name} {col_type}")
+                conn.commit()
+            finally:
+                conn.close()
 
     # ── Query helpers ─────────────────────────────────────────────────
 
@@ -122,7 +142,7 @@ class StateDB:
             return None
         d = dict(row)
         # Deserialize JSON fields
-        for field in ("tracker_payload", "trackers_list", "validation_report"):
+        for field in _JSON_FIELDS:
             if d.get(field):
                 try:
                     d[field] = json.loads(d[field])
@@ -232,7 +252,7 @@ class StateDB:
         if invalid:
             raise ValueError(f"Invalid column names: {invalid}")
 
-        for field in ("tracker_payload", "trackers_list", "validation_report"):
+        for field in _JSON_FIELDS:
             if field in kwargs and not isinstance(kwargs[field], str):
                 kwargs[field] = json.dumps(kwargs[field], ensure_ascii=False)
 
@@ -257,7 +277,7 @@ class StateDB:
         if invalid:
             raise ValueError(f"Invalid column names: {invalid}")
 
-        for field in ("tracker_payload", "trackers_list", "validation_report"):
+        for field in _JSON_FIELDS:
             if field in kwargs and not isinstance(kwargs[field], str):
                 kwargs[field] = json.dumps(kwargs[field], ensure_ascii=False)
 
@@ -351,7 +371,7 @@ class StateDB:
         if invalid:
             raise ValueError(f"Invalid column names: {invalid}")
 
-        for field in ("tracker_payload", "trackers_list", "validation_report"):
+        for field in _JSON_FIELDS:
             if field in extra_fields and not isinstance(extra_fields[field], str):
                 extra_fields[field] = json.dumps(extra_fields[field], ensure_ascii=False)
 

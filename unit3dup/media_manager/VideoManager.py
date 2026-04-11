@@ -218,6 +218,8 @@ class VideoManager:
                     description=video_info.description,
                     mediainfo=video_info.mediainfo,
                     nfo_content=None,
+                    audio_tracks=video_info.audio_tracks,
+                    subtitle_tracks=video_info.subtitle_tracks,
                     tmdb_id=db.video_id if db else 0,
                     imdb_id=db.imdb_id if db else 0,
                     tmdb_title=db.result.get_title() if db and db.result else None,

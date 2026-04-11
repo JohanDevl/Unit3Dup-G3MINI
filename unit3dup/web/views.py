@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 
 from fastapi import APIRouter, Request, HTTPException
@@ -11,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 
 from unit3dup.state_db import StateDB
 from unit3dup.web.bbcode_renderer import bbcode_to_html
+from unit3dup.prez import ISO_TO_LANG_NAME
 from common.trackers.data import trackers_api_data
 from common.trackers.gemini import gemini_data
 
@@ -162,14 +164,29 @@ def pending_list(request: Request):
     })
 
 
+def _parse_tracks(item: dict) -> tuple[list, list]:
+    """Extract audio/subtitle track lists from a DB item."""
+    audio_tracks = []
+    subtitle_tracks = []
+    if item.get("audio_tracks"):
+        audio_tracks = item["audio_tracks"] if isinstance(item["audio_tracks"], list) else json.loads(item["audio_tracks"])
+    if item.get("subtitle_tracks"):
+        subtitle_tracks = item["subtitle_tracks"] if isinstance(item["subtitle_tracks"], list) else json.loads(item["subtitle_tracks"])
+    return audio_tracks, subtitle_tracks
+
+
 @router.get("/pending/{item_id}", response_class=HTMLResponse)
 def pending_detail(request: Request, item_id: int):
     item = _db().get_item(item_id)
     if not item:
         raise HTTPException(404, "Item not found")
+    audio_tracks, subtitle_tracks = _parse_tracks(item)
     return templates.TemplateResponse(request, "item_detail.html", {
         "item": item,
         "page_title": item.get("release_name") or item.get("display_name") or "Detail",
+        "audio_tracks": audio_tracks,
+        "subtitle_tracks": subtitle_tracks,
+        "lang_options": ISO_TO_LANG_NAME,
     })
 
 
@@ -195,9 +212,13 @@ def history_detail(request: Request, item_id: int):
     item = _db().get_item(item_id)
     if not item:
         raise HTTPException(404, "Item not found")
+    audio_tracks, subtitle_tracks = _parse_tracks(item)
     return templates.TemplateResponse(request, "item_detail.html", {
         "item": item,
         "page_title": item.get("release_name") or item.get("display_name") or "Detail",
+        "audio_tracks": audio_tracks,
+        "subtitle_tracks": subtitle_tracks,
+        "lang_options": ISO_TO_LANG_NAME,
     })
 
 

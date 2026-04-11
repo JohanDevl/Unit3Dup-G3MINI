@@ -13,6 +13,8 @@ from datetime import datetime
 from unit3dup.state_db import StateDB
 from unit3dup.pvtTracker import Unit3d
 from unit3dup.upload import UploadBot
+from unit3dup.prez import generate_prez
+from common.mediainfo import MediaFile
 
 from view import custom_console
 
@@ -344,6 +346,8 @@ class UploadService:
                 tracker_name=p.tracker_name,
                 trackers_list=p.trackers_list,
                 torrent_archive_path=p.torrent_filepath,
+                audio_tracks=p.audio_tracks,
+                subtitle_tracks=p.subtitle_tracks,
                 validation_report=p.validation_report,
                 has_errors=int(p.has_errors),
                 has_warnings=int(p.has_warnings),
@@ -365,6 +369,39 @@ class UploadService:
         except Exception as e:
             custom_console.bot_error_log(f"[Web] Rescan failed: {e}")
             return {"success": False, "message": f"Rescan failed: {str(e)}"}
+
+    def regenerate_prez(self, item_id: int, audio_tracks: list[dict], subtitle_tracks: list[dict]) -> dict:
+        """Regenerate the prez description with modified track data."""
+        item = self.state_db.get_item(item_id)
+        if not item:
+            return {"success": False, "message": "Item not found"}
+        source_path = item.get("source_path", "")
+        if not source_path or not os.path.exists(source_path):
+            return {"success": False, "message": f"Source file not found: {source_path}"}
+        try:
+            # For folder-based items, find the actual video file
+            file_path = source_path
+            if os.path.isdir(source_path):
+                from common.utility import ManageTitles
+                video_exts = {".mkv", ".mp4", ".avi", ".ts", ".m2ts"}
+                for entry in sorted(os.listdir(source_path)):
+                    if os.path.splitext(entry)[1].lower() in video_exts:
+                        file_path = os.path.join(source_path, entry)
+                        break
+                else:
+                    return {"success": False, "message": "No video file found in folder"}
+            media_file = MediaFile(file_path)
+            new_desc = generate_prez(media_file, audio_tracks=audio_tracks, sub_tracks=subtitle_tracks)
+            self.state_db.update_item(
+                item_id,
+                description=new_desc,
+                audio_tracks=audio_tracks,
+                subtitle_tracks=subtitle_tracks,
+                user_edited_desc=None,
+            )
+            return {"success": True, "message": "Description regenerated", "description": new_desc}
+        except Exception as e:
+            return {"success": False, "message": f"Regeneration failed: {str(e)}"}
 
     def bulk_approve(self, ids: list[int]) -> dict:
         count = 0
