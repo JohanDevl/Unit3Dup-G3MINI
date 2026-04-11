@@ -458,12 +458,26 @@ class UploadService:
             return {"success": False, "message": f"Regeneration failed: {str(e)}"}
 
     def bulk_approve(self, ids: list[int]) -> dict:
-        count = 0
+        """Transition all valid items to 'queued' first, then enqueue them all at once."""
+        valid = []
         for item_id in ids:
-            result = self.approve_and_upload(item_id)
-            if result["success"]:
-                count += 1
-        return {"success": True, "message": f"{count}/{len(ids)} queued"}
+            item = self.state_db.get_item(item_id)
+            if not item:
+                continue
+            transitioned = self.state_db.atomic_transition(
+                item_id,
+                from_statuses=("pending", "error"),
+                to_status="queued",
+                decided_at=datetime.now().isoformat(),
+            )
+            if transitioned:
+                valid.append((item_id, item))
+
+        for item_id, item in valid:
+            self._queue.put((item_id, None, None))
+            custom_console.bot_log(f"[Web] Queued → {item.get('release_name', 'unknown')}")
+
+        return {"success": True, "message": f"{len(valid)}/{len(ids)} queued"}
 
     def bulk_rescan(self, ids: list[int]) -> dict:
         """Transition all valid items to 'rescanning' first, then enqueue them all at once."""
