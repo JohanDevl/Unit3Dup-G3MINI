@@ -67,6 +67,9 @@
         <span id="bulk-count">0 selected</span>
         <div class="bulk-bar-actions">
             <button type="button" class="btn btn-ghost btn-sm" onclick="clearSelection()">Clear</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="confirmBulkRescan()">
+                <i data-lucide="refresh-cw"></i> Bulk Rescan
+            </button>
             <button type="button" class="btn btn-success btn-sm" onclick="openBulkApproveModal()">
                 <i data-lucide="upload"></i> Bulk Approve
             </button>
@@ -344,6 +347,52 @@
             btn.disabled = false;
             btn.innerHTML = '<i data-lucide="x-circle"></i> Reject';
             lucide.createIcons();
+            const card = document.getElementById('pending-card');
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-error';
+            alert.style.marginBottom = '1rem';
+            alert.textContent = 'Error: ' + err.message;
+            card.insertBefore(alert, card.firstChild);
+            setTimeout(() => alert.remove(), 5000);
+        });
+    }
+
+    // ── Bulk Rescan ───────────────────────────────────────────
+
+    function confirmBulkRescan() {
+        if (_selectedIds.size === 0) return;
+        if (!confirm('Rescan ' + _selectedIds.size + ' item(s)? They will be queued for re-analysis.')) return;
+
+        fetch('/api/v1/items/bulk-rescan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ids: Array.from(_selectedIds)})
+        })
+        .then(r => {
+            if (!r.ok) throw new Error(r.statusText || 'Server error');
+            return r.json();
+        })
+        .then(data => {
+            _selectedIds.clear();
+            updateBulkBar();
+            const card = document.getElementById('pending-card');
+            const alert = document.createElement('div');
+            alert.style.marginBottom = '1rem';
+            const match = (data.message || '').match(/^(\d+)\/(\d+)/);
+            const isPartial = match && parseInt(match[1]) < parseInt(match[2]);
+            if (isPartial) {
+                alert.className = 'alert alert-error';
+                alert.textContent = data.message + ' (some items could not be rescanned)';
+            } else {
+                alert.className = 'alert alert-success';
+                alert.textContent = data.message || 'Items queued for rescan';
+            }
+            card.insertBefore(alert, card.firstChild);
+            setTimeout(() => alert.remove(), 5000);
+            const container = document.getElementById('pending-container');
+            if (container) htmx.ajax('GET', '/partials/pending-list', {target: '#pending-container', swap: 'innerHTML'});
+        })
+        .catch(err => {
             const card = document.getElementById('pending-card');
             const alert = document.createElement('div');
             alert.className = 'alert alert-error';

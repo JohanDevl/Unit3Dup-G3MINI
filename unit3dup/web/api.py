@@ -7,7 +7,7 @@ from fastapi import APIRouter, Body, HTTPException
 
 from unit3dup.state_db import StateDB
 from unit3dup.web.models import (
-    ApproveRequest, RejectRequest, BulkApproveRequest, BulkRejectRequest,
+    ApproveRequest, RejectRequest, BulkApproveRequest, BulkRejectRequest, BulkRescanRequest,
     RescanTmdbRequest, UpdateCategoryRequest, UpdateSourceTypeRequest, UpdateResolutionRequest,
     UpdateSeasonEpisodeRequest, UpdateTracksRequest,
     StatsResponse, ItemDetail, ItemListResponse, ItemSummary, QueueStatusResponse,
@@ -45,6 +45,7 @@ def get_stats():
     return StatsResponse(
         pending=counts.get("pending", 0),
         queued=counts.get("queued", 0),
+        rescanning=counts.get("rescanning", 0),
         uploaded=counts.get("uploaded", 0),
         rejected=counts.get("rejected", 0),
         skipped=counts.get("skipped", 0),
@@ -246,3 +247,8 @@ def bulk_approve(req: BulkApproveRequest):
 @router.post("/items/bulk-reject")
 def bulk_reject(req: BulkRejectRequest):
     return _svc().bulk_reject(req.ids, req.reason)
+
+
+@router.post("/items/bulk-rescan")
+def bulk_rescan(req: BulkRescanRequest):
+    return _svc().bulk_rescan(req.ids)

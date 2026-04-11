@@ -26,24 +26,34 @@ class UploadService:
         self.state_db = state_db
         self._queue: queue.Queue = queue.Queue()
         self._worker_thread: threading.Thread | None = None
+        self._rescan_queue: queue.Queue = queue.Queue()
+        self._rescan_worker_thread: threading.Thread | None = None
         self._shutdown = threading.Event()
         self._current_item_id: int | None = None
+        self._current_rescan_item_id: int | None = None
 
     def start_worker(self):
-        """Start the background upload worker. Re-enqueues items left in queued/approved status from a previous crash."""
+        """Start the background upload and rescan workers. Re-enqueues items left in queued/approved/rescanning status from a previous crash."""
         for status in ("queued", "approved"):
             items = self.state_db.list_items(status=status)
             for item in items:
                 self._queue.put((item["id"], None, None))
                 custom_console.bot_log(f"[Web] Re-enqueued {status} item #{item['id']}: {item.get('release_name', '?')}")
+        for item in self.state_db.list_items(status="rescanning"):
+            self._rescan_queue.put(item["id"])
+            custom_console.bot_log(f"[Web] Re-enqueued rescanning item #{item['id']}: {item.get('release_name', '?')}")
         self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker_thread.start()
+        self._rescan_worker_thread = threading.Thread(target=self._rescan_worker_loop, daemon=True)
+        self._rescan_worker_thread.start()
 
     def stop_worker(self):
-        """Signal the worker to stop and wait for it."""
+        """Signal the workers to stop and wait for them."""
         self._shutdown.set()
         if self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=5)
+        if self._rescan_worker_thread and self._rescan_worker_thread.is_alive():
+            self._rescan_worker_thread.join(timeout=5)
 
     def _worker_loop(self):
         """Background loop: pick items from queue and upload one at a time."""
@@ -57,9 +67,33 @@ class UploadService:
                 self._do_upload(item_id, name_override, desc_override)
             except Exception as e:
                 custom_console.bot_error_log(f"[Web] Worker error for item #{item_id}: {e}")
+                try:
+                    self.state_db.mark_error(item_id, f"Worker error: {e}")
+                except Exception:
+                    custom_console.bot_error_log(f"[Web] Failed to mark error for item #{item_id}")
             finally:
                 self._current_item_id = None
                 self._queue.task_done()
+
+    def _rescan_worker_loop(self):
+        """Background loop: pick items from rescan queue and re-prepare one at a time."""
+        while not self._shutdown.is_set():
+            try:
+                item_id = self._rescan_queue.get(timeout=1)
+            except queue.Empty:
+                continue
+            try:
+                self._current_rescan_item_id = item_id
+                self._do_rescan(item_id)
+            except Exception as e:
+                custom_console.bot_error_log(f"[Web] Rescan worker error for item #{item_id}: {e}")
+                try:
+                    self.state_db.mark_error(item_id, f"Rescan worker error: {e}")
+                except Exception:
+                    custom_console.bot_error_log(f"[Web] Failed to mark error for item #{item_id}")
+            finally:
+                self._current_rescan_item_id = None
+                self._rescan_queue.task_done()
 
     def approve_and_upload(
         self,
@@ -203,7 +237,7 @@ class UploadService:
         item = self.state_db.get_item(item_id)
         if not item:
             return {"success": False, "message": "Item not found"}
-        if item["status"] in ("uploaded", "queued", "approved"):
+        if item["status"] in ("uploaded", "queued", "approved", "rescanning"):
             return {"success": False, "message": f"Cannot reject item with status '{item['status']}'"}
 
         self.state_db.mark_rejected(item_id, reason)
@@ -270,11 +304,7 @@ class UploadService:
         return {"success": True, "message": "Item moved back to pending"}
 
     def rescan_item(self, item_id: int) -> dict:
-        """Re-run the full prepare pipeline on the source file.
-
-        Deletes the current item from DB, removes it from known state,
-        so the watcher re-processes it on the next cycle.
-        """
+        """Queue an item for rescan. Returns immediately."""
         item = self.state_db.get_item(item_id)
         if not item:
             return {"success": False, "message": "Item not found"}
@@ -285,13 +315,35 @@ class UploadService:
         if not source_path or not os.path.exists(source_path):
             return {"success": False, "message": f"Source file not found: {source_path}"}
 
+        transitioned = self.state_db.atomic_transition(
+            item_id,
+            from_statuses=("pending", "error", "skipped", "rejected"),
+            to_status="rescanning",
+        )
+        if not transitioned:
+            return {"success": False, "message": f"Cannot rescan item with status '{item['status']}'"}
+
+        self._rescan_queue.put(item_id)
+        custom_console.bot_log(f"[Web] Rescan queued → {item.get('release_name', 'unknown')}")
+        return {"success": True, "message": "Queued for rescan"}
+
+    def _do_rescan(self, item_id: int):
+        """Execute rescan logic. Called by the background rescan worker thread."""
+        item = self.state_db.get_item(item_id)
+        if not item:
+            return
+
+        source_path = item.get("source_path", "")
+        if not source_path or not os.path.exists(source_path):
+            self.state_db.mark_error(item_id, f"Source file not found: {source_path}")
+            return
+
         try:
             import argparse
             from unit3dup.bot import Bot
             from unit3dup import config_settings
             from common.trackers.data import trackers_api_data
 
-            # Build CLI namespace matching watcher mode
             cli = argparse.Namespace(
                 mt=False, duplicate=False, watcher=False, noup=False, noseed=True,
                 reseed=False, personal=False, confirm=False, skip_validation=False,
@@ -299,7 +351,6 @@ class UploadService:
                 scan=None, web=True, ftp=False, tracker=None,
             )
 
-            # Determine trackers
             trackers = item.get("trackers_list", [])
             if isinstance(trackers, str):
                 trackers = json.loads(trackers)
@@ -321,15 +372,16 @@ class UploadService:
             prepared_items = bot.prepare()
 
             if not prepared_items:
-                return {"success": False, "message": "Rescan produced no results"}
+                self.state_db.mark_error(item_id, "Rescan produced no results")
+                return
 
-            # Take the first prepared item and update the DB entry
             p = prepared_items[0]
+            new_status = "pending" if not p.skip_reason else "skipped"
 
-            from datetime import datetime
-            self.state_db.update_item(
+            transitioned = self.state_db.atomic_transition(
                 item_id,
-                status="pending" if not p.skip_reason else "skipped",
+                from_statuses=("rescanning",),
+                to_status=new_status,
                 release_name=p.release_name,
                 display_name=p.display_name,
                 source_tag=p.source_tag,
@@ -359,16 +411,18 @@ class UploadService:
                 user_edited_desc=None,
             )
 
+            if not transitioned:
+                custom_console.bot_warning_log(f"[Web] Rescan skipped — item #{item_id} status changed during rescan")
+                return
+
             if p.skip_reason:
                 custom_console.bot_warning_log(f"[Web] Rescan → {p.skip_reason}: {source_path}")
-                return {"success": True, "message": f"Rescan complete — skipped: {p.skip_reason}"}
-
-            custom_console.bot_log(f"[Web] Rescan → {p.release_name}")
-            return {"success": True, "message": f"Rescan complete: {p.release_name}"}
+            else:
+                custom_console.bot_log(f"[Web] Rescan → {p.release_name}")
 
         except Exception as e:
             custom_console.bot_error_log(f"[Web] Rescan failed: {e}")
-            return {"success": False, "message": f"Rescan failed: {str(e)}"}
+            self.state_db.mark_error(item_id, f"Rescan failed: {str(e)}")
 
     def regenerate_prez(self, item_id: int, audio_tracks: list[dict], subtitle_tracks: list[dict]) -> dict:
         """Regenerate the prez description with modified track data."""
@@ -411,11 +465,21 @@ class UploadService:
                 count += 1
         return {"success": True, "message": f"{count}/{len(ids)} queued"}
 
+    def bulk_rescan(self, ids: list[int]) -> dict:
+        count = 0
+        for item_id in ids:
+            result = self.rescan_item(item_id)
+            if result["success"]:
+                count += 1
+        return {"success": True, "message": f"{count}/{len(ids)} queued for rescan"}
+
     def queue_status(self) -> dict:
         """Return current queue state."""
         return {
             "queue_size": self._queue.qsize(),
             "uploading_item_id": self._current_item_id,
+            "rescan_queue_size": self._rescan_queue.qsize(),
+            "rescanning_item_id": self._current_rescan_item_id,
         }
 
     def rescan_tmdb(self, item_id: int, new_tmdb_id: int) -> dict:

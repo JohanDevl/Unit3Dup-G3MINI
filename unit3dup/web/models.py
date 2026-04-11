@@ -23,6 +23,10 @@ class BulkRejectRequest(BaseModel):
     reason: str
 
 
+class BulkRescanRequest(BaseModel):
+    ids: list[int] = Field(max_length=100)
+
+
 class RetryRequest(BaseModel):
     pass
 
@@ -74,6 +78,7 @@ class UpdateTracksRequest(BaseModel):
 class StatsResponse(BaseModel):
     pending: int = 0
     queued: int = 0
+    rescanning: int = 0
     uploaded: int = 0
     rejected: int = 0
     skipped: int = 0
@@ -136,3 +141,5 @@ class ItemListResponse(BaseModel):
 class QueueStatusResponse(BaseModel):
     queue_size: int = 0
     uploading_item_id: int | None = None
+    rescan_queue_size: int = 0
+    rescanning_item_id: int | None = None

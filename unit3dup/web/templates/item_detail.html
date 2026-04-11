@@ -581,13 +581,15 @@ document.getElementById('approve-modal').addEventListener('click', function(e) {
 
 function rescanItem(id) {
     document.getElementById("action-result").innerHTML =
-        '<div class="alert" style="background:var(--info-bg);color:var(--info);border:1px solid rgba(59,130,246,0.2)">Rescanning... This may take a moment.</div>';
+        '<div class="alert" style="background:var(--info-bg);color:var(--info);border:1px solid rgba(59,130,246,0.2)">Queueing for rescan...</div>';
     fetch(`/api/v1/items/${id}/rescan`, {
         method: "POST",
         headers: {"Content-Type": "application/json"}
     }).then(r => r.json()).then(data => {
         if (data.success) {
-            window.location.reload();
+            document.getElementById("action-result").innerHTML =
+                '<div class="alert alert-success">Queued for rescan. Redirecting to queue...</div>';
+            setTimeout(() => window.location.href = '/queue', 1000);
         } else {
             document.getElementById("action-result").innerHTML =
                 `<div class="alert alert-error">${data.detail || data.message}</div>`;
@@ -942,13 +944,13 @@ function resetUploadedItem(id, btn) {
 function rescanItemAndRedirect(id) {
     const btn = event.currentTarget;
     btn.disabled = true;
-    btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Rescanning...';
+    btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Queueing...';
     fetch(`/api/v1/items/${id}/rescan`, {
         method: "POST",
         headers: {"Content-Type": "application/json"}
     }).then(r => r.json()).then(data => {
         if (data.success) {
-            window.location.href = '/pending';
+            window.location.href = '/queue';
         } else {
             btn.disabled = false;
             btn.innerHTML = '<i data-lucide="refresh-cw"></i> Rescan / Move to Pending';

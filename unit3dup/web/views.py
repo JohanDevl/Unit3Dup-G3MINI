@@ -39,12 +39,12 @@ def init_views(state_db: StateDB, upload_service=None):
     # Global context: pending + queued count for sidebar badge
     def _pending_and_queued():
         counts = state_db.count_by_status()
-        return counts.get("analyzing", 0) + counts.get("pending", 0) + counts.get("queued", 0)
+        return counts.get("analyzing", 0) + counts.get("rescanning", 0) + counts.get("pending", 0) + counts.get("queued", 0)
     templates.env.globals["get_pending_count"] = _pending_and_queued
     # Global context: queue count (queued + uploading) for sidebar badge
     def _queue_count():
         counts = state_db.count_by_status()
-        return counts.get("queued", 0) + counts.get("approved", 0)
+        return counts.get("queued", 0) + counts.get("approved", 0) + counts.get("rescanning", 0)
     templates.env.globals["get_queue_count"] = _queue_count
     templates.env.globals["similar_url"] = _build_similar_url
 
@@ -148,8 +148,9 @@ def dashboard(request: Request):
 
 
 def _get_pending_and_queued() -> list[dict]:
-    """Fetch analyzing + pending + queued items, sorted by discovered date descending."""
+    """Fetch analyzing + rescanning + pending + queued items, sorted by discovered date descending."""
     items = _db().list_items(status="analyzing", per_page=500)
+    items += _db().list_items(status="rescanning", per_page=500)
     items += _db().list_items(status="pending", per_page=500)
     items += _db().list_items(status="queued", per_page=500)
     items.sort(key=lambda x: x.get("discovered_at", ""), reverse=True)
@@ -239,28 +240,32 @@ def partial_stats(request: Request):
     })
 
 
-def _get_queue_items() -> tuple[list[dict], int | None]:
-    """Fetch uploading + queued items and the currently uploading item ID."""
+def _get_queue_items() -> tuple[list[dict], int | None, int | None]:
+    """Fetch uploading + queued + rescanning items and the currently uploading/rescanning item IDs."""
     uploading = _db().list_items(status="approved", per_page=10)
     queued = _db().list_items(status="queued", per_page=100)
+    rescanning = _db().list_items(status="rescanning", per_page=100)
     uploading_id = _upload_service._current_item_id if _upload_service else None
-    return uploading + queued, uploading_id
+    rescanning_id = _upload_service._current_rescan_item_id if _upload_service else None
+    return uploading + queued + rescanning, uploading_id, rescanning_id
 
 
 @router.get("/queue", response_class=HTMLResponse)
 def queue_page(request: Request):
-    items, uploading_id = _get_queue_items()
+    items, uploading_id, rescanning_id = _get_queue_items()
     return templates.TemplateResponse(request, "queue.html", {
         "items": items,
         "uploading_id": uploading_id,
+        "rescanning_id": rescanning_id,
         "page_title": "Queue",
     })
 
 
 @router.get("/partials/queue-list", response_class=HTMLResponse)
 def partial_queue_list(request: Request):
-    items, uploading_id = _get_queue_items()
+    items, uploading_id, rescanning_id = _get_queue_items()
     return templates.TemplateResponse(request, "partials/queue_rows.html", {
         "items": items,
         "uploading_id": uploading_id,
+        "rescanning_id": rescanning_id,
     })
