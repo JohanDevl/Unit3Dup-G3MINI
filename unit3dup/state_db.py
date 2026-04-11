@@ -221,7 +221,9 @@ class StateDB:
                        has_errors, has_warnings, validation_report,
                        rejection_reason, user_edited_name, user_edited_desc,
                        discovered_at, prepared_at, decided_at, uploaded_at,
-                       upload_error, skip_reason
+                       upload_error, skip_reason,
+                       json_extract(tracker_payload, '$.season_number') as season_number,
+                       json_extract(tracker_payload, '$.episode_number') as episode_number
                 FROM items {where}
                 ORDER BY discovered_at DESC
                 LIMIT ? OFFSET ?""",

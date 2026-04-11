@@ -126,10 +126,11 @@
             <table id="bulk-approve-table" style="width:100%;border-collapse:collapse">
                 <thead>
                     <tr>
-                        <th style="width:45%">Release Name</th>
+                        <th style="width:40%">Release Name</th>
                         <th>Category</th>
                         <th>Resolution</th>
                         <th>Tracker</th>
+                        <th>S/E</th>
                         <th style="width:36px"></th>
                     </tr>
                 </thead>
@@ -372,6 +373,9 @@
                 tracker: row.dataset.tracker || '—',
                 hasErrors: row.dataset.hasErrors === '1',
                 hasWarnings: row.dataset.hasWarnings === '1',
+                contentCategory: row.dataset.contentCategory || '',
+                seasonNumber: row.dataset.seasonNumber !== '' ? parseInt(row.dataset.seasonNumber) : null,
+                episodeNumber: row.dataset.episodeNumber !== '' ? parseInt(row.dataset.episodeNumber) : null,
             });
         });
         if (_bulkApproveItems.length === 0) return;
@@ -396,6 +400,18 @@
                 '<td class="secondary" style="font-size:0.85rem">' + item.category + '</td>' +
                 '<td class="secondary" style="font-size:0.85rem">' + item.resolution + '</td>' +
                 '<td class="secondary" style="font-size:0.85rem">' + item.tracker + '</td>' +
+                (item.contentCategory.includes('tv') ?
+                    '<td><div style="display:flex;gap:0.25rem;align-items:center">' +
+                    '<label style="font-size:0.75rem;color:var(--text-muted);margin:0">S</label>' +
+                    '<input type="number" class="form-input" style="width:50px;font-size:0.8rem;padding:0.2rem 0.4rem" ' +
+                        'value="' + (item.seasonNumber !== null ? item.seasonNumber : '') + '" min="0" ' +
+                        'data-bulk-idx="' + idx + '" data-field="season" onchange="updateBulkApproveSE(this)">' +
+                    '<label style="font-size:0.75rem;color:var(--text-muted);margin:0">E</label>' +
+                    '<input type="number" class="form-input" style="width:50px;font-size:0.8rem;padding:0.2rem 0.4rem" ' +
+                        'value="' + (item.episodeNumber !== null ? item.episodeNumber : '') + '" min="0" ' +
+                        'data-bulk-idx="' + idx + '" data-field="episode" onchange="updateBulkApproveSE(this)">' +
+                    '</div></td>' :
+                    '<td class="secondary" style="font-size:0.85rem">—</td>') +
                 '<td><button class="btn btn-ghost btn-sm" style="padding:0.2rem" onclick="removeBulkApproveItem(' + idx + ')" title="Remove">' +
                     '<i data-lucide="x" style="width:14px;height:14px"></i></button></td>';
             tbody.appendChild(row);
@@ -409,6 +425,14 @@
         const idx = parseInt(input.dataset.bulkIdx);
         if (_bulkApproveItems[idx]) {
             _bulkApproveItems[idx].releaseName = input.value;
+        }
+    }
+
+    function updateBulkApproveSE(input) {
+        const idx = parseInt(input.dataset.bulkIdx);
+        const field = input.dataset.field === 'season' ? 'seasonNumber' : 'episodeNumber';
+        if (_bulkApproveItems[idx]) {
+            _bulkApproveItems[idx][field] = input.value.trim() === '' ? null : parseInt(input.value);
         }
     }
 
@@ -432,14 +456,26 @@
         btn.innerHTML = '<i data-lucide="loader"></i> Queueing...';
         lucide.createIcons();
 
-        const promises = _bulkApproveItems.map(item =>
-            fetch('/api/v1/items/' + item.id + '/approve', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({release_name: item.releaseName || null, description: null})
-            }).then(r => r.json()).then(data => ({id: item.id, ...data}))
-              .catch(err => ({id: item.id, success: false, message: String(err)}))
-        );
+        const promises = _bulkApproveItems.map(item => {
+            let chain = Promise.resolve();
+            if (item.seasonNumber !== null || item.episodeNumber !== null) {
+                chain = fetch('/api/v1/items/' + item.id + '/update-season-episode', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        season_number: item.seasonNumber ?? 0,
+                        episode_number: item.episodeNumber ?? 0
+                    })
+                }).then(r => { if (!r.ok) throw new Error('S/E update failed: ' + r.status); });
+            }
+            return chain.then(() =>
+                fetch('/api/v1/items/' + item.id + '/approve', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({release_name: item.releaseName || null, description: null})
+                }).then(r => r.json()).then(data => ({id: item.id, ...data}))
+            ).catch(err => ({id: item.id, success: false, message: String(err)}));
+        });
 
         Promise.all(promises).then(results => {
             closeBulkApproveModal();
