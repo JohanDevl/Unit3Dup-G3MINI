@@ -466,12 +466,31 @@ class UploadService:
         return {"success": True, "message": f"{count}/{len(ids)} queued"}
 
     def bulk_rescan(self, ids: list[int]) -> dict:
-        count = 0
+        """Transition all valid items to 'rescanning' first, then enqueue them all at once."""
+        valid_ids = []
         for item_id in ids:
-            result = self.rescan_item(item_id)
-            if result["success"]:
-                count += 1
-        return {"success": True, "message": f"{count}/{len(ids)} queued for rescan"}
+            item = self.state_db.get_item(item_id)
+            if not item:
+                continue
+            if item["status"] not in ("pending", "error", "skipped", "rejected"):
+                continue
+            source_path = item.get("source_path", "")
+            if not source_path or not os.path.exists(source_path):
+                continue
+            transitioned = self.state_db.atomic_transition(
+                item_id,
+                from_statuses=("pending", "error", "skipped", "rejected"),
+                to_status="rescanning",
+            )
+            if transitioned:
+                valid_ids.append(item_id)
+
+        for item_id in valid_ids:
+            self._rescan_queue.put(item_id)
+
+        if valid_ids:
+            custom_console.bot_log(f"[Web] Bulk rescan queued → {len(valid_ids)} item(s)")
+        return {"success": True, "message": f"{len(valid_ids)}/{len(ids)} queued for rescan"}
 
     def queue_status(self) -> dict:
         """Return current queue state."""
