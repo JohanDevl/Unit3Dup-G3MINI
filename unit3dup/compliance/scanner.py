@@ -23,6 +23,7 @@ from common.trackers.data import trackers_api_data
 from unit3dup.release_normalizer import normalize_release_name
 from unit3dup.state_db import StateDB
 from unit3dup.validators.naming_validator import NamingValidator
+from unit3dup.validators.encoding_validator import EncodingValidator
 
 try:
     from view import custom_console
@@ -143,34 +144,70 @@ def mediainfo_facts_from_text(mi_text: str) -> dict:
             multiview = None
 
     audio_formats: list[dict[str, Any]] = []
+    subtitle_formats: list[dict[str, Any]] = []
+    writing_library: Optional[str] = None
+    video_width: Optional[int] = None
+    video_height: Optional[int] = None
+    video_aspect_ratio: Optional[str] = None
     for section, fields in _iter_sections(mi_text):
-        if section != "audio":
-            continue
+        if section == "audio":
+            track: dict[str, Any] = {}
+            service_kind = fields.get("servicekind") or fields.get("service kind") or ""
+            if service_kind:
+                track["service_kind"] = service_kind
+            delay_raw = (
+                fields.get("delay relative to video")
+                or fields.get("delay")
+                or ""
+            )
+            if delay_raw:
+                num = re.search(r"-?\d+(?:\.\d+)?", delay_raw)
+                if num:
+                    try:
+                        track["delay"] = float(num.group(0))
+                    except (TypeError, ValueError):
+                        pass
+            lang = fields.get("language") or ""
+            if lang:
+                track["language"] = lang
+            audio_formats.append(track)
 
-        track: dict[str, Any] = {}
+        elif section == "text":
+            lang = fields.get("language") or ""
+            fmt = fields.get("format") or ""
+            subtitle_formats.append({"language": lang, "format": fmt})
 
-        service_kind = fields.get("servicekind") or fields.get("service kind") or ""
-        if service_kind:
-            track["service_kind"] = service_kind
-
-        delay_raw = (
-            fields.get("delay relative to video")
-            or fields.get("delay")
-            or ""
-        )
-        if delay_raw:
-            num = re.search(r"-?\d+(?:\.\d+)?", delay_raw)
-            if num:
-                try:
-                    track["delay"] = float(num.group(0))
-                except (TypeError, ValueError):
-                    pass
-
-        lang = fields.get("language") or ""
-        if lang:
-            track["language"] = lang
-
-        audio_formats.append(track)
+        elif section in ("video", "vidéo", "video"):
+            if writing_library is None:
+                lib = (
+                    fields.get("writing library")
+                    or fields.get("encoded library name")
+                    or fields.get("encoded_library_name")
+                    or ""
+                )
+                if lib:
+                    writing_library = lib
+            if video_width is None:
+                w_raw = fields.get("width") or ""
+                # MediaInfo formats widths as "1 920 pixels" — strip separators
+                wm = re.search(r"\d[\d\s\u00a0]*", w_raw)
+                if wm:
+                    try:
+                        video_width = int(re.sub(r"\s", "", wm.group(0)))
+                    except ValueError:
+                        pass
+            if video_height is None:
+                h_raw = fields.get("height") or ""
+                hm = re.search(r"\d[\d\s\u00a0]*", h_raw)
+                if hm:
+                    try:
+                        video_height = int(re.sub(r"\s", "", hm.group(0)))
+                    except ValueError:
+                        pass
+            if video_aspect_ratio is None:
+                ar = fields.get("display aspect ratio") or fields.get("aspect ratio") or ""
+                if ar:
+                    video_aspect_ratio = ar
 
     # Multiview fallback: scan Video section too
     if multiview is None:
@@ -189,6 +226,11 @@ def mediainfo_facts_from_text(mi_text: str) -> dict:
         "multiview_count": multiview,
         "audio_formats": audio_formats,
         "audio_track_count": len(audio_formats),
+        "subtitle_formats": subtitle_formats,
+        "writing_library": writing_library,
+        "video_width": video_width,
+        "video_height": video_height,
+        "video_aspect_ratio": video_aspect_ratio,
         "is_bdinfo": False,
     }
 
@@ -197,12 +239,17 @@ def mediainfo_facts_from_text(mi_text: str) -> dict:
 class _FakeMediaFile:
     """Duck-typed stand-in for common.mediainfo.MediaFile.
 
-    Exposes only the attributes NamingValidator reads (multiview_count,
-    audio_formats) so the existing validator can run without file access.
+    Exposes only the attributes validators read (naming + encoding)
+    so they can run without file access.
     """
     multiview_count: Optional[int] = None
     audio_formats: Optional[list[dict]] = None
     audio_track_count: int = 0
+    subtitle_formats: Optional[list[dict]] = None
+    writing_library: Optional[str] = None
+    video_width: Optional[int] = None
+    video_height: Optional[int] = None
+    video_aspect_ratio: Optional[str] = None
 
 
 # ── Rate limiter ───────────────────────────────────────────────────────────
@@ -522,15 +569,26 @@ def check_one_torrent(
         multiview_count=facts.get("multiview_count"),
         audio_formats=facts.get("audio_formats") or [],
         audio_track_count=facts.get("audio_track_count", 0),
+        subtitle_formats=facts.get("subtitle_formats") or [],
+        writing_library=facts.get("writing_library"),
+        video_width=facts.get("video_width"),
+        video_height=facts.get("video_height"),
+        video_aspect_ratio=facts.get("video_aspect_ratio"),
     )
 
-    validator = NamingValidator()
-    violations = validator.validate(
-        media=None,
-        mediafile=fake_media,
-        release_name=release_name,
-        mediainfo_text=mi_text,
-    )
+    violations = []
+    for validator in (NamingValidator(), EncodingValidator()):
+        try:
+            violations.extend(validator.validate(
+                media=None,
+                mediafile=fake_media,
+                release_name=release_name,
+                mediainfo_text=mi_text,
+            ))
+        except Exception as exc:
+            custom_console.bot_warning_log(
+                f"[Compliance] {validator.__class__.__name__} failed for #{torrent_id}: {exc}"
+            )
 
     # Only trust audio_track_count==0 to mean "silent" when we actually
     # parsed MediaInfo. With BDInfo (or any unparsable text) we default to

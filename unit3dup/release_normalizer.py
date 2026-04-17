@@ -27,7 +27,7 @@ def _normalize_lang(raw: str) -> str:
     if r in ("MULTI.VF2", "MULTI-VF2"):     return "MULTi.VF2"
     if r in ("MULTI.VFB", "MULTI-VFB"):     return "MULTi.VFB"
     if r in ("MULTI", "MULTIC"):            return "MULTi"
-    if r in ("FRENCH", "VFF", "VFI"):       return "VFF"
+    if r in ("FRENCH", "VFF"):              return "VFF"
     if r == "VFQ":                          return "VFQ"
     if r == "VF2":                          return "VF2"
     if r == "VFB":                          return "VFB"
@@ -35,7 +35,8 @@ def _normalize_lang(raw: str) -> str:
     if r == "VOQ":                          return "VOQ"
     if r == "VOB":                          return "VOB"
     if r == "VOSTFR":                       return "VOSTFR"
-    if r == "SUBFRENCH":                    return "VOSTFR"
+    if r == "SUBFRENCH":                    return "SUBFRENCH"
+    if r == "SUBFORCED":                    return "SUBFORCED"
     return raw
 
 
@@ -50,8 +51,8 @@ def _normalize_source(raw: str) -> str:
     if r in ("WEB-DL", "WEBDL", "WEB"):     return "WEB"
     if r == "HDRIP":                        return "HDRip"
     if r == "HDTV":                         return "HDTV"
-    if r in ("TVRIP", "TVHDRIP"):           return "TVRip"
-    if r in ("DVDRIP", "DVD"):              return "DVDRip"
+    if r in ("TVRIP", "TVHDRIP", "HDTVRIP"): return "TVRip"
+    if r in ("DVDRIP", "DVD", "DVD9", "DVD5"): return "DVDRip"
     if r == "REMUX":                        return "REMUX"
     return raw
 
@@ -222,13 +223,13 @@ def _count_audio_tracks_from_mediainfo(mi: str) -> int:
 # Séparateurs utilisés en step 5b pour décoller les tokens collés.
 # Ordre important : plus long avant plus court dans chaque famille.
 _TAGS = (
-    r'BluRay|BDRip|BRRip|WEBRip|WEB|4KLight|HDLight|HDRip|TVRip|DVDRip|HDTV|REMUX|CAM'
+    r'BluRay|BDRip|BRRip|WEBRip|WEB|4KLight|HDLight|HDRip|HDTVRip|TVRip|DVDRip|DVD9|DVD5|HDTV|REMUX|BDMV|CAM'
     r'|2160p|1080p|1080i|720p|576p|480p|4K|UHD'
     r'|HDR10P|HDR10|SDR|DV|HLG|PQ10|HDR'
     r'|x265|x264|H265|H264|HEVC|AVC|AV1|VP9|VC1'
     r'|DTS-HDMA|DTS-HDHRA|DTS-HD|DTS|AC3|DDP|TrueHD|Atmos|AAC|OPUS'
-    r'|MULTi|VFF|VFQ|VF2|VFB|VOSTFR|SUBFRENCH|VOF|VOQ|VOB|FRENCH'
-    r'|EXTENDED|PROPER|REPACK|UNRATED|UNCUT|REMASTERED|INTERNAL|NoTAG|iNTEGRALE'
+    r'|MULTi|VFF|VFQ|VF2|VFB|VOSTFR|SUBFRENCH|SUBFORCED|VOF|VOQ|VOB|FRENCH'
+    r'|EXTENDED|PROPER|REPACK|UNRATED|UNCUT|REMASTERED|INTERNAL|NoTAG|iNTEGRALE|COMPLETE'
     r'|8bit|10bit|12bit'
     r'|3D|SBS|HSBS|TAB|HTAB|MVC|CUSTOM|NoGRP'
 )
@@ -243,10 +244,11 @@ _LANG_PATTERNS = [
     r'MULTi',
     r'FRENCH', r'VFF', r'VFQ', r'VF2', r'VFB',
     r'VOF', r'VOQ', r'VOB',
-    r'VOSTFR', r'SUBFRENCH',
+    r'VOSTFR', r'SUBFRENCH', r'SUBFORCED',
 ]
 
 _EXTRAS_MAP = {
+    '4K REMASTER':   '4K.REMASTER',
     'EXTENDED':      'EXTENDED',
     'THEATRICAL':    'THEATRICAL',
     'PROPER':        'PROPER',
@@ -256,6 +258,7 @@ _EXTRAS_MAP = {
     'REMASTERED':    'REMASTERED',
     'INTERNAL':      'INTERNAL',
     'INTEGRALE':     'iNTEGRALE',
+    'COMPLETE':      'COMPLETE',
     'LIMITED':       'LIMITED',
     'IMAX EDITION':  'IMAX.EDITION',
     'IMAX':          'IMAX',
@@ -286,8 +289,9 @@ _SOURCE_LIST = [
     "BluRay", "Blu-Ray",
     "BDRip", "BRRip",
     "WEB-DL", "WEBRip",
-    "HDTV", "HDRip", "TVRip",
-    "WEB", "DVDRip", "DVD",
+    "HDTVRip", "HDTV", "HDRip", "TVRip",
+    "WEB",
+    "DVDRip", "DVD9", "DVD5", "DVD",
 ]
 
 # Codecs connus — utilisés pour exclure les faux positifs team tag
@@ -379,6 +383,7 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     name = re.sub(r'HDR10\+',                               'HDR10P',   name, flags=re.IGNORECASE)
     name = re.sub(r'HDR10PLUS',                             'HDR10P',   name, flags=re.IGNORECASE)
     name = re.sub(r'DOLBY[\s._-]*VISION',                   'DV',       name, flags=re.IGNORECASE)
+    name = re.sub(r'(?<!\w)DoVi(?!\w)',                     'DV',       name, flags=re.IGNORECASE)
     name = re.sub(r'DD\+',                                  'DDP',      name, flags=re.IGNORECASE)
     # EAC3/E-AC3 avec canaux → DDP + canaux préservés
     name = re.sub(r'E-?AC-?3\s*(\d[.]\d)',                   r'DDP \1',  name, flags=re.IGNORECASE)
@@ -401,8 +406,9 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     # MULTi-VFF/VFQ/VF2/VFB (tiret) → MULTi.VFF etc.
     name = re.sub(r'MULTi-(VFF|VFQ|VF2|VFB)',
                   lambda mo: f'MULTi.{mo.group(1).upper()}',            name, flags=re.IGNORECASE)
-    # VFI → VFF (case-insensitive, word-boundary)
-    name = re.sub(r'(?<!\w)VFI(?!\w)',                      'VFF',      name, flags=re.IGNORECASE)
+    # VFI est ambigu (nommage.md) → FRENCH, qui sera désambiguïsé (VFF/VFQ)
+    # via MediaInfo en étape 9b2. Sans MI, _normalize_lang("FRENCH") tombe sur VFF.
+    name = re.sub(r'(?<!\w)VFI(?!\w)',                      'FRENCH',   name, flags=re.IGNORECASE)
     # FR-EN, FR-ENG-JAP, ... → MULTi.VFF (un ou plusieurs segments après FR-)
     name = re.sub(r'(^|\s)FR-[A-Za-z]+(?:-[A-Za-z]+)*(\s|$)',
                   r'\1MULTi.VFF\2',                                     name, flags=re.IGNORECASE)
@@ -608,9 +614,9 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     if re.search(r'(?:^|\s)FULL\s+DISC(?:\s|$)', name, re.IGNORECASE):
         full_disc = "FULL"
         name = re.sub(r'(?:^|\s)FULL\s+DISC(?:\s|$)', ' ', name, flags=re.IGNORECASE)
-    elif re.search(r'(?:^|\s)FULL(?:\s|$)', name, re.IGNORECASE):
+    elif re.search(r'(?:^|\s)(?:FULL|BDMV)(?:\s|$)', name, re.IGNORECASE):
         full_disc = "FULL"
-        name = _remove_token(name, "FULL")
+        name = re.sub(r'(?:^|\s)(?:FULL|BDMV)(?:\s|$)', ' ', name, flags=re.IGNORECASE)
 
     # Qualificatifs de source extraits en priorité : peuvent coexister avec
     # une source principale (ex: "4KLight BluRay" → "4KLight.BluRay").

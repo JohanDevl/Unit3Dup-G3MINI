@@ -98,11 +98,16 @@ class EncodingValidator(BaseValidator):
                 results.extend(self._check_hdr_metadata(release_name, mediafile))
                 results.extend(self._check_abr_cbr(mediafile))
                 results.extend(self._check_upscale(mediafile, resolution))
+                results.extend(self._check_crop(mediafile))
 
             if source_type in ("encode", "remux"):
                 results.extend(self._check_container(mediafile))
 
             results.extend(self._check_forbidden_audio(mediafile))
+
+            # Source-vs-writing-library consistency (encodage.md §1:
+            # "Interdiction d'encoder depuis une source deja reencodee")
+            results.extend(self._check_source_library_mismatch(source_type, mediafile))
 
         except Exception:
             pass
@@ -366,6 +371,64 @@ class EncodingValidator(BaseValidator):
                 rule="encoding.upscale_forbidden",
                 severity="ERROR",
                 message="Contenu upscale interdit — aucun upscale autorise",
+                source_doc="encodage",
+            )]
+        return []
+
+    # ── Check 12: Crop (no black borders) ──────────────────────────────────
+    # encodage.md §1: "Les videos doivent etre crop (aucune bordure noire)".
+    # Reliable detection from MediaInfo alone is limited. Heuristic:
+    # encode stored as full 16:9 (1920×1080 / 3840×2160 / 1280×720) for a
+    # movie with typical cinema aspect (>= 1.85:1) strongly suggests bars.
+    # We only flag the most obvious cases as INFO (manual review required).
+    @staticmethod
+    def _check_crop(mediafile) -> list[ValidationResult]:
+        if not mediafile:
+            return []
+        try:
+            w = int(str(getattr(mediafile, 'video_width', '') or '').split()[0])
+            h = int(str(getattr(mediafile, 'video_height', '') or '').split()[0])
+        except (ValueError, AttributeError, IndexError):
+            return []
+        if not w or not h:
+            return []
+        # Only flag strict 16:9 standard resolutions — bars can't be detected
+        # reliably without content analysis, so we just alert on suspicious
+        # exact 16:9 when aspect ratio metadata hints at wider content.
+        ratio = w / h
+        if abs(ratio - (16 / 9)) > 0.02:
+            return []  # Not 16:9, already likely cropped
+        dar = str(getattr(mediafile, 'video_aspect_ratio', '') or '').lower()
+        # If DAR explicitly reports >= 1.85 cinematic ratios, bars are likely.
+        if any(hint in dar for hint in ("2.35", "2.39", "2.40", "21:9", "1.85", "1.90")):
+            return [ValidationResult(
+                rule="encoding.crop_suspected",
+                severity="INFO",
+                message=f"Video stored 16:9 ({w}x{h}) but DAR={dar} — possible black borders, verify crop",
+                source_doc="encodage",
+            )]
+        return []
+
+    # ── Check 11: Source tag vs writing library mismatch ───────────────────
+    # encodage.md §1: untouched sources (REMUX, FULL, BluRay, WEB-DL, HDTV)
+    # must NOT come from an already re-encoded file. If the file carries an
+    # x264/x265 writing library but the release is tagged as untouched, the
+    # source is effectively a re-encode — which is forbidden.
+    @staticmethod
+    def _check_source_library_mismatch(source_type: str, mediafile) -> list[ValidationResult]:
+        if source_type not in ("remux", "web", "bluray", "hdtv"):
+            return []
+        if not mediafile:
+            return []
+        lib = getattr(mediafile, 'writing_library', None)
+        if not lib:
+            return []
+        lib_upper = str(lib).upper()
+        if lib_upper.startswith("X264") or lib_upper.startswith("X265"):
+            return [ValidationResult(
+                rule="encoding.source_reencoded",
+                severity="ERROR",
+                message=f"Source taguee untouched ({source_type}) mais writing library = {lib} — encodage depuis une source deja reencodee est interdit",
                 source_doc="encodage",
             )]
         return []
