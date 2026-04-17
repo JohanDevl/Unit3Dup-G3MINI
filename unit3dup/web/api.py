@@ -16,6 +16,8 @@ from unit3dup.web.models import (
 from unit3dup.web.upload_service import UploadService
 from unit3dup.web.compliance_service import ComplianceService
 from unit3dup.web.bbcode_renderer import bbcode_to_html
+from unit3dup.prez import generate_prez
+from unit3dup.compliance.scanner import build_prez_media_file
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
 
@@ -302,6 +304,19 @@ def compliance_get(row_id: int):
     if not row:
         raise HTTPException(404, "Compliance row not found")
     row["description_html"] = bbcode_to_html(row.get("description"))
+
+    # Regenerate a fresh description from the stored MediaInfo text, using the
+    # same generator the pending/upload flow uses. Done on the fly so it stays
+    # in sync with the tool's prez template without a DB migration.
+    generated_description = ""
+    try:
+        shim = build_prez_media_file(row.get("mediainfo"))
+        if shim is not None:
+            generated_description = generate_prez(shim) or ""
+    except Exception:
+        generated_description = ""
+    row["generated_description"] = generated_description
+    row["generated_description_html"] = bbcode_to_html(generated_description)
     return row
 
 

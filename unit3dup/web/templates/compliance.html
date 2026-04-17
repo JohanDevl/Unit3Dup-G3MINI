@@ -252,6 +252,8 @@
 
             const descriptionRaw = row.description || '';
             const descriptionHtml = row.description_html || '';
+            const generatedRaw = row.generated_description || '';
+            const generatedHtml = row.generated_description_html || '';
             const mediainfoRaw = row.mediainfo || '';
 
             body.innerHTML = `
@@ -259,7 +261,11 @@
                 ${renderDiff(row.current_name || '', row.proposed_name || '')}
                 <h4 style="margin:1rem 0 0.5rem">Violations</h4>
                 <ul class="violation-list">${violationsHtml}</ul>
-                ${renderExpandable('file-text', 'Description / Prez', descriptionRaw,
+                ${renderExpandable('sparkles', 'Description (fraîche, format outil)', generatedRaw,
+                    generatedHtml
+                        ? `<div class="bbcode-preview">${generatedHtml}</div>`
+                        : '<p class="secondary">Impossible de régénérer une description (MediaInfo manquant ou au format BDInfo).</p>')}
+                ${renderExpandable('file-text', 'Description actuelle (tracker)', descriptionRaw,
                     descriptionHtml
                         ? `<div class="bbcode-preview">${descriptionHtml}</div>`
                         : '<p class="secondary">No description stored for this torrent.</p>')}

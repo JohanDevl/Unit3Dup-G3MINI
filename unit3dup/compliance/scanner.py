@@ -24,6 +24,7 @@ from unit3dup.release_normalizer import normalize_release_name
 from unit3dup.state_db import StateDB
 from unit3dup.validators.naming_validator import NamingValidator
 from unit3dup.validators.encoding_validator import EncodingValidator
+from unit3dup.prez import _LANG_NAME_TO_ISO
 
 try:
     from view import custom_console
@@ -250,6 +251,111 @@ class _FakeMediaFile:
     video_width: Optional[int] = None
     video_height: Optional[int] = None
     video_aspect_ratio: Optional[str] = None
+
+
+@dataclass
+class _PrezMediaFile:
+    """Duck-typed stand-in for common.mediainfo.MediaFile, shaped for
+    prez.generate_prez. Built from the raw MediaInfo text returned by the
+    tracker, so we can render a tool-format description without file access.
+    """
+    video_format: Optional[str] = None
+    video_bit_depth: Optional[str] = None
+    video_width: Optional[int] = None
+    video_height: Optional[int] = None
+    audio_track: list[dict] = None
+    subtitle_track: list[dict] = None
+
+    def __post_init__(self):
+        if self.audio_track is None:
+            self.audio_track = []
+        if self.subtitle_track is None:
+            self.subtitle_track = []
+
+
+_RE_LEADING_INT = re.compile(r"-?\d+")
+
+
+def _parse_int_prefix(value: str) -> Optional[int]:
+    """Extract the leading integer from strings like '6 channels' or '1 920 pixels'."""
+    if not value:
+        return None
+    cleaned = re.sub(r"[\s\u00a0]", "", value)
+    m = _RE_LEADING_INT.match(cleaned)
+    if not m:
+        return None
+    try:
+        return int(m.group(0))
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_language_to_iso(value: str) -> str:
+    """Map a MediaInfo `Language` value to an ISO code when possible.
+
+    MediaInfo text dumps usually store the full English/French name
+    ("French", "English"), but prez expects the 2-letter ISO code so the
+    flag lookup works. Returns the original string when no mapping applies.
+    """
+    if not value:
+        return ""
+    raw = value.strip()
+    # Already an ISO code like "fr" or "fr-FR"
+    short = raw.lower().split("-")[0]
+    if len(short) == 2 and short.isalpha():
+        return short
+    iso = _LANG_NAME_TO_ISO.get(raw.lower())
+    return iso or raw
+
+
+def build_prez_media_file(mi_text: Optional[str]) -> Optional[_PrezMediaFile]:
+    """Convert a raw MediaInfo text dump into a prez-compatible shim.
+
+    Returns None when the text is missing or looks like BDInfo (which prez
+    isn't wired to consume).
+    """
+    if not mi_text or _looks_like_bdinfo(mi_text):
+        return None
+
+    pmf = _PrezMediaFile()
+    for section, fields in _iter_sections(mi_text):
+        if section in ("video", "vidéo", "vídeo", "video"):
+            if not pmf.video_format:
+                pmf.video_format = fields.get("format") or None
+            if not pmf.video_bit_depth:
+                bd = fields.get("bit depth") or ""
+                if bd:
+                    m = _RE_LEADING_INT.search(bd)
+                    pmf.video_bit_depth = m.group(0) if m else bd
+            if pmf.video_width is None:
+                pmf.video_width = _parse_int_prefix(fields.get("width") or "")
+            if pmf.video_height is None:
+                pmf.video_height = _parse_int_prefix(fields.get("height") or "")
+
+        elif section == "audio":
+            channel_raw = (
+                fields.get("channel(s)")
+                or fields.get("channels")
+                or ""
+            )
+            channel_int = _parse_int_prefix(channel_raw)
+            pmf.audio_track.append({
+                "language": _normalize_language_to_iso(fields.get("language", "")),
+                "title": fields.get("title", ""),
+                "format": fields.get("format", ""),
+                "channel_s": str(channel_int) if channel_int is not None else "",
+                "bit_rate": fields.get("bit rate", ""),
+            })
+
+        elif section in ("text", "texto", "testo"):
+            pmf.subtitle_track.append({
+                "language": _normalize_language_to_iso(fields.get("language", "")),
+                "title": fields.get("title", ""),
+                "forced": fields.get("forced", ""),
+                "format": fields.get("format", ""),
+            })
+
+    return pmf
 
 
 # ── Rate limiter ───────────────────────────────────────────────────────────
