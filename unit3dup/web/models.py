@@ -143,3 +143,56 @@ class QueueStatusResponse(BaseModel):
     uploading_item_id: int | None = None
     rescan_queue_size: int = 0
     rescanning_item_id: int | None = None
+
+
+# ── Compliance ──────────────────────────────────────────────────────
+
+class ComplianceViolation(BaseModel):
+    rule: str
+    severity: str
+    message: str
+    source_doc: str | None = None
+
+
+class ComplianceItem(BaseModel):
+    id: int
+    torrent_id: int
+    tracker_name: str
+    uploader: str | None = None
+    category: str | None = None
+    current_name: str
+    proposed_name: str | None = None
+    violations: list[ComplianceViolation] = Field(default_factory=list)
+    diff_kind: str | None = None
+    severity_max: str | None = None
+    checked_at: str | None = None
+    first_seen_at: str | None = None
+    ack_status: str
+    edit_url: str | None = None
+    linked_item_id: int | None = None
+
+
+class ComplianceListResponse(BaseModel):
+    items: list[ComplianceItem]
+    total: int
+    page: int
+    per_page: int
+    counts: dict[str, int] = Field(default_factory=dict)
+
+
+class ComplianceScanStatus(BaseModel):
+    running: bool = False
+    current_job: str | None = None
+    current_label: str | None = None
+    started_at: str | None = None
+    processed: int = 0
+    last_error: str | None = None
+    last_finished_at: str | None = None
+    last_summary: dict | None = None
+    queue_size: int = 0
+    configured: bool = False
+    uploader: str | None = None
+
+
+class ComplianceAckRequest(BaseModel):
+    status: str = Field(pattern="^(acknowledged|ignored|fixed|unchecked)$")

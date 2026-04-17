@@ -32,6 +32,15 @@ _ALLOWED_COLUMNS = {
 
 _JSON_FIELDS = ("tracker_payload", "trackers_list", "validation_report", "audio_tracks", "subtitle_tracks")
 
+_COMPLIANCE_JSON_FIELDS = ("violations",)
+
+_COMPLIANCE_ALLOWED_COLUMNS = {
+    "torrent_id", "tracker_name", "uploader", "category",
+    "current_name", "proposed_name", "violations", "diff_kind",
+    "severity_max", "checked_at", "first_seen_at", "ack_status",
+    "edit_url", "linked_item_id",
+}
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
@@ -90,6 +99,28 @@ CREATE TABLE IF NOT EXISTS items (
 CREATE INDEX IF NOT EXISTS idx_items_status ON items(status);
 CREATE INDEX IF NOT EXISTS idx_items_discovered ON items(discovered_at);
 CREATE INDEX IF NOT EXISTS idx_items_source_basename ON items(source_basename);
+
+CREATE TABLE IF NOT EXISTS compliance (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    torrent_id      INTEGER NOT NULL UNIQUE,
+    tracker_name    TEXT NOT NULL,
+    uploader        TEXT,
+    category        TEXT,
+    current_name    TEXT NOT NULL,
+    proposed_name   TEXT,
+    violations      TEXT,
+    diff_kind       TEXT,
+    severity_max    TEXT,
+    checked_at      TEXT NOT NULL,
+    first_seen_at   TEXT NOT NULL,
+    ack_status      TEXT NOT NULL DEFAULT 'unchecked',
+    edit_url        TEXT,
+    linked_item_id  INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_compliance_severity ON compliance(severity_max);
+CREATE INDEX IF NOT EXISTS idx_compliance_ack      ON compliance(ack_status);
+CREATE INDEX IF NOT EXISTS idx_compliance_torrent  ON compliance(torrent_id);
 """
 
 
@@ -397,6 +428,194 @@ class StateDB:
                 return cursor.rowcount > 0
             finally:
                 conn.close()
+
+    # ── Compliance API ────────────────────────────────────────────────
+
+    @staticmethod
+    def _compliance_row_to_dict(row: sqlite3.Row | None) -> dict | None:
+        if row is None:
+            return None
+        d = dict(row)
+        for field in _COMPLIANCE_JSON_FIELDS:
+            if d.get(field):
+                try:
+                    d[field] = json.loads(d[field])
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        return d
+
+    def upsert_compliance(self, **kwargs) -> int:
+        """Insert or update a compliance row keyed on torrent_id.
+
+        Preserves first_seen_at, ack_status, and checked_at (unless
+        checked_at was explicitly passed) on updates. This matters because
+        metadata-only updates (e.g. attaching linked_item_id) must NOT
+        bump the timestamp.
+        """
+        invalid = set(kwargs.keys()) - _COMPLIANCE_ALLOWED_COLUMNS
+        if invalid:
+            raise ValueError(f"Invalid compliance column names: {invalid}")
+        if "torrent_id" not in kwargs:
+            raise ValueError("torrent_id is required")
+
+        for field in _COMPLIANCE_JSON_FIELDS:
+            if field in kwargs and not isinstance(kwargs[field], str):
+                kwargs[field] = json.dumps(kwargs[field], ensure_ascii=False)
+
+        now = datetime.now().isoformat()
+        checked_at_explicit = "checked_at" in kwargs
+        kwargs.setdefault("checked_at", now)
+        kwargs.setdefault("first_seen_at", now)
+        kwargs.setdefault("ack_status", "unchecked")
+
+        columns = list(kwargs.keys())
+        placeholders = ", ".join(["?"] * len(columns))
+        col_list = ", ".join(columns)
+
+        # UPDATE clause must NOT touch first_seen_at or ack_status. And skip
+        # checked_at unless the caller provided it explicitly.
+        protected = {"torrent_id", "first_seen_at", "ack_status"}
+        if not checked_at_explicit:
+            protected.add("checked_at")
+        update_cols = [c for c in columns if c not in protected]
+        if update_cols:
+            update_clause = ", ".join(f"{c} = excluded.{c}" for c in update_cols)
+            conflict_clause = f"ON CONFLICT(torrent_id) DO UPDATE SET {update_clause}"
+        else:
+            conflict_clause = "ON CONFLICT(torrent_id) DO NOTHING"
+
+        sql = (
+            f"INSERT INTO compliance ({col_list}) VALUES ({placeholders}) "
+            f"{conflict_clause}"
+        )
+
+        with self._lock:
+            conn = self._connect()
+            try:
+                cursor = conn.execute(sql, list(kwargs.values()))
+                conn.commit()
+                if cursor.lastrowid:
+                    return cursor.lastrowid
+                row = conn.execute(
+                    "SELECT id FROM compliance WHERE torrent_id = ?",
+                    (kwargs["torrent_id"],),
+                ).fetchone()
+                return int(row["id"]) if row else 0
+            finally:
+                conn.close()
+
+    def list_compliance(
+        self,
+        severity: str | None = None,
+        ack_status: str | None = None,
+        diff_kind: str | None = None,
+        page: int = 1,
+        per_page: int = 50,
+    ) -> list[dict]:
+        conditions: list[str] = []
+        params: list[Any] = []
+        if severity:
+            conditions.append("severity_max = ?")
+            params.append(severity)
+        if ack_status:
+            conditions.append("ack_status = ?")
+            params.append(ack_status)
+        if diff_kind:
+            conditions.append("diff_kind = ?")
+            params.append(diff_kind)
+
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        offset = (page - 1) * per_page
+        params.extend([per_page, offset])
+
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                f"""SELECT * FROM compliance {where}
+                    ORDER BY
+                        CASE severity_max
+                            WHEN 'ERROR' THEN 0
+                            WHEN 'WARNING' THEN 1
+                            WHEN 'INFO' THEN 2
+                            ELSE 3
+                        END,
+                        checked_at DESC
+                    LIMIT ? OFFSET ?""",
+                params,
+            ).fetchall()
+            return [self._compliance_row_to_dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_compliance(self, row_id: int) -> dict | None:
+        conn = self._connect()
+        try:
+            row = conn.execute("SELECT * FROM compliance WHERE id = ?", (row_id,)).fetchone()
+            return self._compliance_row_to_dict(row)
+        finally:
+            conn.close()
+
+    def get_compliance_by_torrent(self, torrent_id: int) -> dict | None:
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT * FROM compliance WHERE torrent_id = ?", (torrent_id,)
+            ).fetchone()
+            return self._compliance_row_to_dict(row)
+        finally:
+            conn.close()
+
+    def attach_compliance_linked_item(self, torrent_id: int, linked_item_id: int) -> bool:
+        """Set linked_item_id without touching any other column.
+
+        Used by the post-upload hook to link back to the source item in
+        `items`, without bumping `checked_at` or any scan metadata.
+        """
+        with self._lock:
+            conn = self._connect()
+            try:
+                cursor = conn.execute(
+                    "UPDATE compliance SET linked_item_id = ? WHERE torrent_id = ?",
+                    (int(linked_item_id), int(torrent_id)),
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+            finally:
+                conn.close()
+
+    def set_compliance_ack(self, row_id: int, ack_status: str) -> bool:
+        if ack_status not in ("unchecked", "acknowledged", "ignored", "fixed"):
+            raise ValueError(f"Invalid ack_status: {ack_status}")
+        with self._lock:
+            conn = self._connect()
+            try:
+                cursor = conn.execute(
+                    "UPDATE compliance SET ack_status = ? WHERE id = ?",
+                    (ack_status, row_id),
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+            finally:
+                conn.close()
+
+    def count_compliance_by_severity(self, only_unchecked: bool = False) -> dict[str, int]:
+        where = "WHERE ack_status = 'unchecked'" if only_unchecked else ""
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                f"SELECT severity_max, COUNT(*) as cnt FROM compliance {where} GROUP BY severity_max"
+            ).fetchall()
+            return {r["severity_max"] or "NONE": r["cnt"] for r in rows}
+        finally:
+            conn.close()
+
+    def count_compliance_total(self) -> int:
+        conn = self._connect()
+        try:
+            row = conn.execute("SELECT COUNT(*) as cnt FROM compliance").fetchone()
+            return int(row["cnt"]) if row else 0
+        finally:
+            conn.close()
 
     # ── Migration from WatcherState JSON ──────────────────────────────
 

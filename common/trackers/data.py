@@ -9,6 +9,7 @@ trackers_api_data = {
             "url": config_settings.tracker_config.Gemini_URL,
             "api_key": config_settings.tracker_config.Gemini_APIKEY,
             "pass_key": config_settings.tracker_config.Gemini_PID,
+            "username": config_settings.tracker_config.Gemini_USERNAME,
             "announce": f"{config_settings.tracker_config.Gemini_URL}/announce/{config_settings.tracker_config.Gemini_PID}",
             "source": "Gemini",
         }

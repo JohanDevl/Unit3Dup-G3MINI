@@ -22,7 +22,7 @@ from view import custom_console
 class UploadService:
     """Handles upload execution for web-approved items."""
 
-    def __init__(self, state_db: StateDB):
+    def __init__(self, state_db: StateDB, compliance_service=None):
         self.state_db = state_db
         self._queue: queue.Queue = queue.Queue()
         self._worker_thread: threading.Thread | None = None
@@ -31,6 +31,7 @@ class UploadService:
         self._shutdown = threading.Event()
         self._current_item_id: int | None = None
         self._current_rescan_item_id: int | None = None
+        self._compliance_service = compliance_service
 
     def start_worker(self):
         """Start the background upload and rescan workers. Re-enqueues items left in queued/approved/rescanning status from a previous crash."""
@@ -207,6 +208,14 @@ class UploadService:
 
                     self.state_db.mark_uploaded(item_id, tracker_response=tracker_url)
                     custom_console.bot_log(f"[Web] Uploaded → {tracker_payload.get('name', 'unknown')}")
+
+                    # Hook compliance checker (best-effort, never raises)
+                    if self._compliance_service is not None:
+                        try:
+                            refreshed = self.state_db.get_item(item_id) or item
+                            self._compliance_service.enqueue_after_upload(refreshed, tracker_url)
+                        except Exception as exc:
+                            custom_console.bot_warning_log(f"[Web] Compliance enqueue failed: {exc}")
 
                     # Optionally send to bittorrent client
                     self._send_to_client(item, torrent_archive_path, tracker_url)

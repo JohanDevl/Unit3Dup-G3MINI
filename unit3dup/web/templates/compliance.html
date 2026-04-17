@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.5rem">
+    <div>
+        <h2 style="margin-bottom:0.25rem">Compliance Check</h2>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0">
+            Audits past uploads against the G3MINI naming rules. Read-only — edits happen on the tracker.
+        </p>
+    </div>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+        <button id="scan-now-btn" class="btn btn-primary btn-sm" type="button" onclick="startComplianceScan()"
+                {% if not scan_status.configured %}disabled title="Gemini_USERNAME is not configured"{% endif %}>
+            <i data-lucide="shield-check"></i> Scan now
+        </button>
+    </div>
+</div>
+
+{% if not scan_status.configured %}
+<div class="card" style="background:rgba(251,191,36,0.08);border-color:rgba(251,191,36,0.35);margin-bottom:1rem;padding:0.75rem 1rem">
+    <strong style="color:#fbbf24">Configuration required.</strong>
+    <span style="color:var(--text-secondary)">
+        Set <code>Gemini_USERNAME</code> in your <code>Unit3Dbot.json</code> so we know which uploader to audit.
+    </span>
+</div>
+{% endif %}
+
+<!-- Scan progress -->
+<div id="compliance-status-box"
+     hx-get="/partials/compliance-status"
+     hx-trigger="every 5s"
+     hx-swap="innerHTML">
+    {% include "partials/compliance_status.html" %}
+</div>
+
+<!-- Filter chips + summary -->
+<div class="card" style="padding:0.75rem 1rem;margin-bottom:1rem">
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+        <span style="color:var(--text-secondary);font-size:0.85rem">Severity:</span>
+        <a class="reason-chip {% if not filter_severity %}active{% endif %}" href="/compliance{% if filter_ack_status %}?ack_status={{ filter_ack_status }}{% endif %}">All</a>
+        <a class="reason-chip {% if filter_severity == 'ERROR' %}active{% endif %}" href="/compliance?severity=ERROR{% if filter_ack_status %}&ack_status={{ filter_ack_status }}{% endif %}">
+            ERROR <span class="secondary">({{ counts.get('ERROR', 0) }})</span>
+        </a>
+        <a class="reason-chip {% if filter_severity == 'WARNING' %}active{% endif %}" href="/compliance?severity=WARNING{% if filter_ack_status %}&ack_status={{ filter_ack_status }}{% endif %}">
+            WARNING <span class="secondary">({{ counts.get('WARNING', 0) }})</span>
+        </a>
+        <a class="reason-chip {% if filter_severity == 'INFO' %}active{% endif %}" href="/compliance?severity=INFO{% if filter_ack_status %}&ack_status={{ filter_ack_status }}{% endif %}">
+            INFO <span class="secondary">({{ counts.get('INFO', 0) }})</span>
+        </a>
+        <a class="reason-chip {% if filter_severity == 'NONE' %}active{% endif %}" href="/compliance?severity=NONE{% if filter_ack_status %}&ack_status={{ filter_ack_status }}{% endif %}">
+            Clean <span class="secondary">({{ counts.get('NONE', 0) }})</span>
+        </a>
+        <span style="width:1px;height:1.25rem;background:var(--border);margin:0 0.5rem"></span>
+        <span style="color:var(--text-secondary);font-size:0.85rem">Status:</span>
+        <a class="reason-chip {% if not filter_ack_status %}active{% endif %}" href="/compliance{% if filter_severity %}?severity={{ filter_severity }}{% endif %}">All</a>
+        <a class="reason-chip {% if filter_ack_status == 'unchecked' %}active{% endif %}" href="/compliance?ack_status=unchecked{% if filter_severity %}&severity={{ filter_severity }}{% endif %}">Unchecked</a>
+        <a class="reason-chip {% if filter_ack_status == 'acknowledged' %}active{% endif %}" href="/compliance?ack_status=acknowledged{% if filter_severity %}&severity={{ filter_severity }}{% endif %}">Acknowledged</a>
+        <a class="reason-chip {% if filter_ack_status == 'ignored' %}active{% endif %}" href="/compliance?ack_status=ignored{% if filter_severity %}&severity={{ filter_severity }}{% endif %}">Ignored</a>
+        <a class="reason-chip {% if filter_ack_status == 'fixed' %}active{% endif %}" href="/compliance?ack_status=fixed{% if filter_severity %}&severity={{ filter_severity }}{% endif %}">Fixed</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-toolbar">
+        <div class="search-wrapper">
+            <i data-lucide="search"></i>
+            <input type="text" class="search-input" placeholder="Search compliance rows..."
+                   oninput="tableSearch(this, 'compliance-table')">
+        </div>
+    </div>
+
+    <div id="compliance-container">
+        <table id="compliance-table" class="table">
+            <thead>
+                <tr>
+                    <th>Severity</th>
+                    <th onclick="tableSort('compliance-table', 1, this)">Current name</th>
+                    <th>Proposed</th>
+                    <th onclick="tableSort('compliance-table', 3, this)">Category</th>
+                    <th onclick="tableSortDate('compliance-table', 4, this)">Checked</th>
+                    <th>Status</th>
+                    <th style="text-align:right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% include "partials/compliance_rows.html" %}
+            </tbody>
+        </table>
+    </div>
+    <div id="compliance-pagination"></div>
+</div>
+
+<!-- Detail modal -->
+<div class="modal-overlay" id="compliance-detail-modal">
+    <div class="modal" style="max-width:900px;width:95vw">
+        <div class="modal-header">
+            <h3><i data-lucide="shield-check" style="width:20px;height:20px"></i> Compliance detail</h3>
+            <button class="modal-close" onclick="closeComplianceModal()">
+                <i data-lucide="x" style="width:18px;height:18px"></i>
+            </button>
+        </div>
+        <div class="modal-body" style="max-height:70vh;overflow-y:auto" id="compliance-detail-body">
+            <p class="secondary">Loading…</p>
+        </div>
+        <div class="modal-footer">
+            <a id="compliance-detail-edit" href="#" target="_blank" rel="noopener" class="btn btn-primary">
+                <i data-lucide="external-link"></i> Edit on UnIT3D
+            </a>
+            <button class="btn btn-ghost" onclick="closeComplianceModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        initPagination('compliance-table', 'compliance-pagination', 25);
+    });
+
+    async function startComplianceScan() {
+        const btn = document.getElementById('scan-now-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Queued…'; }
+        let success = false;
+        try {
+            const res = await fetch('/api/v1/compliance/scan', { method: 'POST' });
+            const body = await res.json();
+            if (!body.success) {
+                alert(body.message || 'Scan could not be queued');
+            } else {
+                success = true;
+            }
+        } catch (e) {
+            alert('Failed to queue scan: ' + e);
+        } finally {
+            if (btn && !success) { btn.disabled = false; btn.innerHTML = '<i data-lucide="shield-check"></i> Scan now'; lucide.createIcons(); }
+        }
+        // Reload only on success — the scan-status box polls every 5s anyway.
+        if (success) setTimeout(() => location.reload(), 1200);
+    }
+
+    async function ackRow(rowId, status) {
+        const url = status === 'ignored'
+            ? `/api/v1/compliance/items/${rowId}/ignore`
+            : `/api/v1/compliance/items/${rowId}/ack`;
+        const opts = status === 'ignored'
+            ? { method: 'POST' }
+            : { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status }) };
+        await fetch(url, opts);
+        location.reload();
+    }
+
+    async function recheckRow(rowId) {
+        await fetch(`/api/v1/compliance/items/${rowId}/recheck`, { method: 'POST' });
+        alert('Re-check queued. Refresh in a few seconds.');
+    }
+
+    function escapeHtml(s) {
+        return (s ?? '').toString()
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function renderDiff(current, proposed) {
+        if (!proposed || proposed === current) {
+            return `<pre class="diff-monospace">${escapeHtml(current)}</pre>`;
+        }
+        return `
+            <div class="diff-monospace">
+                <div><span class="diff-label">Current&nbsp;</span><span class="diff-current">${escapeHtml(current)}</span></div>
+                <div><span class="diff-label">Proposed</span><span class="diff-proposed">${escapeHtml(proposed)}</span></div>
+            </div>
+        `;
+    }
+
+    async function openComplianceDetail(rowId) {
+        const modal = document.getElementById('compliance-detail-modal');
+        const body = document.getElementById('compliance-detail-body');
+        const editBtn = document.getElementById('compliance-detail-edit');
+        body.innerHTML = '<p class="secondary">Loading…</p>';
+        modal.classList.add('open');
+        try {
+            const res = await fetch(`/api/v1/compliance/items/${rowId}`);
+            if (!res.ok) throw new Error('Fetch failed');
+            const row = await res.json();
+            editBtn.href = row.edit_url || '#';
+            const violations = Array.isArray(row.violations) ? row.violations : [];
+            const violationsHtml = violations.length
+                ? violations.map(v => `
+                    <li>
+                        <span class="severity-pill severity-${(v.severity || '').toLowerCase()}">${escapeHtml(v.severity)}</span>
+                        <code>${escapeHtml(v.rule)}</code> — ${escapeHtml(v.message)}
+                    </li>`).join('')
+                : '<li class="secondary">No rule violations (compared only against the normalizer output)</li>';
+            body.innerHTML = `
+                <h4 style="margin:0 0 0.5rem">Names</h4>
+                ${renderDiff(row.current_name || '', row.proposed_name || '')}
+                <h4 style="margin:1rem 0 0.5rem">Violations</h4>
+                <ul class="violation-list">${violationsHtml}</ul>
+                <h4 style="margin:1rem 0 0.5rem">Meta</h4>
+                <div class="secondary" style="font-size:0.85rem">
+                    torrent_id=<code>${escapeHtml(row.torrent_id)}</code>,
+                    diff=<code>${escapeHtml(row.diff_kind)}</code>,
+                    severity=<code>${escapeHtml(row.severity_max)}</code>,
+                    status=<code>${escapeHtml(row.ack_status)}</code>
+                </div>
+            `;
+            lucide.createIcons();
+        } catch (e) {
+            body.innerHTML = `<p style="color:var(--danger)">Failed to load: ${escapeHtml(e)}</p>`;
+        }
+    }
+
+    function closeComplianceModal() {
+        document.getElementById('compliance-detail-modal').classList.remove('open');
+    }
+</script>
+
+<style>
+    .diff-monospace {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        background: rgba(0,0,0,0.25);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.75rem;
+        font-size: 0.8rem;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+    .diff-label { color: var(--text-secondary); margin-right: 0.5rem; }
+    .diff-current { color: #f87171; }
+    .diff-proposed { color: #34d399; }
+    .severity-pill {
+        display: inline-block;
+        padding: 0.1rem 0.45rem;
+        font-size: 0.7rem;
+        border-radius: 3px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        border: 1px solid transparent;
+    }
+    .severity-error   { background: rgba(248,113,113,0.15); color: #f87171; border-color: rgba(248,113,113,0.4); }
+    .severity-warning { background: rgba(251,191,36,0.15); color: #fbbf24; border-color: rgba(251,191,36,0.4); }
+    .severity-info    { background: rgba(96,165,250,0.15); color: #60a5fa; border-color: rgba(96,165,250,0.4); }
+    .severity-none    { background: rgba(52,211,153,0.15); color: #34d399; border-color: rgba(52,211,153,0.4); }
+    .violation-list { list-style: none; padding: 0; margin: 0; }
+    .violation-list li { padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
+    .reason-chip.active { background: var(--accent); color: #fff; }
+</style>
+
+{% endblock %}

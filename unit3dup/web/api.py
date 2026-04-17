@@ -11,20 +11,28 @@ from unit3dup.web.models import (
     RescanTmdbRequest, UpdateCategoryRequest, UpdateSourceTypeRequest, UpdateResolutionRequest,
     UpdateSeasonEpisodeRequest, UpdateTracksRequest,
     StatsResponse, ItemDetail, ItemListResponse, ItemSummary, QueueStatusResponse,
+    ComplianceListResponse, ComplianceScanStatus, ComplianceAckRequest,
 )
 from unit3dup.web.upload_service import UploadService
+from unit3dup.web.compliance_service import ComplianceService
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
 
 # These will be set by the app factory
 _state_db: StateDB | None = None
 _upload_service: UploadService | None = None
+_compliance_service: ComplianceService | None = None
 
 
-def init_api(state_db: StateDB, upload_service: UploadService):
-    global _state_db, _upload_service
+def init_api(
+    state_db: StateDB,
+    upload_service: UploadService,
+    compliance_service: ComplianceService | None = None,
+):
+    global _state_db, _upload_service, _compliance_service
     _state_db = state_db
     _upload_service = upload_service
+    _compliance_service = compliance_service
 
 
 def _db() -> StateDB:
@@ -252,3 +260,79 @@ def bulk_reject(req: BulkRejectRequest):
 @router.post("/items/bulk-rescan")
 def bulk_rescan(req: BulkRescanRequest):
     return _svc().bulk_rescan(req.ids)
+
+
+# ── Compliance ──────────────────────────────────────────────────────
+
+def _compliance() -> ComplianceService:
+    if _compliance_service is None:
+        raise HTTPException(503, "Compliance service not initialized")
+    return _compliance_service
+
+
+@router.get("/compliance/items", response_model=ComplianceListResponse)
+def compliance_list(
+    severity: str | None = None,
+    ack_status: str | None = None,
+    diff_kind: str | None = None,
+    page: int = 1,
+    per_page: int = 100,
+):
+    items = _db().list_compliance(
+        severity=severity,
+        ack_status=ack_status,
+        diff_kind=diff_kind,
+        page=page,
+        per_page=per_page,
+    )
+    counts = _db().count_compliance_by_severity(only_unchecked=True)
+    return {
+        "items": items,
+        "total": _db().count_compliance_total(),
+        "page": page,
+        "per_page": per_page,
+        "counts": counts,
+    }
+
+
+@router.get("/compliance/items/{row_id}")
+def compliance_get(row_id: int):
+    row = _db().get_compliance(row_id)
+    if not row:
+        raise HTTPException(404, "Compliance row not found")
+    return row
+
+
+@router.post("/compliance/scan")
+def compliance_scan():
+    return _compliance().enqueue_full_scan()
+
+
+@router.post("/compliance/items/{row_id}/ack")
+def compliance_ack(row_id: int, req: ComplianceAckRequest | None = Body(default=None)):
+    status = req.status if req else "acknowledged"
+    ok = _db().set_compliance_ack(row_id, status)
+    if not ok:
+        raise HTTPException(404, "Compliance row not found")
+    return {"success": True, "message": f"Status set to {status}"}
+
+
+@router.post("/compliance/items/{row_id}/ignore")
+def compliance_ignore(row_id: int):
+    ok = _db().set_compliance_ack(row_id, "ignored")
+    if not ok:
+        raise HTTPException(404, "Compliance row not found")
+    return {"success": True, "message": "Status set to ignored"}
+
+
+@router.post("/compliance/items/{row_id}/recheck")
+def compliance_recheck(row_id: int):
+    row = _db().get_compliance(row_id)
+    if not row:
+        raise HTTPException(404, "Compliance row not found")
+    return _compliance().enqueue_check_one(int(row["torrent_id"]))
+
+
+@router.get("/compliance/scan-status", response_model=ComplianceScanStatus)
+def compliance_status():
+    return _compliance().scan_status()

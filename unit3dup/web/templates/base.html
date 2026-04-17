@@ -38,6 +38,12 @@
                 <i data-lucide="history"></i>
                 <span class="nav-label">History</span>
             </a>
+            <a href="/compliance" class="nav-item {% if page_title == 'Compliance' %}active{% endif %}">
+                <i data-lucide="shield-check"></i>
+                <span class="nav-label">Compliance</span>
+                {% set cc = get_compliance_badge() if get_compliance_badge else 0 %}
+                {% if cc > 0 %}<span class="nav-badge">{{ cc }}</span>{% endif %}
+            </a>
         </nav>
         <div class="sidebar-footer">
             <span class="nav-label">Unit3Dup Dashboard</span>

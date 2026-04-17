@@ -24,12 +24,14 @@ templates = Jinja2Templates(directory=_templates_dir)
 # Will be set by app factory
 _state_db: StateDB | None = None
 _upload_service = None
+_compliance_service = None
 
 
-def init_views(state_db: StateDB, upload_service=None):
-    global _state_db, _upload_service
+def init_views(state_db: StateDB, upload_service=None, compliance_service=None):
+    global _state_db, _upload_service, _compliance_service
     _state_db = state_db
     _upload_service = upload_service
+    _compliance_service = compliance_service
     # Register custom filters
     templates.env.filters["bbcode"] = bbcode_to_html
     templates.env.filters["filesize"] = _format_filesize
@@ -46,6 +48,11 @@ def init_views(state_db: StateDB, upload_service=None):
         counts = state_db.count_by_status()
         return counts.get("queued", 0) + counts.get("approved", 0) + counts.get("rescanning", 0)
     templates.env.globals["get_queue_count"] = _queue_count
+    # Global context: compliance badge (unchecked WARNING + ERROR)
+    def _compliance_badge():
+        counts = state_db.count_compliance_by_severity(only_unchecked=True)
+        return counts.get("WARNING", 0) + counts.get("ERROR", 0)
+    templates.env.globals["get_compliance_badge"] = _compliance_badge
     templates.env.globals["similar_url"] = _build_similar_url
 
 
@@ -268,4 +275,46 @@ def partial_queue_list(request: Request):
         "items": items,
         "uploading_id": uploading_id,
         "rescanning_id": rescanning_id,
+    })
+
+
+# ── Compliance ────────────────────────────────────────────────────
+
+def _compliance_scan_status() -> dict:
+    if _compliance_service is None:
+        return {"running": False, "configured": False, "queue_size": 0, "uploader": None}
+    try:
+        return _compliance_service.scan_status()
+    except Exception:
+        return {"running": False, "configured": False, "queue_size": 0, "uploader": None}
+
+
+@router.get("/compliance", response_class=HTMLResponse)
+def compliance_page(request: Request, severity: str | None = None, ack_status: str | None = None):
+    items = _db().list_compliance(severity=severity, ack_status=ack_status, per_page=500)
+    counts = _db().count_compliance_by_severity()
+    counts_unchecked = _db().count_compliance_by_severity(only_unchecked=True)
+    return templates.TemplateResponse(request, "compliance.html", {
+        "items": items,
+        "counts": counts,
+        "counts_unchecked": counts_unchecked,
+        "scan_status": _compliance_scan_status(),
+        "filter_severity": severity,
+        "filter_ack_status": ack_status,
+        "page_title": "Compliance",
+    })
+
+
+@router.get("/partials/compliance-list", response_class=HTMLResponse)
+def partial_compliance_list(request: Request, severity: str | None = None, ack_status: str | None = None):
+    items = _db().list_compliance(severity=severity, ack_status=ack_status, per_page=500)
+    return templates.TemplateResponse(request, "partials/compliance_rows.html", {
+        "items": items,
+    })
+
+
+@router.get("/partials/compliance-status", response_class=HTMLResponse)
+def partial_compliance_status(request: Request):
+    return templates.TemplateResponse(request, "partials/compliance_status.html", {
+        "scan_status": _compliance_scan_status(),
     })

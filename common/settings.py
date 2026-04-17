@@ -62,6 +62,7 @@ class TrackerConfig(BaseModel):
     Gemini_URL: str
     Gemini_APIKEY: str | None = None
     Gemini_PID: str | None = None
+    Gemini_USERNAME: str | None = None
     MULTI_TRACKER: list[str] | None = None
     TMDB_APIKEY: str | None = None
     IMGBB_KEY: str | None = None
@@ -570,6 +571,7 @@ class Load:
                 "Gemini_URL": "https://gemini-tracker.org",
                 "Gemini_APIKEY": "no_key",
                 "Gemini_PID": "no_key",
+                "Gemini_USERNAME": "no_key",
                 "MULTI_TRACKER" : ["gemini"],
                 "TMDB_APIKEY": "no_key",
                 "IMGBB_KEY": "no_key",
@@ -768,7 +770,7 @@ class JsonConfig:
         # Add the new attributes in 'tracker config'
         if self.tracker_diff_keys:
             self.updated = True
-            missing_keys_dict = {key: '' for key in self.tracker_diff_keys}
+            missing_keys_dict = {key: 'no_key' for key in self.tracker_diff_keys}
             self.tracker_config.update(missing_keys_dict)
 
 
