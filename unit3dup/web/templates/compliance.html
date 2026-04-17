@@ -186,12 +186,17 @@
             variant: ok ? 'info' : 'error',
             message: message,
             note: ok
-                ? 'The compliance check will re-fetch this torrent from the tracker and re-validate its name. No local file rescan is performed.'
+                ? 'Re-fetching this torrent from the tracker and re-validating its name — no local file rescan. This page will reload in a few seconds so you can see the updated row.'
                 : '',
+            reloadOnClose: ok,
+            autoReloadMs: ok ? 4000 : 0,
         });
     }
 
-    function openComplianceInfoModal({ title, message, note, variant }) {
+    let _complianceInfoReloadOnClose = false;
+    let _complianceInfoAutoReloadTimer = null;
+
+    function openComplianceInfoModal({ title, message, note, variant, reloadOnClose, autoReloadMs }) {
         const modal = document.getElementById('compliance-info-modal');
         const titleEl = document.getElementById('compliance-info-title');
         const msgEl = document.getElementById('compliance-info-message');
@@ -209,12 +214,32 @@
                         : 'var(--accent)';
         iconEl.setAttribute('data-lucide', iconName);
         iconEl.style.color = iconColor;
+
+        _complianceInfoReloadOnClose = !!reloadOnClose;
+        if (_complianceInfoAutoReloadTimer) {
+            clearTimeout(_complianceInfoAutoReloadTimer);
+            _complianceInfoAutoReloadTimer = null;
+        }
+        if (autoReloadMs && autoReloadMs > 0) {
+            _complianceInfoAutoReloadTimer = setTimeout(() => {
+                location.reload();
+            }, autoReloadMs);
+        }
+
         modal.classList.add('open');
         if (window.lucide) lucide.createIcons();
     }
 
     function closeComplianceInfoModal() {
         document.getElementById('compliance-info-modal').classList.remove('open');
+        if (_complianceInfoAutoReloadTimer) {
+            clearTimeout(_complianceInfoAutoReloadTimer);
+            _complianceInfoAutoReloadTimer = null;
+        }
+        if (_complianceInfoReloadOnClose) {
+            _complianceInfoReloadOnClose = false;
+            location.reload();
+        }
     }
 
     function escapeHtml(s) {
