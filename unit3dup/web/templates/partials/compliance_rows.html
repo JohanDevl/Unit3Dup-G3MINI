@@ -4,15 +4,21 @@
         {% set sev = (row.severity_max or 'NONE') %}
         <span class="severity-pill severity-{{ sev | lower }}">{{ sev if sev != 'NONE' else 'Clean' }}</span>
     </td>
-    <td style="font-family:ui-monospace,monospace;font-size:0.8rem;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ row.current_name }}">
-        {{ row.current_name }}
+    <td class="cell-copy" style="max-width:420px" title="{{ row.current_name }}">
+        <button type="button" class="copy-cell" data-copy="{{ row.current_name }}" title="Copy">
+            <span class="copy-text">{{ row.current_name }}</span>
+            <i data-lucide="copy" class="copy-icon"></i>
+        </button>
     </td>
-    <td style="font-family:ui-monospace,monospace;font-size:0.8rem;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:{% if row.proposed_name and row.proposed_name != row.current_name %}#34d399{% else %}var(--text-secondary){% endif %}"
+    <td class="cell-copy" style="max-width:420px;{% if row.proposed_name and row.proposed_name != row.current_name %}--copy-color:#34d399{% else %}--copy-color:var(--text-secondary){% endif %}"
         title="{{ row.proposed_name or '' }}">
         {% if row.proposed_name and row.proposed_name != row.current_name %}
-            {{ row.proposed_name }}
+            <button type="button" class="copy-cell" data-copy="{{ row.proposed_name }}" title="Copy">
+                <span class="copy-text">{{ row.proposed_name }}</span>
+                <i data-lucide="copy" class="copy-icon"></i>
+            </button>
         {% else %}
-            —
+            <span style="color:var(--text-secondary)">—</span>
         {% endif %}
     </td>
     <td>{{ row.category | category_label }}</td>

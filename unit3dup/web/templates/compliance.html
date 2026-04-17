@@ -159,17 +159,55 @@
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    function copyBtnHtml(value, variantClass) {
+        const safe = escapeHtml(value);
+        return `<button type="button" class="diff-copy-btn ${variantClass}" data-copy="${safe}" title="Copy">
+            <span>${safe}</span>
+            <i data-lucide="copy" class="copy-icon"></i>
+        </button>`;
+    }
+
     function renderDiff(current, proposed) {
         if (!proposed || proposed === current) {
-            return `<pre class="diff-monospace">${escapeHtml(current)}</pre>`;
+            return `<div class="diff-monospace">
+                <div><span class="diff-label">Current&nbsp;</span>${copyBtnHtml(current, 'diff-current')}</div>
+            </div>`;
         }
         return `
             <div class="diff-monospace">
-                <div><span class="diff-label">Current&nbsp;</span><span class="diff-current">${escapeHtml(current)}</span></div>
-                <div><span class="diff-label">Proposed</span><span class="diff-proposed">${escapeHtml(proposed)}</span></div>
+                <div><span class="diff-label">Current&nbsp;</span>${copyBtnHtml(current, 'diff-current')}</div>
+                <div><span class="diff-label">Proposed</span>${copyBtnHtml(proposed, 'diff-proposed')}</div>
             </div>
         `;
     }
+
+    async function copyToClipboard(text, el) {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (_) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (_) {}
+            document.body.removeChild(ta);
+        }
+        if (el) {
+            el.classList.add('copied');
+            setTimeout(() => el.classList.remove('copied'), 900);
+        }
+    }
+
+    document.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('[data-copy]');
+        if (!btn) return;
+        // Don't hijack clicks on the row's action buttons (eye/edit/check/etc).
+        ev.preventDefault();
+        ev.stopPropagation();
+        copyToClipboard(btn.dataset.copy || '', btn);
+    });
 
     async function openComplianceDetail(rowId) {
         const modal = document.getElementById('compliance-detail-modal');
@@ -245,6 +283,60 @@
     .violation-list { list-style: none; padding: 0; margin: 0; }
     .violation-list li { padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
     .reason-chip.active { background: var(--accent); color: #fff; }
+
+    /* Copy-on-click cells (list view) */
+    .cell-copy { padding: 0; }
+    .copy-cell {
+        display: flex; align-items: center; gap: 0.4rem;
+        width: 100%;
+        background: transparent; border: 0; cursor: pointer;
+        padding: 0.55rem 0.75rem;
+        text-align: left;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.8rem;
+        color: var(--copy-color, var(--text));
+        border-radius: 0;
+        transition: background 0.12s ease;
+    }
+    .copy-cell:hover { background: rgba(255,255,255,0.04); }
+    .copy-cell:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+    .copy-cell .copy-text {
+        flex: 1;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .copy-cell .copy-icon {
+        width: 12px; height: 12px;
+        color: var(--text-secondary);
+        opacity: 0; transition: opacity 0.12s ease;
+        flex-shrink: 0;
+    }
+    .copy-cell:hover .copy-icon { opacity: 0.8; }
+    .copy-cell.copied { background: rgba(52,211,153,0.15); }
+    .copy-cell.copied .copy-icon { opacity: 1; color: #34d399; }
+
+    /* Copy-on-click buttons (detail modal diff) */
+    .diff-copy-btn {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        background: transparent; border: 0; cursor: pointer;
+        padding: 0.15rem 0.4rem;
+        margin-left: 0.25rem;
+        border-radius: 4px;
+        font-family: inherit; font-size: inherit;
+        word-break: break-all;
+        text-align: left;
+        transition: background 0.12s ease;
+    }
+    .diff-copy-btn:hover { background: rgba(255,255,255,0.06); }
+    .diff-copy-btn.diff-current  { color: #f87171; }
+    .diff-copy-btn.diff-proposed { color: #34d399; }
+    .diff-copy-btn .copy-icon {
+        width: 12px; height: 12px;
+        opacity: 0; transition: opacity 0.12s ease;
+        flex-shrink: 0;
+    }
+    .diff-copy-btn:hover .copy-icon { opacity: 0.8; }
+    .diff-copy-btn.copied { background: rgba(52,211,153,0.2); }
+    .diff-copy-btn.copied .copy-icon { opacity: 1; color: #34d399; }
 </style>
 
 {% endblock %}

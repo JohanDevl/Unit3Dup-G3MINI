@@ -322,6 +322,10 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     name = re.sub(r'@\d+[kKmM]bps', '', name, flags=re.IGNORECASE)
     # Bitrates standalone (384kbps, 2Mbps…) : bruit sans valeur pour le nommage
     name = re.sub(r'-?\d+[kKmM]bps', '', name, flags=re.IGNORECASE)
+    # Codecs avec point interne (H.264, H.265) : fusionner AVANT l'extraction
+    # team et la conversion points→espaces (sinon "H" et "264" fuient dans le titre).
+    name = re.sub(r'(?<![A-Za-z0-9])H\.(26[45])(?![A-Za-z0-9])', r'H\1',
+                  name, flags=re.IGNORECASE)
     name = name.strip()
 
     # ── 2. Team ───────────────────────────────────────────────────────────────
