@@ -77,13 +77,21 @@ def _looks_like_bdinfo(text: str) -> bool:
 
 
 def extract_mediainfo_text(payload: dict) -> Optional[str]:
-    """Prefer the `mediainfo` field; fall back to `bdinfo` if unset."""
-    mi = payload.get("mediainfo")
-    if mi and isinstance(mi, str) and mi.strip():
-        return mi
-    bd = payload.get("bdinfo")
-    if bd and isinstance(bd, str) and bd.strip():
-        return bd
+    """Prefer the MediaInfo dump; fall back to BDInfo if unset.
+
+    UnIT3D's JSON:API resource exposes these under the snake_case keys
+    `media_info` / `bd_info` (see TorrentResource::toArray). Older/custom
+    deployments sometimes return the raw DB column names `mediainfo` /
+    `bdinfo`, so we accept both.
+    """
+    for key in ("media_info", "mediainfo"):
+        value = payload.get(key)
+        if value and isinstance(value, str) and value.strip():
+            return value
+    for key in ("bd_info", "bdinfo"):
+        value = payload.get(key)
+        if value and isinstance(value, str) and value.strip():
+            return value
     return None
 
 
