@@ -90,6 +90,28 @@
     <div id="compliance-pagination"></div>
 </div>
 
+<!-- Info modal (recheck / action feedback) -->
+<div class="modal-overlay" id="compliance-info-modal">
+    <div class="modal" style="max-width:480px;width:92vw">
+        <div class="modal-header">
+            <h3 style="display:flex;align-items:center;gap:0.5rem">
+                <i id="compliance-info-icon" data-lucide="info" style="width:20px;height:20px"></i>
+                <span id="compliance-info-title">Notice</span>
+            </h3>
+            <button class="modal-close" onclick="closeComplianceInfoModal()">
+                <i data-lucide="x" style="width:18px;height:18px"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p id="compliance-info-message" style="margin:0"></p>
+            <p id="compliance-info-note" class="secondary" style="margin-top:0.75rem;font-size:0.85rem;display:none"></p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="closeComplianceInfoModal()">OK</button>
+        </div>
+    </div>
+</div>
+
 <!-- Detail modal -->
 <div class="modal-overlay" id="compliance-detail-modal">
     <div class="modal" style="max-width:900px;width:95vw">
@@ -149,8 +171,50 @@
     }
 
     async function recheckRow(rowId) {
-        await fetch(`/api/v1/compliance/items/${rowId}/recheck`, { method: 'POST' });
-        alert('Re-check queued. Refresh in a few seconds.');
+        let ok = false;
+        let message = '';
+        try {
+            const res = await fetch(`/api/v1/compliance/items/${rowId}/recheck`, { method: 'POST' });
+            const body = await res.json().catch(() => ({}));
+            ok = !!body.success;
+            message = body.message || (ok ? 'Re-check queued.' : 'Re-check could not be queued.');
+        } catch (e) {
+            message = 'Request failed: ' + (e && e.message ? e.message : e);
+        }
+        openComplianceInfoModal({
+            title: ok ? 'Re-check queued' : 'Re-check failed',
+            variant: ok ? 'info' : 'error',
+            message: message,
+            note: ok
+                ? 'The compliance check will re-fetch this torrent from the tracker and re-validate its name. No local file rescan is performed.'
+                : '',
+        });
+    }
+
+    function openComplianceInfoModal({ title, message, note, variant }) {
+        const modal = document.getElementById('compliance-info-modal');
+        const titleEl = document.getElementById('compliance-info-title');
+        const msgEl = document.getElementById('compliance-info-message');
+        const noteEl = document.getElementById('compliance-info-note');
+        const iconEl = document.getElementById('compliance-info-icon');
+        titleEl.textContent = title || 'Notice';
+        msgEl.textContent = message || '';
+        noteEl.textContent = note || '';
+        noteEl.style.display = note ? 'block' : 'none';
+        const iconName = variant === 'error' ? 'alert-circle'
+                       : variant === 'success' ? 'check-circle-2'
+                       : 'info';
+        const iconColor = variant === 'error' ? 'var(--danger)'
+                        : variant === 'success' ? 'var(--success)'
+                        : 'var(--accent)';
+        iconEl.setAttribute('data-lucide', iconName);
+        iconEl.style.color = iconColor;
+        modal.classList.add('open');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function closeComplianceInfoModal() {
+        document.getElementById('compliance-info-modal').classList.remove('open');
     }
 
     function escapeHtml(s) {

@@ -589,11 +589,16 @@ class UnIT3DClient:
         payload = self._get_json(url, params={"api_token": self.api_token})
         if not payload:
             return None
+        # /api/torrents/{id} calls TorrentResource::withoutWrapping(), so the
+        # response is `{type, id, attributes}` with NO outer `data` key. Older
+        # deployments (or wrapped resources) still expose `{data: {...}}`.
         data = payload.get("data")
         if isinstance(data, dict):
             if "attributes" in data:
                 return self._flatten_entry(data)
             return data
+        if "attributes" in payload and "id" in payload:
+            return self._flatten_entry(payload)
         return payload
 
     def find_by_name(self, name: str, uploader: Optional[str] = None, per_page: int = 10) -> list[dict]:
