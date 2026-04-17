@@ -167,6 +167,27 @@
         </button>`;
     }
 
+    function renderExpandable(iconName, title, rawCopyValue, innerHtml) {
+        const safeCopy = escapeHtml(rawCopyValue || '');
+        const copyBtn = rawCopyValue
+            ? `<button type="button" class="btn btn-ghost btn-sm accordion-copy-btn" data-copy="${safeCopy}" title="Copy raw text">
+                <i data-lucide="copy" style="width:14px;height:14px"></i> Copy
+            </button>`
+            : '';
+        return `
+            <details class="accordion" style="margin-top:1rem">
+                <summary>
+                    <span style="display:inline-flex;align-items:center;gap:0.45rem">
+                        <i data-lucide="${iconName}" style="width:16px;height:16px"></i>
+                        ${escapeHtml(title)}
+                    </span>
+                    ${copyBtn}
+                </summary>
+                <div class="accordion-body">${innerHtml}</div>
+            </details>
+        `;
+    }
+
     function renderDiff(current, proposed) {
         if (!proposed || proposed === current) {
             return `<div class="diff-monospace">
@@ -228,11 +249,24 @@
                         <code>${escapeHtml(v.rule)}</code> — ${escapeHtml(v.message)}
                     </li>`).join('')
                 : '<li class="secondary">No rule violations (compared only against the normalizer output)</li>';
+
+            const descriptionRaw = row.description || '';
+            const descriptionHtml = row.description_html || '';
+            const mediainfoRaw = row.mediainfo || '';
+
             body.innerHTML = `
                 <h4 style="margin:0 0 0.5rem">Names</h4>
                 ${renderDiff(row.current_name || '', row.proposed_name || '')}
                 <h4 style="margin:1rem 0 0.5rem">Violations</h4>
                 <ul class="violation-list">${violationsHtml}</ul>
+                ${renderExpandable('file-text', 'Description / Prez', descriptionRaw,
+                    descriptionHtml
+                        ? `<div class="bbcode-preview">${descriptionHtml}</div>`
+                        : '<p class="secondary">No description stored for this torrent.</p>')}
+                ${renderExpandable('monitor', 'MediaInfo', mediainfoRaw,
+                    mediainfoRaw
+                        ? `<pre class="pre-block">${escapeHtml(mediainfoRaw)}</pre>`
+                        : '<p class="secondary">No MediaInfo stored for this torrent.</p>')}
                 <h4 style="margin:1rem 0 0.5rem">Meta</h4>
                 <div class="secondary" style="font-size:0.85rem">
                     torrent_id=<code>${escapeHtml(row.torrent_id)}</code>,
@@ -337,6 +371,34 @@
     .diff-copy-btn:hover .copy-icon { opacity: 0.8; }
     .diff-copy-btn.copied { background: rgba(52,211,153,0.2); }
     .diff-copy-btn.copied .copy-icon { opacity: 1; color: #34d399; }
+
+    /* Accordion summary with trailing copy button */
+    #compliance-detail-body .accordion summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+    #compliance-detail-body .accordion summary::before {
+        /* Keep the disclosure chevron but let the flex layout place it first */
+        order: -1;
+    }
+    .accordion-copy-btn {
+        padding: 0.25rem 0.6rem;
+        font-size: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .accordion-copy-btn.copied {
+        background: rgba(52,211,153,0.2);
+        color: #34d399;
+    }
+    #compliance-detail-body .accordion-body pre.pre-block {
+        max-height: 360px;
+        overflow: auto;
+        margin: 0;
+    }
 </style>
 
 {% endblock %}

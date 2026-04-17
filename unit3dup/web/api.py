@@ -15,6 +15,7 @@ from unit3dup.web.models import (
 )
 from unit3dup.web.upload_service import UploadService
 from unit3dup.web.compliance_service import ComplianceService
+from unit3dup.web.bbcode_renderer import bbcode_to_html
 
 router = APIRouter(prefix="/api/v1", tags=["api"])
 
@@ -300,6 +301,7 @@ def compliance_get(row_id: int):
     row = _db().get_compliance(row_id)
     if not row:
         raise HTTPException(404, "Compliance row not found")
+    row["description_html"] = bbcode_to_html(row.get("description"))
     return row
 
 

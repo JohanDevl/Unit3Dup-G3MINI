@@ -39,6 +39,7 @@ _COMPLIANCE_ALLOWED_COLUMNS = {
     "current_name", "proposed_name", "violations", "diff_kind",
     "severity_max", "checked_at", "first_seen_at", "ack_status",
     "edit_url", "linked_item_id",
+    "description", "mediainfo",
 }
 
 
@@ -115,7 +116,9 @@ CREATE TABLE IF NOT EXISTS compliance (
     first_seen_at   TEXT NOT NULL,
     ack_status      TEXT NOT NULL DEFAULT 'unchecked',
     edit_url        TEXT,
-    linked_item_id  INTEGER
+    linked_item_id  INTEGER,
+    description     TEXT,
+    mediainfo       TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_compliance_severity ON compliance(severity_max);
@@ -153,14 +156,20 @@ class StateDB:
 
     def _ensure_columns(self):
         """Add columns that may be missing from older databases."""
-        new_cols = [("audio_tracks", "TEXT"), ("subtitle_tracks", "TEXT")]
+        items_new_cols = [("audio_tracks", "TEXT"), ("subtitle_tracks", "TEXT")]
+        compliance_new_cols = [("description", "TEXT"), ("mediainfo", "TEXT")]
         with self._lock:
             conn = self._connect()
             try:
-                existing = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
-                for col_name, col_type in new_cols:
-                    if col_name not in existing:
+                items_existing = {row[1] for row in conn.execute("PRAGMA table_info(items)").fetchall()}
+                for col_name, col_type in items_new_cols:
+                    if col_name not in items_existing:
                         conn.execute(f"ALTER TABLE items ADD COLUMN {col_name} {col_type}")
+
+                compliance_existing = {row[1] for row in conn.execute("PRAGMA table_info(compliance)").fetchall()}
+                for col_name, col_type in compliance_new_cols:
+                    if col_name not in compliance_existing:
+                        conn.execute(f"ALTER TABLE compliance ADD COLUMN {col_name} {col_type}")
                 conn.commit()
             finally:
                 conn.close()

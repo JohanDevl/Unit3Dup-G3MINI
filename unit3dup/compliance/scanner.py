@@ -627,6 +627,10 @@ def check_one_torrent(
         for v in violations
     ]
 
+    description_text = payload.get("description")
+    if description_text is not None and not isinstance(description_text, str):
+        description_text = str(description_text)
+
     fields: dict[str, Any] = dict(
         torrent_id=torrent_id,
         tracker_name=tracker_name,
@@ -637,6 +641,8 @@ def check_one_torrent(
         severity_max=severity_max,
         category=_extract_category(payload),
         edit_url=edit_url,
+        description=description_text,
+        mediainfo=mi_text,
     )
     if uploader:
         fields["uploader"] = uploader
