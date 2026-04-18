@@ -41,6 +41,12 @@ def _detect_source_type(release_name: str) -> str:
     name_upper = release_name.upper()
     if any(p in name_upper for p in ("BDRIP", "WEBRIP", "TVRIP", "HDLIGHT", "4KLIGHT", "HDRIP")):
         return "encode"
+    # Encoder-library tags (lowercase x264/x265, AV1) are scene convention
+    # for a re-encode. REMUX releases use HEVC/H.265/H.264 — never x264/x265.
+    # Match on word boundaries so "X265" in "X265-GROUP" or ".x265." matches
+    # but e.g. "HEVC" or "H265" does not trigger.
+    if re.search(r'(?:^|[\W_])(?:[xX]26[45]|AV1)(?:$|[\W_])', release_name):
+        return "encode"
     if "REMUX" in name_upper:
         return "remux"
     if "WEB" in name_upper and "WEBRIP" not in name_upper:
