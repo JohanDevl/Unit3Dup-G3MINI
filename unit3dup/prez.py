@@ -90,7 +90,20 @@ def _country_to_flag(country_code: str) -> str:
 def _lang_name(iso_code: str) -> str:
     if not iso_code:
         return "Inconnu"
-    return ISO_TO_LANG_NAME.get(iso_code.lower().split("-")[0], iso_code.capitalize())
+    # MediaInfo may return values like "fr", "fr-FR", "French", or
+    # "French (FR)" — strip any parenthesised region before lookup.
+    import re
+    cleaned = re.sub(r'\s*\([^)]*\)', '', iso_code).strip()
+    if not cleaned:
+        return "Inconnu"
+    key = cleaned.lower().split("-")[0].strip()
+    if key in ISO_TO_LANG_NAME:
+        return ISO_TO_LANG_NAME[key]
+    # English name (e.g. "french") → ISO → localized name
+    iso = _LANG_NAME_TO_ISO.get(key)
+    if iso and iso in ISO_TO_LANG_NAME:
+        return ISO_TO_LANG_NAME[iso]
+    return cleaned.capitalize()
 
 
 def _infer_lang_from_title(title: str) -> str:
