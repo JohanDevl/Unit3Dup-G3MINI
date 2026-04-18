@@ -309,15 +309,57 @@ def compliance_get(row_id: int):
     # same generator the pending/upload flow uses. Done on the fly so it stays
     # in sync with the tool's prez template without a DB migration.
     generated_description = ""
+    audio_tracks: list[dict] = []
+    sub_tracks: list[dict] = []
     try:
         shim = build_prez_media_file(row.get("mediainfo"))
         if shim is not None:
             generated_description = generate_prez(shim) or ""
+            audio_tracks = list(shim.audio_track or [])
+            sub_tracks = list(shim.subtitle_track or [])
     except Exception:
         generated_description = ""
     row["generated_description"] = generated_description
     row["generated_description_html"] = bbcode_to_html(generated_description)
+    row["audio_tracks"] = audio_tracks
+    row["sub_tracks"] = sub_tracks
     return row
+
+
+@router.post("/compliance/items/{row_id}/generate-description")
+def compliance_generate_description(row_id: int, body: dict | None = Body(default=None)):
+    """Regenerate the prez-format description, optionally with per-track overrides.
+
+    Body (optional): {"audio_tracks": [...], "sub_tracks": [...]}.
+    Each track is a dict with keys expected by generate_prez (language, title,
+    format, channel_s, bit_rate, forced).
+    """
+    row = _db().get_compliance(row_id)
+    if not row:
+        raise HTTPException(404, "Compliance row not found")
+
+    audio_override = (body or {}).get("audio_tracks")
+    sub_override = (body or {}).get("sub_tracks")
+
+    try:
+        shim = build_prez_media_file(row.get("mediainfo"))
+    except Exception:
+        shim = None
+    if shim is None:
+        raise HTTPException(422, "MediaInfo unavailable or BDInfo format — cannot regenerate")
+
+    audio_tracks = audio_override if isinstance(audio_override, list) else shim.audio_track
+    sub_tracks = sub_override if isinstance(sub_override, list) else shim.subtitle_track
+
+    try:
+        generated = generate_prez(shim, audio_tracks=audio_tracks, sub_tracks=sub_tracks) or ""
+    except Exception as exc:
+        raise HTTPException(500, f"Generation failed: {exc}")
+
+    return {
+        "generated_description": generated,
+        "generated_description_html": bbcode_to_html(generated),
+    }
 
 
 @router.post("/compliance/scan")

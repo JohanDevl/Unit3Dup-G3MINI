@@ -319,12 +319,93 @@
         copyToClipboard(btn.dataset.copy || '', btn);
     });
 
+    let _complianceCurrentRowId = null;
+
+    function renderTrackEditor(audioTracks, subTracks) {
+        const hasAudio = Array.isArray(audioTracks) && audioTracks.length;
+        const hasSubs = Array.isArray(subTracks) && subTracks.length;
+        if (!hasAudio && !hasSubs) {
+            return '<p class="secondary">No tracks detected in stored MediaInfo.</p>';
+        }
+        const row = (kind, i, t) => `
+            <tr data-track-kind="${kind}" data-track-index="${i}">
+                <td class="secondary" style="font-size:0.8rem;white-space:nowrap">#${i + 1}</td>
+                <td><input type="text" class="track-lang-input" value="${escapeHtml(t.language || '')}" placeholder="fr, en, fr-FR…" style="width:100%"></td>
+                <td><input type="text" class="track-title-input" value="${escapeHtml(t.title || '')}" placeholder="${kind === 'audio' ? 'e.g. VFF AAC 2.0' : 'e.g. Forced / Full / SDH'}" style="width:100%"></td>
+                <td class="secondary" style="font-size:0.8rem;white-space:nowrap">${escapeHtml(t.format || '')}</td>
+            </tr>`;
+        const table = (title, kind, tracks) => !tracks || !tracks.length ? '' : `
+            <div style="margin-top:0.75rem">
+                <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.25rem">${title}</div>
+                <table class="table" style="font-size:0.85rem">
+                    <thead><tr><th>#</th><th>Langue</th><th>Titre</th><th>Format</th></tr></thead>
+                    <tbody>${tracks.map((t, i) => row(kind, i, t)).join('')}</tbody>
+                </table>
+            </div>`;
+        return `
+            ${table('Audio', 'audio', audioTracks || [])}
+            ${table('Sous-titres', 'sub', subTracks || [])}
+            <p class="secondary" style="font-size:0.8rem;margin-top:0.5rem">
+                La langue accepte les codes ISO (<code>fr</code>, <code>en</code>) ou les noms (<code>French</code>, <code>Anglais</code>).
+                Le titre pilote le variant audio (VFF/VFQ/VFB/VF/VO) et le qualificateur sous-titre (forcés / complets / SDH).
+            </p>`;
+    }
+
+    function collectTrackOverrides(originalAudio, originalSub) {
+        const read = (kind, original) => (original || []).map((t, i) => {
+            const rowEl = document.querySelector(`tr[data-track-kind="${kind}"][data-track-index="${i}"]`);
+            if (!rowEl) return t;
+            const lang = rowEl.querySelector('.track-lang-input')?.value ?? t.language ?? '';
+            const title = rowEl.querySelector('.track-title-input')?.value ?? t.title ?? '';
+            return { ...t, language: lang, title: title };
+        });
+        return {
+            audio_tracks: read('audio', originalAudio),
+            sub_tracks: read('sub', originalSub),
+        };
+    }
+
+    async function regenerateDescription() {
+        if (_complianceCurrentRowId == null) return;
+        const btn = document.getElementById('regen-desc-btn');
+        const target = document.getElementById('generated-desc-body');
+        const original = window._complianceTrackState || { audio: [], sub: [] };
+        const body = collectTrackOverrides(original.audio, original.sub);
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i data-lucide="loader"></i> …'; lucide.createIcons(); }
+        try {
+            const res = await fetch(`/api/v1/compliance/items/${_complianceCurrentRowId}/generate-description`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Regeneration failed');
+            }
+            const data = await res.json();
+            const html = data.generated_description_html || '';
+            if (target) {
+                target.innerHTML = html
+                    ? `<div class="bbcode-preview">${html}</div>`
+                    : '<p class="secondary">Description vide.</p>';
+            }
+            // Update accordion copy button value to the new raw text.
+            const copyBtn = document.getElementById('generated-desc-copy');
+            if (copyBtn) copyBtn.dataset.copy = data.generated_description || '';
+        } catch (e) {
+            if (target) target.innerHTML = `<p style="color:var(--danger)">${escapeHtml(e.message || e)}</p>`;
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="refresh-cw"></i> Régénérer'; lucide.createIcons(); }
+        }
+    }
+
     async function openComplianceDetail(rowId) {
         const modal = document.getElementById('compliance-detail-modal');
         const body = document.getElementById('compliance-detail-body');
         const editBtn = document.getElementById('compliance-detail-edit');
         body.innerHTML = '<p class="secondary">Loading…</p>';
         modal.classList.add('open');
+        _complianceCurrentRowId = rowId;
         try {
             const res = await fetch(`/api/v1/compliance/items/${rowId}`);
             if (!res.ok) throw new Error('Fetch failed');
@@ -344,16 +425,40 @@
             const generatedRaw = row.generated_description || '';
             const generatedHtml = row.generated_description_html || '';
             const mediainfoRaw = row.mediainfo || '';
+            const audioTracks = Array.isArray(row.audio_tracks) ? row.audio_tracks : [];
+            const subTracks = Array.isArray(row.sub_tracks) ? row.sub_tracks : [];
+            window._complianceTrackState = { audio: audioTracks, sub: subTracks };
+
+            const canRegen = audioTracks.length > 0 || subTracks.length > 0;
+            const regenHeader = canRegen ? `
+                <div style="display:flex;align-items:center;gap:0.5rem;margin:1rem 0 0.25rem">
+                    <h4 style="margin:0;flex:1">Description (fraîche, format outil)</h4>
+                    <button type="button" id="regen-desc-btn" class="btn btn-sm btn-ghost" onclick="regenerateDescription()">
+                        <i data-lucide="refresh-cw"></i> Régénérer
+                    </button>
+                    ${generatedRaw ? `<button type="button" id="generated-desc-copy" class="btn btn-ghost btn-sm accordion-copy-btn" data-copy="${escapeHtml(generatedRaw)}" title="Copy raw text"><i data-lucide="copy" style="width:14px;height:14px"></i> Copy</button>` : ''}
+                </div>
+                <div id="generated-desc-body">${generatedHtml
+                    ? `<div class="bbcode-preview">${generatedHtml}</div>`
+                    : '<p class="secondary">Description vide.</p>'}</div>
+                <details class="accordion" style="margin-top:0.75rem">
+                    <summary>
+                        <span style="display:inline-flex;align-items:center;gap:0.45rem">
+                            <i data-lucide="sliders-horizontal" style="width:16px;height:16px"></i>
+                            Éditer les pistes (langues / titres)
+                        </span>
+                    </summary>
+                    <div class="accordion-body">${renderTrackEditor(audioTracks, subTracks)}</div>
+                </details>
+            ` : renderExpandable('sparkles', 'Description (fraîche, format outil)', generatedRaw,
+                '<p class="secondary">Impossible de régénérer une description (MediaInfo manquant ou au format BDInfo).</p>');
 
             body.innerHTML = `
                 <h4 style="margin:0 0 0.5rem">Names</h4>
                 ${renderDiff(row.current_name || '', row.proposed_name || '')}
                 <h4 style="margin:1rem 0 0.5rem">Violations</h4>
                 <ul class="violation-list">${violationsHtml}</ul>
-                ${renderExpandable('sparkles', 'Description (fraîche, format outil)', generatedRaw,
-                    generatedHtml
-                        ? `<div class="bbcode-preview">${generatedHtml}</div>`
-                        : '<p class="secondary">Impossible de régénérer une description (MediaInfo manquant ou au format BDInfo).</p>')}
+                ${regenHeader}
                 ${renderExpandable('file-text', 'Description actuelle (tracker)', descriptionRaw,
                     descriptionHtml
                         ? `<div class="bbcode-preview">${descriptionHtml}</div>`
@@ -378,6 +483,7 @@
 
     function closeComplianceModal() {
         document.getElementById('compliance-detail-modal').classList.remove('open');
+        _complianceCurrentRowId = null;
     }
 </script>
 
