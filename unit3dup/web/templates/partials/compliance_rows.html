@@ -1,5 +1,5 @@
 {% for row in items %}
-<tr>
+<tr data-compliance-row-id="{{ row.id }}">
     <td>
         {% set sev = (row.severity_max or 'NONE') %}
         <span class="severity-pill severity-{{ sev | lower }}">{{ sev if sev != 'NONE' else 'Clean' }}</span>
@@ -24,25 +24,25 @@
     <td>{{ row.category | category_label }}</td>
     <td data-sort="{{ row.checked_at or '' }}">{{ row.checked_at | datefmt }}</td>
     <td>
-        <span class="reason-chip" style="font-size:0.7rem">{{ row.ack_status }}</span>
+        <span class="reason-chip" data-ack-status-chip style="font-size:0.7rem">{{ row.ack_status }}</span>
     </td>
     <td style="text-align:right;white-space:nowrap">
         <button type="button" class="btn btn-ghost btn-sm" onclick="openComplianceDetail({{ row.id }})" title="Details">
             <i data-lucide="eye" style="width:14px;height:14px"></i>
         </button>
         {% if row.edit_url %}
-        <a href="{{ row.edit_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" title="Edit on UnIT3D">
+        <a href="{{ row.edit_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" title="Edit on G3mini">
             <i data-lucide="external-link" style="width:14px;height:14px"></i>
         </a>
         {% endif %}
-        {% if row.ack_status == 'unchecked' %}
-        <button type="button" class="btn btn-ghost btn-sm" onclick="ackRow({{ row.id }}, 'acknowledged')" title="Acknowledge">
-            <i data-lucide="check" style="width:14px;height:14px"></i>
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm" onclick="ackRow({{ row.id }}, 'ignored')" title="Ignore">
-            <i data-lucide="x" style="width:14px;height:14px"></i>
-        </button>
-        {% endif %}
+        <span data-ack-actions {% if row.ack_status != 'unchecked' %}style="display:none"{% endif %}>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="ackRow({{ row.id }}, 'acknowledged')" title="Acknowledge">
+                <i data-lucide="check" style="width:14px;height:14px"></i>
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="ackRow({{ row.id }}, 'ignored')" title="Ignore">
+                <i data-lucide="x" style="width:14px;height:14px"></i>
+            </button>
+        </span>
         <button type="button" class="btn btn-ghost btn-sm" onclick="recheckRow({{ row.id }})" title="Re-check">
             <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
         </button>

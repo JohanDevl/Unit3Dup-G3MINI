@@ -126,8 +126,14 @@
         </div>
         <div class="modal-footer">
             <a id="compliance-detail-edit" href="#" target="_blank" rel="noopener" class="btn btn-primary">
-                <i data-lucide="external-link"></i> Edit on UnIT3D
+                <i data-lucide="external-link"></i> Edit on G3mini
             </a>
+            <button id="compliance-detail-ack" type="button" class="btn btn-ghost" onclick="setComplianceStatusFromModal('acknowledged')">
+                <i data-lucide="check"></i> Acknowledge
+            </button>
+            <button id="compliance-detail-ignore" type="button" class="btn btn-ghost" onclick="setComplianceStatusFromModal('ignored')">
+                <i data-lucide="x"></i> Ignore
+            </button>
             <button class="btn btn-ghost" onclick="closeComplianceModal()">Close</button>
         </div>
     </div>
@@ -166,8 +172,43 @@
         const opts = status === 'ignored'
             ? { method: 'POST' }
             : { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status }) };
-        await fetch(url, opts);
-        location.reload();
+        try {
+            const res = await fetch(url, opts);
+            if (!res.ok) throw new Error('Request failed');
+            applyComplianceAckUpdate(rowId, status);
+        } catch (e) {
+            openComplianceInfoModal({
+                title: 'Action failed',
+                variant: 'error',
+                message: 'Could not update status: ' + (e && e.message ? e.message : e),
+            });
+        }
+    }
+
+    function applyComplianceAckUpdate(rowId, status) {
+        const row = document.querySelector(`tr[data-compliance-row-id="${rowId}"]`);
+        if (row) {
+            const chip = row.querySelector('[data-ack-status-chip]');
+            if (chip) chip.textContent = status;
+            const actions = row.querySelector('[data-ack-actions]');
+            if (actions) actions.style.display = status === 'unchecked' ? '' : 'none';
+        }
+        if (String(_complianceCurrentRowId) === String(rowId)) {
+            const metaStatus = document.getElementById('compliance-detail-status');
+            if (metaStatus) metaStatus.textContent = status;
+        }
+    }
+
+    async function setComplianceStatusFromModal(status) {
+        if (_complianceCurrentRowId == null) return;
+        const btnIds = { acknowledged: 'compliance-detail-ack', ignored: 'compliance-detail-ignore' };
+        const btn = document.getElementById(btnIds[status]);
+        if (btn) btn.disabled = true;
+        try {
+            await ackRow(_complianceCurrentRowId, status);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
     }
 
     async function recheckRow(rowId) {
@@ -472,7 +513,7 @@
                     torrent_id=<code>${escapeHtml(row.torrent_id)}</code>,
                     diff=<code>${escapeHtml(row.diff_kind)}</code>,
                     severity=<code>${escapeHtml(row.severity_max)}</code>,
-                    status=<code>${escapeHtml(row.ack_status)}</code>
+                    status=<code id="compliance-detail-status">${escapeHtml(row.ack_status)}</code>
                 </div>
             `;
             lucide.createIcons();
