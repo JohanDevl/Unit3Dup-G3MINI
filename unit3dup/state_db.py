@@ -592,6 +592,16 @@ class StateDB:
             finally:
                 conn.close()
 
+    def delete_compliance(self, row_id: int) -> bool:
+        with self._lock:
+            conn = self._connect()
+            try:
+                cursor = conn.execute("DELETE FROM compliance WHERE id = ?", (row_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+            finally:
+                conn.close()
+
     def set_compliance_ack(self, row_id: int, ack_status: str) -> bool:
         if ack_status not in ("unchecked", "acknowledged", "ignored", "fixed"):
             raise ValueError(f"Invalid ack_status: {ack_status}")

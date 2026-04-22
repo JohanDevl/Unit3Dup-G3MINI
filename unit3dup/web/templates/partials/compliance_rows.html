@@ -1,5 +1,8 @@
 {% for row in items %}
 <tr data-compliance-row-id="{{ row.id }}">
+    <td style="width:36px">
+        <input type="checkbox" class="compliance-row-cb" value="{{ row.id }}" onchange="complianceOnRowCheckChange(this)">
+    </td>
     <td>
         {% set sev = (row.severity_max or 'NONE') %}
         <span class="severity-pill severity-{{ sev | lower }}">{{ sev if sev != 'NONE' else 'Clean' }}</span>
@@ -46,8 +49,11 @@
         <button type="button" class="btn btn-ghost btn-sm" onclick="recheckRow({{ row.id }})" title="Re-check">
             <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
         </button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="deleteAndRescanRow({{ row.id }})" title="Delete row & fresh rescan">
+            <i data-lucide="trash-2" style="width:14px;height:14px"></i>
+        </button>
     </td>
 </tr>
 {% else %}
-<tr><td colspan="7" class="secondary" style="text-align:center;padding:2rem">No compliance rows yet. Run a scan to get started.</td></tr>
+<tr><td colspan="8" class="secondary" style="text-align:center;padding:2rem">No compliance rows yet. Run a scan to get started.</td></tr>
 {% endfor %}

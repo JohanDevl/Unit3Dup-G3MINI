@@ -196,3 +196,7 @@ class ComplianceScanStatus(BaseModel):
 
 class ComplianceAckRequest(BaseModel):
     status: str = Field(pattern="^(acknowledged|ignored|fixed|unchecked)$")
+
+
+class BulkComplianceDeleteRequest(BaseModel):
+    ids: list[int] = Field(max_length=200)

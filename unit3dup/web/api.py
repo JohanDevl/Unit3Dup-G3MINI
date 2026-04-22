@@ -12,6 +12,7 @@ from unit3dup.web.models import (
     UpdateSeasonEpisodeRequest, UpdateTracksRequest,
     StatsResponse, ItemDetail, ItemListResponse, ItemSummary, QueueStatusResponse,
     ComplianceListResponse, ComplianceScanStatus, ComplianceAckRequest,
+    BulkComplianceDeleteRequest,
 )
 from unit3dup.web.upload_service import UploadService
 from unit3dup.web.compliance_service import ComplianceService
@@ -390,6 +391,51 @@ def compliance_recheck(row_id: int):
     if not row:
         raise HTTPException(404, "Compliance row not found")
     return _compliance().enqueue_check_one(int(row["torrent_id"]))
+
+
+@router.delete("/compliance/items/{row_id}")
+def compliance_delete_and_rescan(row_id: int):
+    row = _db().get_compliance(row_id)
+    if not row:
+        raise HTTPException(404, "Compliance row not found")
+    torrent_id = int(row["torrent_id"])
+    _db().delete_compliance(row_id)
+    result = _compliance().enqueue_check_one(torrent_id)
+    return {
+        "success": result.get("success", True),
+        "message": result.get("message", f"Row deleted, fresh check queued for torrent #{torrent_id}"),
+    }
+
+
+@router.post("/compliance/items/bulk-delete")
+def compliance_bulk_delete_and_rescan(req: BulkComplianceDeleteRequest):
+    deleted = 0
+    queued = 0
+    failed_queue = 0
+    missing = 0
+    for row_id in req.ids:
+        row = _db().get_compliance(row_id)
+        if not row:
+            missing += 1
+            continue
+        torrent_id = int(row["torrent_id"])
+        _db().delete_compliance(row_id)
+        deleted += 1
+        result = _compliance().enqueue_check_one(torrent_id)
+        if result.get("success"):
+            queued += 1
+        else:
+            failed_queue += 1
+    return {
+        "success": deleted > 0,
+        "deleted": deleted,
+        "queued": queued,
+        "failed_queue": failed_queue,
+        "missing": missing,
+        "message": f"Deleted {deleted} row(s), queued {queued} fresh check(s)"
+                   + (f", {failed_queue} queue failure(s)" if failed_queue else "")
+                   + (f", {missing} not found" if missing else ""),
+    }
 
 
 @router.get("/compliance/scan-status", response_model=ComplianceScanStatus)
