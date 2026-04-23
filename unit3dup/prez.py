@@ -4,13 +4,16 @@ Generate BBCode presentation (prez style 3) for torrent descriptions.
 Matches the format used in mediatorr's prezStyle3.
 """
 
+import re
+
 from common.mediainfo import MediaFile
 
 
 # ── Language mappings ──────────────────────────────────────────────────
 
 ISO_TO_LANG_NAME = {
-    "fr": "Français", "en": "Anglais", "de": "Allemand", "es": "Espagnol",
+    "fr": "Français", "fr-CA": "Français (Canada)", "fr-BE": "Français (Belgique)",
+    "en": "Anglais", "de": "Allemand", "es": "Espagnol",
     "it": "Italien", "ja": "Japonais", "ko": "Coréen", "pt": "Portugais",
     "ru": "Russe", "zh": "Chinois", "ar": "Arabe", "nl": "Néerlandais",
     "pl": "Polonais", "tr": "Turc", "hi": "Hindi", "sv": "Suédois",
@@ -25,7 +28,8 @@ ISO_TO_LANG_NAME = {
 }
 
 LANG_TO_COUNTRY = {
-    "Français": "FR", "Anglais": "GB", "Allemand": "DE", "Espagnol": "ES",
+    "Français": "FR", "Français (Canada)": "CA", "Français (Belgique)": "BE",
+    "Anglais": "GB", "Allemand": "DE", "Espagnol": "ES",
     "Italien": "IT", "Japonais": "JP", "Coréen": "KR", "Portugais": "PT",
     "Russe": "RU", "Chinois": "CN", "Arabe": "SA", "Néerlandais": "NL",
     "Polonais": "PL", "Turc": "TR", "Hindi": "IN", "Suédois": "SE",
@@ -81,6 +85,78 @@ SUB_FORMAT_NORMALIZE = {
 }
 
 
+# ── Language normalization ────────────────────────────────────────────
+
+# ISO 639-2 (3-letter) → ISO 639-1 (2-letter). Only common audio/sub
+# languages pymediainfo emits in the wild.
+_ISO3_TO_ISO1 = {
+    "fra": "fr", "fre": "fr", "eng": "en", "deu": "de", "ger": "de",
+    "spa": "es", "ita": "it", "jpn": "ja", "kor": "ko", "por": "pt",
+    "rus": "ru", "zho": "zh", "chi": "zh", "ara": "ar", "nld": "nl",
+    "dut": "nl", "pol": "pl", "tur": "tr", "hin": "hi", "swe": "sv",
+    "nor": "no", "dan": "da", "fin": "fi", "ell": "el", "gre": "el",
+    "hun": "hu", "ron": "ro", "rum": "ro", "ces": "cs", "cze": "cs",
+    "heb": "he", "tha": "th", "vie": "vi", "ind": "id", "msa": "ms",
+    "may": "ms", "bul": "bg", "hrv": "hr", "srp": "sr", "slk": "sk",
+    "slo": "sk", "slv": "sl", "ukr": "uk", "cat": "ca", "eus": "eu",
+    "baq": "eu", "est": "et", "lav": "lv", "lit": "lt", "isl": "is",
+    "ice": "is", "kat": "ka", "geo": "ka", "hye": "hy", "arm": "hy",
+    "fas": "fa", "per": "fa", "ben": "bn", "tam": "ta", "tel": "te",
+    "urd": "ur", "tgl": "tl",
+}
+
+# Region word/code → ISO country code, used to resolve regional variants
+# of the same base language (e.g. fr-CA, fr-BE).
+_REGION_TO_COUNTRY = {
+    "ca": "CA", "can": "CA", "canada": "CA", "fq": "CA", "quebec": "CA",
+    "québec": "CA", "qc": "CA",
+    "be": "BE", "bel": "BE", "belgium": "BE", "belgique": "BE",
+}
+
+
+def normalize_lang_code(raw: str) -> str:
+    """Convert a raw mediainfo language value to a canonical ISO_TO_LANG_NAME key.
+
+    Handles 2-letter ISO 639-1, 3-letter ISO 639-2, English names, hyphen/
+    underscore separated regional variants ("fr-CA", "fr_CA"), and
+    parenthesised region names ("French (Canada)"). Returns "" when no
+    confident mapping is found.
+    """
+    if not raw:
+        return ""
+    s = str(raw).strip()
+    if not s:
+        return ""
+
+    # Pull out a region token from "French (Canada)" → region_word="canada".
+    region_word = ""
+    m = re.match(r'^\s*([^()]+?)\s*\(\s*([^()]+)\s*\)\s*$', s)
+    if m:
+        s = m.group(1).strip()
+        region_word = m.group(2).strip().lower()
+
+    s_norm = s.replace("_", "-").lower()
+    parts = s_norm.split("-", 1)
+    base = parts[0].strip()
+    suffix = parts[1].strip() if len(parts) == 2 else ""
+
+    if base in ISO_TO_LANG_NAME and "-" not in base:
+        base_iso = base
+    elif base in _LANG_NAME_TO_ISO:
+        base_iso = _LANG_NAME_TO_ISO[base]
+    elif base in _ISO3_TO_ISO1:
+        base_iso = _ISO3_TO_ISO1[base]
+    else:
+        return ""
+
+    region_code = _REGION_TO_COUNTRY.get(suffix) or _REGION_TO_COUNTRY.get(region_word)
+    if region_code:
+        regional_key = f"{base_iso}-{region_code}"
+        if regional_key in ISO_TO_LANG_NAME:
+            return regional_key
+    return base_iso
+
+
 # ── Helpers ───────────────────────────────────────────────────────────
 
 def _country_to_flag(country_code: str) -> str:
@@ -90,20 +166,11 @@ def _country_to_flag(country_code: str) -> str:
 def _lang_name(iso_code: str) -> str:
     if not iso_code:
         return "Inconnu"
-    # MediaInfo may return values like "fr", "fr-FR", "French", or
-    # "French (FR)" — strip any parenthesised region before lookup.
-    import re
+    canonical = normalize_lang_code(iso_code)
+    if canonical and canonical in ISO_TO_LANG_NAME:
+        return ISO_TO_LANG_NAME[canonical]
     cleaned = re.sub(r'\s*\([^)]*\)', '', iso_code).strip()
-    if not cleaned:
-        return "Inconnu"
-    key = cleaned.lower().split("-")[0].strip()
-    if key in ISO_TO_LANG_NAME:
-        return ISO_TO_LANG_NAME[key]
-    # English name (e.g. "french") → ISO → localized name
-    iso = _LANG_NAME_TO_ISO.get(key)
-    if iso and iso in ISO_TO_LANG_NAME:
-        return ISO_TO_LANG_NAME[iso]
-    return cleaned.capitalize()
+    return cleaned.capitalize() if cleaned else "Inconnu"
 
 
 def _infer_lang_from_title(title: str) -> str:

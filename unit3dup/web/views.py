@@ -12,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 
 from unit3dup.state_db import StateDB
 from unit3dup.web.bbcode_renderer import bbcode_to_html
-from unit3dup.prez import ISO_TO_LANG_NAME
+from unit3dup.prez import ISO_TO_LANG_NAME, normalize_lang_code
 from common.trackers.data import trackers_api_data
 from common.trackers.gemini import gemini_data
 
@@ -173,13 +173,23 @@ def pending_list(request: Request):
 
 
 def _parse_tracks(item: dict) -> tuple[list, list]:
-    """Extract audio/subtitle track lists from a DB item."""
+    """Extract audio/subtitle track lists from a DB item.
+
+    Track ``language`` fields are normalized to canonical ISO_TO_LANG_NAME
+    keys so the upload-form ``<select>`` can pre-select the detected value
+    regardless of how MediaInfo reported it (``fra``, ``French``, ``fr-CA``…).
+    """
     audio_tracks = []
     subtitle_tracks = []
     if item.get("audio_tracks"):
         audio_tracks = item["audio_tracks"] if isinstance(item["audio_tracks"], list) else json.loads(item["audio_tracks"])
     if item.get("subtitle_tracks"):
         subtitle_tracks = item["subtitle_tracks"] if isinstance(item["subtitle_tracks"], list) else json.loads(item["subtitle_tracks"])
+    for track in audio_tracks + subtitle_tracks:
+        if isinstance(track, dict):
+            normalized = normalize_lang_code(track.get("language", ""))
+            if normalized:
+                track["language"] = normalized
     return audio_tracks, subtitle_tracks
 
 
