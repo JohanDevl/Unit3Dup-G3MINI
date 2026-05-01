@@ -26,6 +26,9 @@ def _normalize_lang(raw: str) -> str:
     if r in ("MULTI.VFQ", "MULTI-VFQ"):     return "MULTi.VFQ"
     if r in ("MULTI.VF2", "MULTI-VF2"):     return "MULTi.VF2"
     if r in ("MULTI.VFB", "MULTI-VFB"):     return "MULTi.VFB"
+    if r in ("MULTI.VOF", "MULTI-VOF"):     return "MULTi.VOF"
+    if r in ("MULTI.VOQ", "MULTI-VOQ"):     return "MULTi.VOQ"
+    if r in ("MULTI.VOB", "MULTI-VOB"):     return "MULTi.VOB"
     if r in ("MULTI", "MULTIC"):            return "MULTi"
     if r in ("FRENCH", "VFF"):              return "VFF"
     if r == "VFQ":                          return "VFQ"
@@ -34,6 +37,9 @@ def _normalize_lang(raw: str) -> str:
     if r == "VOF":                          return "VOF"
     if r == "VOQ":                          return "VOQ"
     if r == "VOB":                          return "VOB"
+    if r in ("FRENCH.VOF", "FRENCH-VOF"):   return "VOF"
+    if r in ("FRENCH.VOQ", "FRENCH-VOQ"):   return "VOQ"
+    if r in ("FRENCH.VOB", "FRENCH-VOB"):   return "VOB"
     if r == "VOSTFR":                       return "VOSTFR"
     if r == "SUBFRENCH":                    return "SUBFRENCH"
     if r == "SUBFORCED":                    return "SUBFORCED"
@@ -241,9 +247,11 @@ _LANG_PATTERNS = [
     r'VFB-[A-Za-z]+(?:-[A-Za-z]+)*',
     r'VF2-[A-Za-z]+(?:-[A-Za-z]+)*',
     r'MULTi\.VFF', r'MULTi\.VFQ', r'MULTi\.VF2', r'MULTi\.VFB',
+    r'MULTi\.VOF', r'MULTi\.VOQ', r'MULTi\.VOB',
+    r'FRENCH\.VOF', r'FRENCH\.VOQ', r'FRENCH\.VOB',
     r'MULTi',
-    r'FRENCH', r'VFF', r'VFQ', r'VF2', r'VFB',
     r'VOF', r'VOQ', r'VOB',
+    r'FRENCH', r'VFF', r'VFQ', r'VF2', r'VFB',
     r'VOSTFR', r'SUBFRENCH', r'SUBFORCED',
 ]
 
@@ -546,6 +554,8 @@ def _parse_release(
     )
 
     # ── 8b. Compound "MULTi VFF" → "MULTi.VFF" etc. ──────────────────────────
+    # MULTi FRENCH VOF/VOQ/VOB → MULTi.VOF/VOQ/VOB (VO domine FRENCH)
+    name = re.sub(r'MULTi\s+FRENCH\s+(VOF|VOQ|VOB)(\s|$)', r'MULTi.\1\2', name, flags=re.IGNORECASE)
     name = re.sub(r'MULTi\s+FRENCH',                        'MULTi.VFF', name, flags=re.IGNORECASE)
     name = re.sub(r'MULTi\s+VFF-[A-Za-z]+(?:-[A-Za-z]+)*', 'MULTi.VFF', name)
     name = re.sub(r'MULTi\s+VFQ-[A-Za-z]+(?:-[A-Za-z]+)*', 'MULTi.VFQ', name)
@@ -555,6 +565,9 @@ def _parse_release(
     name = re.sub(r'MULTi\s+(VFQ)(\s|$)',                   r'MULTi.VFQ\2', name)
     name = re.sub(r'MULTi\s+(VF2)(\s|$)',                   r'MULTi.VF2\2', name)
     name = re.sub(r'MULTi\s+(VFB)(\s|$)',                   r'MULTi.VFB\2', name)
+    name = re.sub(r'MULTi\s+(VOF)(\s|$)',                   r'MULTi.VOF\2', name)
+    name = re.sub(r'MULTi\s+(VOQ)(\s|$)',                   r'MULTi.VOQ\2', name)
+    name = re.sub(r'MULTi\s+(VOB)(\s|$)',                   r'MULTi.VOB\2', name)
 
     # ── 9. Langue ─────────────────────────────────────────────────────────────
     lang = ""
