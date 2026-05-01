@@ -157,24 +157,34 @@ def _get_lang_from_mediainfo(mi: str) -> str:
     VFF, VFQ, VF2, VFB, VOF, VOQ, VOB ou '' """
     if not mi:
         return ""
-    vff = vfq = vfb = vof = voq = vob = False
+    # Titres explicites (taggés par l'uploader) — priorité haute
+    vff_title = vfq_title = vfb_title = vof = voq = vob = False
+    # Codes de langue génériques (Language: French (FR)/(CA)) — fallback
+    vff_lang = vfq_lang = False
     for line in mi.splitlines():
-        if   re.search(r'Language\s*:\s*French\s*\(FR\)', line, re.IGNORECASE):                             vff = True
-        elif re.search(r'Language\s*:\s*French\s*\(CA\)', line, re.IGNORECASE):                             vfq = True
-        elif re.search(r'Title\s*:.*\b(VFF|VFI|TrueFrench|French\s*\(France\))\b', line, re.IGNORECASE):   vff = True
-        elif re.search(r'Title\s*:.*\b(VFB|French\s*\(Belgique\))\b', line, re.IGNORECASE):                vfb = True
-        elif re.search(r'Title\s*:.*\b(VOF)\b', line, re.IGNORECASE):                                      vof = True
-        elif re.search(r'Title\s*:.*\b(VFQ|French\s*\(Canadien\))\b', line, re.IGNORECASE):                vfq = True
+        if   re.search(r'Title\s*:.*\b(VOF)\b', line, re.IGNORECASE):                                      vof = True
         elif re.search(r'Title\s*:.*\b(VOQ|French\s*\(Québec\))\b', line, re.IGNORECASE):                  voq = True
         elif re.search(r'Title\s*:.*\b(VOB|French\s*\(Belgique\s*VO\))\b', line, re.IGNORECASE):           vob = True
+        elif re.search(r'Title\s*:.*\b(VFF|VFI|TrueFrench|French\s*\(France\))\b', line, re.IGNORECASE):   vff_title = True
+        elif re.search(r'Title\s*:.*\b(VFQ|French\s*\(Canadien\))\b', line, re.IGNORECASE):                vfq_title = True
+        elif re.search(r'Title\s*:.*\b(VFB|French\s*\(Belgique\))\b', line, re.IGNORECASE):                vfb_title = True
+        elif re.search(r'Language\s*:\s*French\s*\(FR\)', line, re.IGNORECASE):                            vff_lang = True
+        elif re.search(r'Language\s*:\s*French\s*\(CA\)', line, re.IGNORECASE):                            vfq_lang = True
+
+    # Les titres VO explicites dominent : "Title: VOF" + "Language: French (FR)"
+    # signifie audio FR original (pas un doublage) → VOF, pas VFF.
+    if vof: return "VOF"
+    if voq: return "VOQ"
+    if vob: return "VOB"
+
+    vff = vff_title or vff_lang
+    vfq = vfq_title or vfq_lang
+    vfb = vfb_title
 
     if vff and vfq: return "VF2"
     if vff:         return "VFF"
     if vfq:         return "VFQ"
     if vfb:         return "VFB"
-    if vof:         return "VOF"
-    if voq:         return "VOQ"
-    if vob:         return "VOB"
     return ""
 
 
