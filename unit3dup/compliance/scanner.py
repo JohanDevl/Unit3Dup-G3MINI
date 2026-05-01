@@ -717,8 +717,21 @@ def check_one_torrent(
     else:
         is_silent = facts.get("audio_track_count", 0) == 0
 
+    # release_year est exposé par UnIT3D dans `attributes.release_year`.
+    # On le passe au normalizer comme fallback : utile surtout pour les séries
+    # dont le nom source n'inclut généralement pas l'année.
+    raw_year = payload.get("release_year")
+    year_hint: Optional[str] = None
+    if raw_year is not None:
+        try:
+            year_int = int(raw_year)
+            if 1900 <= year_int <= 2999:
+                year_hint = str(year_int)
+        except (TypeError, ValueError):
+            year_hint = None
+
     try:
-        proposed = normalize_release_name(release_name, mi_text, is_silent=is_silent)
+        proposed = normalize_release_name(release_name, mi_text, is_silent=is_silent, year=year_hint)
     except Exception as exc:
         custom_console.bot_warning_log(f"[Compliance] normalizer failed for torrent #{torrent_id}: {exc}")
         proposed = release_name

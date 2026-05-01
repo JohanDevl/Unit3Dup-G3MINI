@@ -117,6 +117,11 @@ class VideoManager:
                     ))
                     continue
 
+                # Propage l'année TMDB au content pour qu'elle soit utilisée
+                # par le normalizer (notamment pour les séries dont le nom
+                # source ne contient généralement pas l'année).
+                content.tmdb_year = db.year
+
                 # Override category for animated content based on TMDB genre
                 if db.is_animation():
                     if content.category == System.category_list[System.MOVIE]:

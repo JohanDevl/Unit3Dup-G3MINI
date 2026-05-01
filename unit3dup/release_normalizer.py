@@ -309,8 +309,16 @@ _SOURCE_QUAL_LIST = ["4KLight", "HDLight", "mHD"]
 #  PARSER PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = False) -> str:
+def _parse_release(
+    original: str,
+    mi: Optional[str] = None,
+    is_silent: bool = False,
+    year: Optional[str] = None,
+) -> str:
     name = original
+    year_hint = str(year).strip() if year else ""
+    if year_hint and not re.fullmatch(r'[12][0-9]{3}', year_hint):
+        year_hint = ""
 
     # ── 1. Extension ─────────────────────────────────────────────────────────
     ext = ""
@@ -445,6 +453,48 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         padded = f'S{int(snum):02d}'
         name = re.sub(rf'[Ss][Aa][Ii][Ss][Oo][Nn]\s*{re.escape(snum)}', padded, name, flags=re.IGNORECASE)
 
+    # ── 5e. Bloc série S##E## / S## (extrait pour réinsertion après l'année)
+    # Pré-normalise les variantes séparées avant l'extraction :
+    #   - "S01 E05"  (séparateur point/underscore converti en espace en step 3)
+    #   - "S01-E05"  (tiret)
+    #   - "S01E01-E05", "S01E01-05" (ranges) → "S01E01E05"
+    #   - "S01E01E02" (multi-épisodes joints) reste tel quel
+    name = re.sub(
+        r'(?<![A-Za-z0-9])(S\d{1,2})[\s_-]+(E\d{1,3})(?![A-Za-z0-9])',
+        r'\1\2', name, flags=re.IGNORECASE,
+    )
+    name = re.sub(
+        r'(?<![A-Za-z0-9])(S\d{1,2}E\d{1,3})-(E?\d{1,3})(?![A-Za-z0-9])',
+        lambda mo: f"{mo.group(1)}E{mo.group(2).lstrip('Ee')}",
+        name, flags=re.IGNORECASE,
+    )
+
+    series_info = ""
+    m_se = re.search(
+        r'(?:^|\s)(S\d{1,2}(?:E\d{1,3})*)(?:\s|$)', name, re.IGNORECASE,
+    )
+    if m_se:
+        raw_se = m_se.group(1)
+        # Zero-pad et normalise la casse : S1E2E3 → S01E02E03
+        sm = re.fullmatch(
+            r'[Ss](\d{1,2})((?:[Ee]\d{1,3})*)', raw_se,
+        )
+        if sm:
+            s_num = int(sm.group(1))
+            ep_block = sm.group(2)
+            episodes = re.findall(r'[Ee](\d{1,3})', ep_block)
+            if episodes:
+                series_info = f"S{s_num:02d}" + "".join(
+                    f"E{int(e):02d}" for e in episodes
+                )
+            else:
+                series_info = f"S{s_num:02d}"
+            name = re.sub(
+                rf'(?:^|\s){re.escape(raw_se)}(?:\s|$)', ' ',
+                name, flags=re.IGNORECASE,
+            )
+            name = _ws(name)
+
     # ── 6. Année ──────────────────────────────────────────────────────────────
     year = ""
     m = re.search(r'\(([12][0-9]{3})\)', name)
@@ -456,6 +506,10 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         if m:
             year = m.group(1)
             name = re.sub(rf'(?:^|\s){re.escape(year)}(?:\s|$)', ' ', name)
+    # Fallback : si aucune année dans le nom mais une année a été fournie en hint
+    # (ex. issue de TMDB pour les séries), on l'utilise pour la reconstruction.
+    if not year and year_hint:
+        year = year_hint
     name = _ws(name)
 
     # ── 7. Extras ─────────────────────────────────────────────────────────────
@@ -833,6 +887,7 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     # ── Reconstruction ────────────────────────────────────────────────────────
     new = title
     if year:        new += f".{year}"
+    if series_info: new += f".{series_info}"
     if is_3d:       new += ".3D"
     if type_3d:     new += f".{type_3d}"
     if extras:      new += extras        # commence déjà par '.'
@@ -860,5 +915,6 @@ def normalize_release_name(
     release_name: str,
     mediainfo_text: Optional[str] = None,
     is_silent: bool = False,
+    year: Optional[str] = None,
 ) -> str:
-    return _parse_release(release_name, mediainfo_text, is_silent)
+    return _parse_release(release_name, mediainfo_text, is_silent, year=year)

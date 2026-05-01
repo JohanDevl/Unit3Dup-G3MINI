@@ -55,6 +55,7 @@ class Media:
         self._tmdb_id: int | None = None
         self._imdb_id: int | None = None
         self._igdb_id: int | None = None
+        self._tmdb_year: int | None = None
         self._generate_title: str | None = None
 
 
@@ -170,6 +171,14 @@ class Media:
     @igdb_id.setter
     def igdb_id(self, value):
         self._igdb_id = value
+
+    @property
+    def tmdb_year(self) -> int | None:
+        return self._tmdb_year
+
+    @tmdb_year.setter
+    def tmdb_year(self, value):
+        self._tmdb_year = value
 
     @property
     def generate_title(self) -> str:

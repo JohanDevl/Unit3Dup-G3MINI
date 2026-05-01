@@ -23,7 +23,7 @@ class UploadBot:
         self.tracker_data = TRACKData.load_from_module(tracker_name=tracker_name)
         self.tracker = Unit3d(tracker_name=tracker_name)
 
-    def normalize_release_name(self, release_name: str) -> str:
+    def normalize_release_name(self, release_name: str, year: str | int | None = None) -> str:
         mediainfo_text: str | None = None
         is_silent: bool = False
 
@@ -33,7 +33,12 @@ class UploadBot:
         if self.content.mediafile and hasattr(self.content.mediafile, 'is_silent'):
             is_silent = self.content.mediafile.is_silent
 
-        return _normalize_release_name(release_name, mediainfo_text, is_silent)
+        # Fallback année : tmdb_year sur le content si rien n'est passé explicitement
+        if year is None:
+            year = getattr(self.content, 'tmdb_year', None)
+        year_str = str(year) if year else None
+
+        return _normalize_release_name(release_name, mediainfo_text, is_silent, year=year_str)
 
     def _check_personal_release_by_tag(self, release_name: str) -> int:
         """
