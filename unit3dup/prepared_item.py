@@ -61,3 +61,4 @@ class PreparedItem:
 
     # ── Skip / error ─────────────────────────────────────────────────
     skip_reason: str | None = None            # if set, item was not uploadable
+    duplicate_match: dict | None = None       # tracker torrent matched as duplicate

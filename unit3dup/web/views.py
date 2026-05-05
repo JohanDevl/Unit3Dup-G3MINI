@@ -54,6 +54,27 @@ def init_views(state_db: StateDB, upload_service=None, compliance_service=None):
         return counts.get("WARNING", 0) + counts.get("ERROR", 0)
     templates.env.globals["get_compliance_badge"] = _compliance_badge
     templates.env.globals["similar_url"] = _build_similar_url
+    templates.env.globals["duplicate_url"] = _build_duplicate_url
+
+
+def _build_duplicate_url(item: dict) -> str | None:
+    """Build a link to the matched duplicate torrent on the tracker."""
+    name = item.get("tracker_name")
+    match = item.get("duplicate_match")
+    if not name or not match:
+        return None
+    if isinstance(match, str):
+        try:
+            match = json.loads(match)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    match_id = match.get("id") if isinstance(match, dict) else None
+    if not match_id:
+        return None
+    tracker = trackers_api_data.get(name.upper())
+    if not tracker:
+        return None
+    return f"{tracker['url'].rstrip('/')}/torrents/{match_id}"
 
 
 def _build_similar_url(item: dict) -> str | None:

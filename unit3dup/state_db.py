@@ -27,10 +27,10 @@ _ALLOWED_COLUMNS = {
     "validation_report", "has_errors", "has_warnings",
     "rejection_reason", "user_edited_name", "user_edited_desc",
     "discovered_at", "prepared_at", "decided_at", "uploaded_at",
-    "tracker_response", "upload_error", "skip_reason",
+    "tracker_response", "upload_error", "skip_reason", "duplicate_match",
 }
 
-_JSON_FIELDS = ("tracker_payload", "trackers_list", "validation_report", "audio_tracks", "subtitle_tracks")
+_JSON_FIELDS = ("tracker_payload", "trackers_list", "validation_report", "audio_tracks", "subtitle_tracks", "duplicate_match")
 
 _COMPLIANCE_JSON_FIELDS = ("violations",)
 
@@ -94,7 +94,8 @@ CREATE TABLE IF NOT EXISTS items (
 
     tracker_response    TEXT,
     upload_error        TEXT,
-    skip_reason         TEXT
+    skip_reason         TEXT,
+    duplicate_match     TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_items_status ON items(status);
@@ -156,7 +157,7 @@ class StateDB:
 
     def _ensure_columns(self):
         """Add columns that may be missing from older databases."""
-        items_new_cols = [("audio_tracks", "TEXT"), ("subtitle_tracks", "TEXT")]
+        items_new_cols = [("audio_tracks", "TEXT"), ("subtitle_tracks", "TEXT"), ("duplicate_match", "TEXT")]
         compliance_new_cols = [("description", "TEXT"), ("mediainfo", "TEXT")]
         with self._lock:
             conn = self._connect()
@@ -295,7 +296,7 @@ class StateDB:
             raise ValueError(f"Invalid column names: {invalid}")
 
         for field in _JSON_FIELDS:
-            if field in kwargs and not isinstance(kwargs[field], str):
+            if field in kwargs and kwargs[field] is not None and not isinstance(kwargs[field], str):
                 kwargs[field] = json.dumps(kwargs[field], ensure_ascii=False)
 
         columns = ", ".join(kwargs.keys())
@@ -320,7 +321,7 @@ class StateDB:
             raise ValueError(f"Invalid column names: {invalid}")
 
         for field in _JSON_FIELDS:
-            if field in kwargs and not isinstance(kwargs[field], str):
+            if field in kwargs and kwargs[field] is not None and not isinstance(kwargs[field], str):
                 kwargs[field] = json.dumps(kwargs[field], ensure_ascii=False)
 
         if not kwargs:
@@ -414,7 +415,7 @@ class StateDB:
             raise ValueError(f"Invalid column names: {invalid}")
 
         for field in _JSON_FIELDS:
-            if field in extra_fields and not isinstance(extra_fields[field], str):
+            if field in extra_fields and extra_fields[field] is not None and not isinstance(extra_fields[field], str):
                 extra_fields[field] = json.dumps(extra_fields[field], ensure_ascii=False)
 
         placeholders_str = ", ".join(f"{k} = ?" for k in extra_fields)

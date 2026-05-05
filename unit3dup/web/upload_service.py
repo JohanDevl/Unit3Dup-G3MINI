@@ -41,7 +41,7 @@ class UploadService:
                 self._queue.put((item["id"], None, None))
                 custom_console.bot_log(f"[Web] Re-enqueued {status} item #{item['id']}: {item.get('release_name', '?')}")
         for item in self.state_db.list_items(status="rescanning"):
-            self._rescan_queue.put(item["id"])
+            self._rescan_queue.put((item["id"], False))
             custom_console.bot_log(f"[Web] Re-enqueued rescanning item #{item['id']}: {item.get('release_name', '?')}")
         self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker_thread.start()
@@ -80,12 +80,17 @@ class UploadService:
         """Background loop: pick items from rescan queue and re-prepare one at a time."""
         while not self._shutdown.is_set():
             try:
-                item_id = self._rescan_queue.get(timeout=1)
+                payload = self._rescan_queue.get(timeout=1)
             except queue.Empty:
                 continue
+            # Backward-compat: legacy enqueues stored a bare int
+            if isinstance(payload, tuple):
+                item_id, force_no_dup = payload
+            else:
+                item_id, force_no_dup = payload, False
             try:
                 self._current_rescan_item_id = item_id
-                self._do_rescan(item_id)
+                self._do_rescan(item_id, force_no_dup=force_no_dup)
             except Exception as e:
                 custom_console.bot_error_log(f"[Web] Rescan worker error for item #{item_id}: {e}")
                 try:
@@ -312,8 +317,12 @@ class UploadService:
 
         return {"success": True, "message": "Item moved back to pending"}
 
-    def rescan_item(self, item_id: int) -> dict:
-        """Queue an item for rescan. Returns immediately."""
+    def rescan_item(self, item_id: int, force_no_dup: bool = False) -> dict:
+        """Queue an item for rescan. Returns immediately.
+
+        When ``force_no_dup`` is True, the duplicate-on-tracker check is bypassed
+        for this rescan (used to override a prior duplicate-skip).
+        """
         item = self.state_db.get_item(item_id)
         if not item:
             return {"success": False, "message": "Item not found"}
@@ -332,11 +341,16 @@ class UploadService:
         if not transitioned:
             return {"success": False, "message": f"Cannot rescan item with status '{item['status']}'"}
 
-        self._rescan_queue.put(item_id)
-        custom_console.bot_log(f"[Web] Rescan queued → {item.get('release_name', 'unknown')}")
+        self._rescan_queue.put((item_id, force_no_dup))
+        flag = " (force, bypass duplicate)" if force_no_dup else ""
+        custom_console.bot_log(f"[Web] Rescan queued{flag} → {item.get('release_name', 'unknown')}")
         return {"success": True, "message": "Queued for rescan"}
 
-    def _do_rescan(self, item_id: int):
+    def force_rescan_item(self, item_id: int) -> dict:
+        """Queue an item for rescan, bypassing the duplicate-on-tracker check."""
+        return self.rescan_item(item_id, force_no_dup=True)
+
+    def _do_rescan(self, item_id: int, force_no_dup: bool = False):
         """Execute rescan logic. Called by the background rescan worker thread."""
         item = self.state_db.get_item(item_id)
         if not item:
@@ -358,6 +372,7 @@ class UploadService:
                 reseed=False, personal=False, confirm=False, skip_validation=False,
                 notitle=None, gentitle=False, force=None, upload=None, folder=None,
                 scan=None, web=True, ftp=False, tracker=None,
+                skip_duplicate_check=force_no_dup,
             )
 
             trackers = item.get("trackers_list", [])
@@ -413,6 +428,7 @@ class UploadService:
                 has_errors=int(p.has_errors),
                 has_warnings=int(p.has_warnings),
                 skip_reason=p.skip_reason,
+                duplicate_match=p.duplicate_match,
                 prepared_at=datetime.now().isoformat(),
                 upload_error=None,
                 rejection_reason=None,
@@ -509,7 +525,7 @@ class UploadService:
                 valid_ids.append(item_id)
 
         for item_id in valid_ids:
-            self._rescan_queue.put(item_id)
+            self._rescan_queue.put((item_id, False))
 
         if valid_ids:
             custom_console.bot_log(f"[Web] Bulk rescan queued → {len(valid_ids)} item(s)")

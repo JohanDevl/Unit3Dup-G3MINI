@@ -38,7 +38,8 @@ def test_tmdb():
     for content in contents:
 
         """ DUPLICATE """
-        assert isinstance(tests.UserContent.is_duplicate(content=content, tracker_name=TRACKER_TEST),bool)
+        result = tests.UserContent.check_duplicate(content=content, tracker_name=TRACKER_TEST)
+        assert result is None or isinstance(result, dict)
 
         """ VIDEO INFO """
         # TMDB

@@ -126,6 +126,9 @@ class Duplicate:
         # Final result
         self.flag_already = False
 
+        # Match data captured when a duplicate is found (None otherwise)
+        self.match_data: dict | None = None
+
         # For printing output
         self.TMDB_ID_WIDTH = 6
         self.IGDB_ID_WIDTH = 6
@@ -287,6 +290,17 @@ class Duplicate:
             else:
                 self._print_output(value=data_from_the_tracker['attributes'], delta_size=delta_size,
                                    size_th = config_settings.user_preferences.SIZE_TH)
+                attrs = data_from_the_tracker.get('attributes', {})
+                self.match_data = {
+                    "id": data_from_the_tracker.get("id"),
+                    "name": attrs.get("name"),
+                    "size": attrs.get("size"),
+                    "resolution": attrs.get("resolution"),
+                    "info_hash": attrs.get("info_hash"),
+                    "tmdb_id": attrs.get("tmdb_id"),
+                    "igdb_id": attrs.get("igdb_id"),
+                    "delta_size": delta_size,
+                }
                 return True
 
         return False

@@ -347,6 +347,7 @@ class Bot:
                                         has_errors=int(item.has_errors),
                                         has_warnings=int(item.has_warnings),
                                         skip_reason=item.skip_reason,
+                                        duplicate_match=item.duplicate_match,
                                         prepared_at=None,
                                     )
                                     if analyzing_id:
@@ -390,6 +391,7 @@ class Bot:
                                         validation_report=item.validation_report,
                                         has_errors=int(item.has_errors),
                                         has_warnings=int(item.has_warnings),
+                                        duplicate_match=None,
                                         prepared_at=datetime.now().isoformat(),
                                     )
                                     if analyzing_id:

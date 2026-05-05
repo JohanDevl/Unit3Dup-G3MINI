@@ -151,6 +151,15 @@ def rescan_item(item_id: int):
     return result
 
 
+@router.post("/items/{item_id}/force-rescan")
+def force_rescan_item(item_id: int):
+    """Re-run the prepare pipeline, bypassing the duplicate-on-tracker check."""
+    result = _svc().force_rescan_item(item_id)
+    if not result["success"]:
+        raise HTTPException(400, result["message"])
+    return result
+
+
 @router.post("/items/{item_id}/update-category")
 def update_category(item_id: int, req: UpdateCategoryRequest):
     """Update the category (category_id) for an item."""

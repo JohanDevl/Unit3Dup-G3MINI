@@ -207,6 +207,29 @@
             <tr><td>Discovered</td><td>{{ item.discovered_at | datefmt }}</td></tr>
             {% if item.uploaded_at %}<tr><td>Uploaded</td><td>{{ item.uploaded_at | datefmt }}</td></tr>{% endif %}
             {% if item.skip_reason %}<tr><td>Skip Reason</td><td>{{ item.skip_reason | reason_label }}</td></tr>{% endif %}
+            {% if item.skip_reason == 'duplicate_on_tracker' and item.duplicate_match %}
+                {% set dup_url = duplicate_url(item) %}
+                <tr>
+                    <td>Duplicate match</td>
+                    <td>
+                        {% if dup_url %}
+                            <a href="{{ dup_url }}" target="_blank" rel="noopener">
+                                <i data-lucide="external-link" style="width:14px;height:14px;vertical-align:middle"></i>
+                                {{ item.duplicate_match.name or 'View on tracker' }}
+                            </a>
+                        {% else %}
+                            {{ item.duplicate_match.name or '—' }}
+                        {% endif %}
+                        {% if item.duplicate_match.size %}
+                            <span style="color:var(--text-muted)">— {{ item.duplicate_match.size | filesize }}</span>
+                        {% endif %}
+                        {% set _ds = item.duplicate_match.get('delta_size') %}
+                        {% if _ds is not none %}
+                            <span style="color:var(--text-muted)">(Δ {{ _ds }}%)</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endif %}
             {% if item.rejection_reason %}<tr><td>Rejected</td><td>{{ item.rejection_reason }}</td></tr>{% endif %}
             {% if item.upload_error %}<tr><td>Error</td><td class="error-text">{{ item.upload_error }}</td></tr>{% endif %}
         </table>
@@ -935,17 +958,29 @@ function resetUploadedItem(id, btn) {
 {% if item.status in ('rejected', 'skipped') %}
 <div class="card" style="margin-top:1.5rem">
     <div class="card-header"><h3>Actions</h3></div>
-    <button type="button" class="btn btn-primary"
-            onclick="rescanItemAndRedirect({{ item.id }})">
-        <i data-lucide="refresh-cw"></i> Rescan / Move to Pending
-    </button>
+    <div class="btn-group">
+        <button type="button" class="btn btn-primary"
+                onclick="rescanItemAndRedirect({{ item.id }}, false)">
+            <i data-lucide="refresh-cw"></i> Rescan / Move to Pending
+        </button>
+        {% if item.skip_reason == 'duplicate_on_tracker' %}
+        <button type="button" class="btn btn-ghost"
+                style="border:1px solid var(--warning);color:var(--warning)"
+                onclick="rescanItemAndRedirect({{ item.id }}, true)"
+                title="Re-run analysis ignoring the duplicate detected on the tracker">
+            <i data-lucide="zap"></i> Force Analysis (Bypass Duplicate)
+        </button>
+        {% endif %}
+    </div>
 </div>
 <script>
-function rescanItemAndRedirect(id) {
+function rescanItemAndRedirect(id, force) {
     const btn = event.currentTarget;
+    const originalHtml = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i data-lucide="loader" class="spin"></i> Queueing...';
-    fetch(`/api/v1/items/${id}/rescan`, {
+    const endpoint = force ? `/api/v1/items/${id}/force-rescan` : `/api/v1/items/${id}/rescan`;
+    fetch(endpoint, {
         method: "POST",
         headers: {"Content-Type": "application/json"}
     }).then(r => r.json()).then(data => {
@@ -953,12 +988,12 @@ function rescanItemAndRedirect(id) {
             window.location.href = '/queue';
         } else {
             btn.disabled = false;
-            btn.innerHTML = '<i data-lucide="refresh-cw"></i> Rescan / Move to Pending';
+            btn.innerHTML = originalHtml;
             alert(data.detail || data.message);
         }
     }).catch(err => {
         btn.disabled = false;
-        btn.innerHTML = '<i data-lucide="refresh-cw"></i> Rescan / Move to Pending';
+        btn.innerHTML = originalHtml;
         alert('Rescan failed: ' + err);
     });
 }
