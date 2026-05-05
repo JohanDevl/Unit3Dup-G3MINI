@@ -71,6 +71,9 @@ class DocuManager:
                         content=content,
                         source_path=content.torrent_path or content.file_name,
                         source_type="folder" if os.path.isdir(content.torrent_path) else "file",
+                        content_category=content.category,
+                        tracker_name=selected_tracker,
+                        trackers_list=tracker_name_list,
                         skip_reason="duplicate_on_tracker",
                         duplicate_match=duplicate_match or None,
                     )

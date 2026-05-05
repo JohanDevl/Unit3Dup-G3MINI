@@ -98,6 +98,8 @@ class GameManager:
                     content_category=content.category,
                     qbit_category=self.qbit_category,
                     source_tag=content.source or "",
+                    tracker_name=selected_tracker,
+                    trackers_list=tracker_name_list,
                     skip_reason="duplicate_on_tracker",
                     duplicate_match=duplicate_match or None,
                 ))

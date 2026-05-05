@@ -58,7 +58,11 @@ def init_views(state_db: StateDB, upload_service=None, compliance_service=None):
 
 
 def _build_duplicate_url(item: dict) -> str | None:
-    """Build a link to the matched duplicate torrent on the tracker."""
+    """Build a link to the matched duplicate torrent on the tracker.
+
+    Prefers the direct torrent page (`/torrents/{id}`); falls back to the
+    tracker's "similar" page using TMDB/IGDB when the torrent id is missing.
+    """
     name = item.get("tracker_name")
     match = item.get("duplicate_match")
     if not name or not match:
@@ -68,13 +72,25 @@ def _build_duplicate_url(item: dict) -> str | None:
             match = json.loads(match)
         except (json.JSONDecodeError, TypeError):
             return None
-    match_id = match.get("id") if isinstance(match, dict) else None
-    if not match_id:
+    if not isinstance(match, dict):
         return None
     tracker = trackers_api_data.get(name.upper())
     if not tracker:
         return None
-    return f"{tracker['url'].rstrip('/')}/torrents/{match_id}"
+    base_url = tracker["url"].rstrip("/")
+
+    # Preferred: direct torrent page
+    match_id = match.get("id")
+    if match_id:
+        return f"{base_url}/torrents/{match_id}"
+
+    # Fallback: similar-torrents page keyed by TMDB / IGDB
+    category = item.get("content_category")
+    cat_id = gemini_data["CATEGORY"].get(category) if category else None
+    meta_id = match.get("igdb_id") if category == "game" else match.get("tmdb_id")
+    if cat_id is not None and meta_id:
+        return f"{base_url}/torrents/similar/{cat_id}.{meta_id}"
+    return None
 
 
 def _build_similar_url(item: dict) -> str | None:
