@@ -57,8 +57,13 @@ class DocuManager:
                                                    selected_tracker=selected_tracker, this_path=torrent_filepath)
 
             # Skip if it is a duplicate
+            duplicate_match = None
             if ((self.cli.duplicate or config_settings.user_preferences.DUPLICATE_ON)
-                    and UserContent.is_duplicate(content=content, tracker_name=selected_tracker, cli=self.cli)):
+                    and not getattr(self.cli, 'skip_duplicate_check', False)):
+                duplicate_match = UserContent.check_duplicate(
+                    content=content, tracker_name=selected_tracker, cli=self.cli
+                )
+            if duplicate_match is not None:
                 skip_reasons.append({"torrent_name": content.torrent_name, "reason": "duplicate_on_tracker",
                                      "source": content.source or ""})
                 prepared_items.append(
@@ -66,7 +71,11 @@ class DocuManager:
                         content=content,
                         source_path=content.torrent_path or content.file_name,
                         source_type="folder" if os.path.isdir(content.torrent_path) else "file",
+                        content_category=content.category,
+                        tracker_name=selected_tracker,
+                        trackers_list=tracker_name_list,
                         skip_reason="duplicate_on_tracker",
+                        duplicate_match=duplicate_match or None,
                     )
                 )
                 continue

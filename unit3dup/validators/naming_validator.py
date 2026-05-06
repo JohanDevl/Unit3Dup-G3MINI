@@ -44,6 +44,12 @@ class NamingValidator(BaseValidator):
             # Check 5: Reject releases with invalid team (NoTag, NoGRP, or year)
             results.extend(self._check_invalid_team(release_name))
 
+            # Check 6: HARDSUB content requires SUBFRENCH tag (upload.md §3)
+            results.extend(self._check_hardsub_tag(release_name))
+
+            # Check 7: MULTi invariant — VO + VF + ST FR (encodage.md §1)
+            results.extend(self._check_multi_invariant(mediafile, release_name))
+
         except Exception:
             # Wrap all checks in try/except to be safe
             pass
@@ -172,11 +178,15 @@ class NamingValidator(BaseValidator):
     # Suffixes audio hyphenés qui ne sont PAS des tags de team
     _AUDIO_HYPHEN_SUFFIXES = {"HDMA", "HDHRA", "HD", "AC3"}
 
-    # Placeholder teams that indicate no real release group
-    _INVALID_TEAMS = {"NOTAG", "NOGRP"}
+    # Placeholders that indicate no real release group (acceptable per upload.md §1).
+    _PLACEHOLDER_TEAMS = {"NOTAG", "NOGRP"}
 
     def _check_invalid_team(self, release_name: str) -> list[ValidationResult]:
-        """Check 5: Reject releases whose team is a placeholder (NoTag/NoGRP) or a year."""
+        """Check 5: Reject releases whose team is a year.
+
+        NoTag/NoGRP placeholders are ALLOWED by upload.md §1 for unknown releases,
+        so they are not flagged here (they are merely the fallback, not an error).
+        """
         name_no_ext = re.sub(r'\.(mkv|mp4|avi|ts|m2ts|iso)$', '', release_name, flags=re.IGNORECASE)
         m = re.search(r'-([A-Za-z0-9]{2,})$', name_no_ext)
         if not m:
@@ -186,13 +196,9 @@ class NamingValidator(BaseValidator):
         if team.upper() in self._AUDIO_HYPHEN_SUFFIXES:
             return []
 
-        if team.upper() in self._INVALID_TEAMS:
-            return [ValidationResult(
-                rule="naming.invalid_team",
-                severity="ERROR",
-                message=f"Release has no real team (tagged {team}) — uploads without a release group are rejected",
-                source_doc="upload",
-            )]
+        if team.upper() in self._PLACEHOLDER_TEAMS:
+            # Accepted placeholder — compliant with docs.
+            return []
 
         if re.fullmatch(r'(?:19|20)\d{2}', team):
             return [ValidationResult(
@@ -202,6 +208,78 @@ class NamingValidator(BaseValidator):
                 source_doc="upload",
             )]
 
+        return []
+
+    # ── Check 6: HARDSUB → SUBFRENCH ──────────────────────────────────────
+    # upload.md §3: "Les sous-titres incrustes HARDSUBS sont interdits.
+    # Sauf si presents dans la source officielle. Dans ce cas, utiliser le tag SUBFRENCH."
+    def _check_hardsub_tag(self, release_name: str) -> list[ValidationResult]:
+        has_hardsub = bool(re.search(
+            r'(?:^|[\s.])(?:HARDSUBS?|HC)(?:[\s.]|$)',
+            release_name, re.IGNORECASE,
+        ))
+        if not has_hardsub:
+            return []
+        has_subfrench = bool(re.search(
+            r'(?:^|[\s.])SUBFRENCH(?:[\s.]|$)',
+            release_name, re.IGNORECASE,
+        ))
+        if has_subfrench:
+            return []
+        return [ValidationResult(
+            rule="naming.hardsub_subfrench",
+            severity="ERROR",
+            message="HARDSUB detected without SUBFRENCH tag — hardsubs are forbidden unless sourced officially (then use SUBFRENCH)",
+            source_doc="upload",
+        )]
+
+    # ── Check 7: MULTi invariant (VO + VF + ST FR) ────────────────────────
+    # encodage.md §1: "Une release MULTi contient au minimum la VO, la VF
+    # et les sous-titres FR complets"
+    def _check_multi_invariant(self, mediafile, release_name: str) -> list[ValidationResult]:
+        if not re.search(r'(?:^|[\s.])MULTi(?:[\s.]|$)', release_name, re.IGNORECASE):
+            return []
+        if mediafile is None:
+            return []
+
+        audio_langs = []
+        try:
+            for a in (getattr(mediafile, 'audio_formats', None) or []):
+                if isinstance(a, dict):
+                    audio_langs.append(str(a.get('language', '')).strip().lower())
+        except Exception:
+            return []
+
+        sub_langs = []
+        try:
+            for s in (getattr(mediafile, 'subtitle_formats', None) or []):
+                if isinstance(s, dict):
+                    sub_langs.append(str(s.get('language', '')).strip().lower())
+        except Exception:
+            sub_langs = []
+
+        # Need at least 2 audio tracks for MULTi
+        if len(audio_langs) < 2:
+            return []  # Not enough info; skip silently
+
+        def _is_fr(lang: str) -> bool:
+            return lang.startswith('fr') or lang.startswith('french')
+
+        has_fr_audio = any(_is_fr(l) for l in audio_langs)
+        has_non_fr_audio = any(l and not _is_fr(l) and l != 'zxx' for l in audio_langs)
+        has_fr_sub = any(_is_fr(l) for l in sub_langs)
+
+        missing = []
+        if not has_non_fr_audio: missing.append("VO audio")
+        if not has_fr_audio:     missing.append("VF audio")
+        if not has_fr_sub:       missing.append("FR subtitles")
+        if missing:
+            return [ValidationResult(
+                rule="naming.multi_invariant",
+                severity="WARNING",
+                message=f"MULTi tag requires VO + VF + FR subtitles; missing: {', '.join(missing)}",
+                source_doc="encodage",
+            )]
         return []
 
     def _check_nogrp_tag(self, release_name: str) -> list[ValidationResult]:

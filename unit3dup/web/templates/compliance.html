@@ -1,0 +1,775 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.5rem">
+    <div>
+        <h2 style="margin-bottom:0.25rem">Compliance Check</h2>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0">
+            Audits past uploads against the G3MINI naming rules. Read-only — edits happen on the tracker.
+        </p>
+    </div>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+        <button id="scan-now-btn" class="btn btn-primary btn-sm" type="button" onclick="startComplianceScan()"
+                {% if not scan_status.configured %}disabled title="Gemini_USERNAME is not configured"{% endif %}>
+            <i data-lucide="shield-check"></i> Scan now
+        </button>
+    </div>
+</div>
+
+{% if not scan_status.configured %}
+<div class="card" style="background:rgba(251,191,36,0.08);border-color:rgba(251,191,36,0.35);margin-bottom:1rem;padding:0.75rem 1rem">
+    <strong style="color:#fbbf24">Configuration required.</strong>
+    <span style="color:var(--text-secondary)">
+        Set <code>Gemini_USERNAME</code> in your <code>Unit3Dbot.json</code> so we know which uploader to audit.
+    </span>
+</div>
+{% endif %}
+
+<!-- Scan progress -->
+<div id="compliance-status-box"
+     hx-get="/partials/compliance-status"
+     hx-trigger="every 5s"
+     hx-swap="innerHTML">
+    {% include "partials/compliance_status.html" %}
+</div>
+
+<!-- Filter chips + summary -->
+<div class="card" style="padding:0.75rem 1rem;margin-bottom:1rem">
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+        <span style="color:var(--text-secondary);font-size:0.85rem">Severity:</span>
+        <a class="reason-chip {% if not filter_severity %}active{% endif %}" href="/compliance{% if filter_ack_status %}?ack_status={{ filter_ack_status }}{% endif %}">All</a>
+        <a class="reason-chip {% if filter_severity == 'ERROR' %}active{% endif %}" href="/compliance?severity=ERROR{% if filter_ack_status %}&ack_status={{ filter_ack_status }}{% endif %}">
+            ERROR <span class="secondary">({{ counts.get('ERROR', 0) }})</span>
+        </a>
+        <a class="reason-chip {% if filter_severity == 'WARNING' %}active{% endif %}" href="/compliance?severity=WARNING{% if filter_ack_status %}&ack_status={{ filter_ack_status }}{% endif %}">
+            WARNING <span class="secondary">({{ counts.get('WARNING', 0) }})</span>
+        </a>
+        <a class="reason-chip {% if filter_severity == 'INFO' %}active{% endif %}" href="/compliance?severity=INFO{% if filter_ack_status %}&ack_status={{ filter_ack_status }}{% endif %}">
+            INFO <span class="secondary">({{ counts.get('INFO', 0) }})</span>
+        </a>
+        <a class="reason-chip {% if filter_severity == 'NONE' %}active{% endif %}" href="/compliance?severity=NONE{% if filter_ack_status %}&ack_status={{ filter_ack_status }}{% endif %}">
+            Clean <span class="secondary">({{ counts.get('NONE', 0) }})</span>
+        </a>
+        <span style="width:1px;height:1.25rem;background:var(--border);margin:0 0.5rem"></span>
+        <span style="color:var(--text-secondary);font-size:0.85rem">Status:</span>
+        <a class="reason-chip {% if not filter_ack_status %}active{% endif %}" href="/compliance{% if filter_severity %}?severity={{ filter_severity }}{% endif %}">All</a>
+        <a class="reason-chip {% if filter_ack_status == 'unchecked' %}active{% endif %}" href="/compliance?ack_status=unchecked{% if filter_severity %}&severity={{ filter_severity }}{% endif %}">Unchecked</a>
+        <a class="reason-chip {% if filter_ack_status == 'acknowledged' %}active{% endif %}" href="/compliance?ack_status=acknowledged{% if filter_severity %}&severity={{ filter_severity }}{% endif %}">Acknowledged</a>
+        <a class="reason-chip {% if filter_ack_status == 'ignored' %}active{% endif %}" href="/compliance?ack_status=ignored{% if filter_severity %}&severity={{ filter_severity }}{% endif %}">Ignored</a>
+        <a class="reason-chip {% if filter_ack_status == 'fixed' %}active{% endif %}" href="/compliance?ack_status=fixed{% if filter_severity %}&severity={{ filter_severity }}{% endif %}">Fixed</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-toolbar">
+        <div class="search-wrapper">
+            <i data-lucide="search"></i>
+            <input type="text" class="search-input" placeholder="Search compliance rows..."
+                   oninput="tableSearch(this, 'compliance-table')">
+        </div>
+    </div>
+
+    <div id="compliance-container">
+        <table id="compliance-table" class="table">
+            <thead>
+                <tr>
+                    <th style="width:36px">
+                        <input type="checkbox" id="compliance-select-all-cb" onchange="complianceToggleSelectAll(this)">
+                    </th>
+                    <th>Severity</th>
+                    <th onclick="tableSort('compliance-table', 2, this)">Current name</th>
+                    <th>Proposed</th>
+                    <th onclick="tableSort('compliance-table', 4, this)">Category</th>
+                    <th onclick="tableSortDate('compliance-table', 5, this)">Checked</th>
+                    <th>Status</th>
+                    <th style="text-align:right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% include "partials/compliance_rows.html" %}
+            </tbody>
+        </table>
+    </div>
+    <div id="compliance-pagination"></div>
+</div>
+
+<!-- Bulk Action Bar -->
+<div id="compliance-bulk-bar" class="bulk-bar" style="display:none">
+    <div class="bulk-bar-inner">
+        <span id="compliance-bulk-count">0 selected</span>
+        <div class="bulk-bar-actions">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="complianceClearSelection()">Clear</button>
+            <button type="button" class="btn btn-danger btn-sm" onclick="complianceBulkDeleteAndRescan()">
+                <i data-lucide="trash-2"></i> Delete & Rescan
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Info modal (recheck / action feedback) -->
+<div class="modal-overlay" id="compliance-info-modal">
+    <div class="modal" style="max-width:480px;width:92vw">
+        <div class="modal-header">
+            <h3 style="display:flex;align-items:center;gap:0.5rem">
+                <i id="compliance-info-icon" data-lucide="info" style="width:20px;height:20px"></i>
+                <span id="compliance-info-title">Notice</span>
+            </h3>
+            <button class="modal-close" onclick="closeComplianceInfoModal()">
+                <i data-lucide="x" style="width:18px;height:18px"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p id="compliance-info-message" style="margin:0"></p>
+            <p id="compliance-info-note" class="secondary" style="margin-top:0.75rem;font-size:0.85rem;display:none"></p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="closeComplianceInfoModal()">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- Detail modal -->
+<div class="modal-overlay" id="compliance-detail-modal">
+    <div class="modal" style="max-width:900px;width:95vw">
+        <div class="modal-header">
+            <h3><i data-lucide="shield-check" style="width:20px;height:20px"></i> Compliance detail</h3>
+            <button class="modal-close" onclick="closeComplianceModal()">
+                <i data-lucide="x" style="width:18px;height:18px"></i>
+            </button>
+        </div>
+        <div class="modal-body" style="max-height:70vh;overflow-y:auto" id="compliance-detail-body">
+            <p class="secondary">Loading…</p>
+        </div>
+        <div class="modal-footer">
+            <a id="compliance-detail-edit" href="#" target="_blank" rel="noopener" class="btn btn-primary">
+                <i data-lucide="external-link"></i> Edit on G3mini
+            </a>
+            <button id="compliance-detail-ack" type="button" class="btn btn-ghost" onclick="setComplianceStatusFromModal('acknowledged')">
+                <i data-lucide="check"></i> Acknowledge
+            </button>
+            <button id="compliance-detail-ignore" type="button" class="btn btn-ghost" onclick="setComplianceStatusFromModal('ignored')">
+                <i data-lucide="x"></i> Ignore
+            </button>
+            <button class="btn btn-ghost" onclick="closeComplianceModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        initPagination('compliance-table', 'compliance-pagination', 25);
+    });
+
+    async function startComplianceScan() {
+        const btn = document.getElementById('scan-now-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Queued…'; }
+        let success = false;
+        try {
+            const res = await fetch('/api/v1/compliance/scan', { method: 'POST' });
+            const body = await res.json();
+            if (!body.success) {
+                alert(body.message || 'Scan could not be queued');
+            } else {
+                success = true;
+            }
+        } catch (e) {
+            alert('Failed to queue scan: ' + e);
+        } finally {
+            if (btn && !success) { btn.disabled = false; btn.innerHTML = '<i data-lucide="shield-check"></i> Scan now'; lucide.createIcons(); }
+        }
+        // Reload only on success — the scan-status box polls every 5s anyway.
+        if (success) setTimeout(() => location.reload(), 1200);
+    }
+
+    async function ackRow(rowId, status) {
+        const url = status === 'ignored'
+            ? `/api/v1/compliance/items/${rowId}/ignore`
+            : `/api/v1/compliance/items/${rowId}/ack`;
+        const opts = status === 'ignored'
+            ? { method: 'POST' }
+            : { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ status }) };
+        try {
+            const res = await fetch(url, opts);
+            if (!res.ok) throw new Error('Request failed');
+            applyComplianceAckUpdate(rowId, status);
+        } catch (e) {
+            openComplianceInfoModal({
+                title: 'Action failed',
+                variant: 'error',
+                message: 'Could not update status: ' + (e && e.message ? e.message : e),
+            });
+        }
+    }
+
+    function applyComplianceAckUpdate(rowId, status) {
+        const row = document.querySelector(`tr[data-compliance-row-id="${rowId}"]`);
+        if (row) {
+            const chip = row.querySelector('[data-ack-status-chip]');
+            if (chip) chip.textContent = status;
+            const actions = row.querySelector('[data-ack-actions]');
+            if (actions) actions.style.display = status === 'unchecked' ? '' : 'none';
+        }
+        if (String(_complianceCurrentRowId) === String(rowId)) {
+            const metaStatus = document.getElementById('compliance-detail-status');
+            if (metaStatus) metaStatus.textContent = status;
+        }
+    }
+
+    async function setComplianceStatusFromModal(status) {
+        if (_complianceCurrentRowId == null) return;
+        const btnIds = { acknowledged: 'compliance-detail-ack', ignored: 'compliance-detail-ignore' };
+        const btn = document.getElementById(btnIds[status]);
+        if (btn) btn.disabled = true;
+        try {
+            await ackRow(_complianceCurrentRowId, status);
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    // ── Compliance bulk selection ─────────────────────────────────
+    const _complianceSelectedIds = new Set();
+
+    function complianceUpdateBulkBar() {
+        const bar = document.getElementById('compliance-bulk-bar');
+        const countEl = document.getElementById('compliance-bulk-count');
+        if (_complianceSelectedIds.size > 0) {
+            bar.style.display = '';
+            countEl.textContent = _complianceSelectedIds.size + ' selected';
+        } else {
+            bar.style.display = 'none';
+        }
+        lucide.createIcons();
+    }
+
+    function complianceOnRowCheckChange(cb) {
+        const id = parseInt(cb.value);
+        if (cb.checked) _complianceSelectedIds.add(id);
+        else _complianceSelectedIds.delete(id);
+        complianceSyncSelectAll();
+        complianceUpdateBulkBar();
+    }
+
+    function complianceToggleSelectAll(masterCb) {
+        const table = document.getElementById('compliance-table');
+        table.querySelectorAll('tbody tr').forEach(row => {
+            if (row.style.display === 'none') return;
+            const cb = row.querySelector('.compliance-row-cb');
+            if (!cb) return;
+            const id = parseInt(cb.value);
+            if (masterCb.checked) { cb.checked = true; _complianceSelectedIds.add(id); }
+            else { cb.checked = false; _complianceSelectedIds.delete(id); }
+        });
+        complianceUpdateBulkBar();
+    }
+
+    function complianceSyncSelectAll() {
+        const masterCb = document.getElementById('compliance-select-all-cb');
+        if (!masterCb) return;
+        const table = document.getElementById('compliance-table');
+        const visibleCbs = [];
+        table.querySelectorAll('tbody tr').forEach(row => {
+            if (row.style.display === 'none') return;
+            const cb = row.querySelector('.compliance-row-cb');
+            if (cb) visibleCbs.push(cb);
+        });
+        if (visibleCbs.length === 0) {
+            masterCb.checked = false; masterCb.indeterminate = false; return;
+        }
+        const allChecked = visibleCbs.every(cb => cb.checked);
+        const someChecked = visibleCbs.some(cb => cb.checked);
+        masterCb.checked = allChecked;
+        masterCb.indeterminate = !allChecked && someChecked;
+    }
+
+    function complianceClearSelection() {
+        _complianceSelectedIds.clear();
+        document.querySelectorAll('.compliance-row-cb').forEach(cb => cb.checked = false);
+        const masterCb = document.getElementById('compliance-select-all-cb');
+        if (masterCb) { masterCb.checked = false; masterCb.indeterminate = false; }
+        complianceUpdateBulkBar();
+    }
+
+    async function complianceBulkDeleteAndRescan() {
+        if (_complianceSelectedIds.size === 0) return;
+        const ids = Array.from(_complianceSelectedIds);
+        if (!confirm(`Delete ${ids.length} row(s) from the compliance DB and queue fresh rescans?`)) return;
+        let ok = false;
+        let message = '';
+        try {
+            const res = await fetch('/api/v1/compliance/items/bulk-delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ ids }),
+            });
+            const body = await res.json().catch(() => ({}));
+            ok = res.ok && body.success !== false;
+            message = body.message || (ok ? `Deleted ${ids.length} row(s). Fresh rescans queued.` : 'Bulk delete failed.');
+        } catch (e) {
+            message = 'Request failed: ' + (e && e.message ? e.message : e);
+        }
+        openComplianceInfoModal({
+            title: ok ? 'Rows deleted' : 'Bulk delete failed',
+            variant: ok ? 'info' : 'error',
+            message: message,
+            note: ok ? 'The selected rows were removed from the DB and fresh checks have been queued. This page will reload shortly.' : '',
+            reloadOnClose: ok,
+            autoReloadMs: ok ? 4000 : 0,
+        });
+    }
+
+    async function deleteAndRescanRow(rowId) {
+        if (!confirm('Delete this row from the compliance DB and queue a fresh rescan?')) return;
+        let ok = false;
+        let message = '';
+        try {
+            const res = await fetch(`/api/v1/compliance/items/${rowId}`, { method: 'DELETE' });
+            const body = await res.json().catch(() => ({}));
+            ok = res.ok && body.success !== false;
+            message = body.message || (ok ? 'Row deleted. Fresh rescan queued.' : 'Delete failed.');
+        } catch (e) {
+            message = 'Request failed: ' + (e && e.message ? e.message : e);
+        }
+        openComplianceInfoModal({
+            title: ok ? 'Row deleted' : 'Delete failed',
+            variant: ok ? 'info' : 'error',
+            message: message,
+            note: ok ? 'The row was removed from the DB and a fresh check has been queued. This page will reload shortly.' : '',
+            reloadOnClose: ok,
+            autoReloadMs: ok ? 4000 : 0,
+        });
+    }
+
+    async function recheckRow(rowId) {
+        let ok = false;
+        let message = '';
+        try {
+            const res = await fetch(`/api/v1/compliance/items/${rowId}/recheck`, { method: 'POST' });
+            const body = await res.json().catch(() => ({}));
+            ok = !!body.success;
+            message = body.message || (ok ? 'Re-check queued.' : 'Re-check could not be queued.');
+        } catch (e) {
+            message = 'Request failed: ' + (e && e.message ? e.message : e);
+        }
+        openComplianceInfoModal({
+            title: ok ? 'Re-check queued' : 'Re-check failed',
+            variant: ok ? 'info' : 'error',
+            message: message,
+            note: ok
+                ? 'Re-fetching this torrent from the tracker and re-validating its name — no local file rescan. This page will reload in a few seconds so you can see the updated row.'
+                : '',
+            reloadOnClose: ok,
+            autoReloadMs: ok ? 4000 : 0,
+        });
+    }
+
+    let _complianceInfoReloadOnClose = false;
+    let _complianceInfoAutoReloadTimer = null;
+
+    function openComplianceInfoModal({ title, message, note, variant, reloadOnClose, autoReloadMs }) {
+        const modal = document.getElementById('compliance-info-modal');
+        const titleEl = document.getElementById('compliance-info-title');
+        const msgEl = document.getElementById('compliance-info-message');
+        const noteEl = document.getElementById('compliance-info-note');
+        const iconEl = document.getElementById('compliance-info-icon');
+        titleEl.textContent = title || 'Notice';
+        msgEl.textContent = message || '';
+        noteEl.textContent = note || '';
+        noteEl.style.display = note ? 'block' : 'none';
+        const iconName = variant === 'error' ? 'alert-circle'
+                       : variant === 'success' ? 'check-circle-2'
+                       : 'info';
+        const iconColor = variant === 'error' ? 'var(--danger)'
+                        : variant === 'success' ? 'var(--success)'
+                        : 'var(--accent)';
+        iconEl.setAttribute('data-lucide', iconName);
+        iconEl.style.color = iconColor;
+
+        _complianceInfoReloadOnClose = !!reloadOnClose;
+        if (_complianceInfoAutoReloadTimer) {
+            clearTimeout(_complianceInfoAutoReloadTimer);
+            _complianceInfoAutoReloadTimer = null;
+        }
+        if (autoReloadMs && autoReloadMs > 0) {
+            _complianceInfoAutoReloadTimer = setTimeout(() => {
+                location.reload();
+            }, autoReloadMs);
+        }
+
+        modal.classList.add('open');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function closeComplianceInfoModal() {
+        document.getElementById('compliance-info-modal').classList.remove('open');
+        if (_complianceInfoAutoReloadTimer) {
+            clearTimeout(_complianceInfoAutoReloadTimer);
+            _complianceInfoAutoReloadTimer = null;
+        }
+        if (_complianceInfoReloadOnClose) {
+            _complianceInfoReloadOnClose = false;
+            location.reload();
+        }
+    }
+
+    function escapeHtml(s) {
+        return (s ?? '').toString()
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function copyBtnHtml(value, variantClass) {
+        const safe = escapeHtml(value);
+        return `<button type="button" class="diff-copy-btn ${variantClass}" data-copy="${safe}" title="Copy">
+            <span>${safe}</span>
+            <i data-lucide="copy" class="copy-icon"></i>
+        </button>`;
+    }
+
+    function renderExpandable(iconName, title, rawCopyValue, innerHtml) {
+        const safeCopy = escapeHtml(rawCopyValue || '');
+        const copyBtn = rawCopyValue
+            ? `<button type="button" class="btn btn-ghost btn-sm accordion-copy-btn" data-copy="${safeCopy}" title="Copy raw text">
+                <i data-lucide="copy" style="width:14px;height:14px"></i> Copy
+            </button>`
+            : '';
+        return `
+            <details class="accordion" style="margin-top:1rem">
+                <summary>
+                    <span style="display:inline-flex;align-items:center;gap:0.45rem">
+                        <i data-lucide="${iconName}" style="width:16px;height:16px"></i>
+                        ${escapeHtml(title)}
+                    </span>
+                    ${copyBtn}
+                </summary>
+                <div class="accordion-body">${innerHtml}</div>
+            </details>
+        `;
+    }
+
+    function renderDiff(current, proposed) {
+        if (!proposed || proposed === current) {
+            return `<div class="diff-monospace">
+                <div><span class="diff-label">Current&nbsp;</span>${copyBtnHtml(current, 'diff-current')}</div>
+            </div>`;
+        }
+        return `
+            <div class="diff-monospace">
+                <div><span class="diff-label">Current&nbsp;</span>${copyBtnHtml(current, 'diff-current')}</div>
+                <div><span class="diff-label">Proposed</span>${copyBtnHtml(proposed, 'diff-proposed')}</div>
+            </div>
+        `;
+    }
+
+    async function copyToClipboard(text, el) {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (_) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (_) {}
+            document.body.removeChild(ta);
+        }
+        if (el) {
+            el.classList.add('copied');
+            setTimeout(() => el.classList.remove('copied'), 900);
+        }
+    }
+
+    document.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('[data-copy]');
+        if (!btn) return;
+        // Don't hijack clicks on the row's action buttons (eye/edit/check/etc).
+        ev.preventDefault();
+        ev.stopPropagation();
+        copyToClipboard(btn.dataset.copy || '', btn);
+    });
+
+    let _complianceCurrentRowId = null;
+
+    function renderTrackEditor(audioTracks, subTracks) {
+        const hasAudio = Array.isArray(audioTracks) && audioTracks.length;
+        const hasSubs = Array.isArray(subTracks) && subTracks.length;
+        if (!hasAudio && !hasSubs) {
+            return '<p class="secondary">No tracks detected in stored MediaInfo.</p>';
+        }
+        const row = (kind, i, t) => `
+            <tr data-track-kind="${kind}" data-track-index="${i}">
+                <td class="secondary" style="font-size:0.8rem;white-space:nowrap">#${i + 1}</td>
+                <td><input type="text" class="track-lang-input" value="${escapeHtml(t.language || '')}" placeholder="fr, en, fr-FR…" style="width:100%"></td>
+                <td><input type="text" class="track-title-input" value="${escapeHtml(t.title || '')}" placeholder="${kind === 'audio' ? 'e.g. VFF AAC 2.0' : 'e.g. Forced / Full / SDH'}" style="width:100%"></td>
+                <td class="secondary" style="font-size:0.8rem;white-space:nowrap">${escapeHtml(t.format || '')}</td>
+            </tr>`;
+        const table = (title, kind, tracks) => !tracks || !tracks.length ? '' : `
+            <div style="margin-top:0.75rem">
+                <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.25rem">${title}</div>
+                <table class="table" style="font-size:0.85rem">
+                    <thead><tr><th>#</th><th>Langue</th><th>Titre</th><th>Format</th></tr></thead>
+                    <tbody>${tracks.map((t, i) => row(kind, i, t)).join('')}</tbody>
+                </table>
+            </div>`;
+        return `
+            ${table('Audio', 'audio', audioTracks || [])}
+            ${table('Sous-titres', 'sub', subTracks || [])}
+            <p class="secondary" style="font-size:0.8rem;margin-top:0.5rem">
+                La langue accepte les codes ISO (<code>fr</code>, <code>en</code>) ou les noms (<code>French</code>, <code>Anglais</code>).
+                Le titre pilote le variant audio (VFF/VFQ/VFB/VF/VO) et le qualificateur sous-titre (forcés / complets / SDH).
+            </p>`;
+    }
+
+    function collectTrackOverrides(originalAudio, originalSub) {
+        const read = (kind, original) => (original || []).map((t, i) => {
+            const rowEl = document.querySelector(`tr[data-track-kind="${kind}"][data-track-index="${i}"]`);
+            if (!rowEl) return t;
+            const lang = rowEl.querySelector('.track-lang-input')?.value ?? t.language ?? '';
+            const title = rowEl.querySelector('.track-title-input')?.value ?? t.title ?? '';
+            return { ...t, language: lang, title: title };
+        });
+        return {
+            audio_tracks: read('audio', originalAudio),
+            sub_tracks: read('sub', originalSub),
+        };
+    }
+
+    async function regenerateDescription() {
+        if (_complianceCurrentRowId == null) return;
+        const btn = document.getElementById('regen-desc-btn');
+        const target = document.getElementById('generated-desc-body');
+        const original = window._complianceTrackState || { audio: [], sub: [] };
+        const body = collectTrackOverrides(original.audio, original.sub);
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i data-lucide="loader"></i> …'; lucide.createIcons(); }
+        try {
+            const res = await fetch(`/api/v1/compliance/items/${_complianceCurrentRowId}/generate-description`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Regeneration failed');
+            }
+            const data = await res.json();
+            const html = data.generated_description_html || '';
+            if (target) {
+                target.innerHTML = html
+                    ? `<div class="bbcode-preview">${html}</div>`
+                    : '<p class="secondary">Description vide.</p>';
+            }
+            // Update accordion copy button value to the new raw text.
+            const copyBtn = document.getElementById('generated-desc-copy');
+            if (copyBtn) copyBtn.dataset.copy = data.generated_description || '';
+        } catch (e) {
+            if (target) target.innerHTML = `<p style="color:var(--danger)">${escapeHtml(e.message || e)}</p>`;
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="refresh-cw"></i> Régénérer'; lucide.createIcons(); }
+        }
+    }
+
+    async function openComplianceDetail(rowId) {
+        const modal = document.getElementById('compliance-detail-modal');
+        const body = document.getElementById('compliance-detail-body');
+        const editBtn = document.getElementById('compliance-detail-edit');
+        body.innerHTML = '<p class="secondary">Loading…</p>';
+        modal.classList.add('open');
+        _complianceCurrentRowId = rowId;
+        try {
+            const res = await fetch(`/api/v1/compliance/items/${rowId}`);
+            if (!res.ok) throw new Error('Fetch failed');
+            const row = await res.json();
+            editBtn.href = row.edit_url || '#';
+            const violations = Array.isArray(row.violations) ? row.violations : [];
+            const violationsHtml = violations.length
+                ? violations.map(v => `
+                    <li>
+                        <span class="severity-pill severity-${(v.severity || '').toLowerCase()}">${escapeHtml(v.severity)}</span>
+                        <code>${escapeHtml(v.rule)}</code> — ${escapeHtml(v.message)}
+                    </li>`).join('')
+                : '<li class="secondary">No rule violations (compared only against the normalizer output)</li>';
+
+            const descriptionRaw = row.description || '';
+            const descriptionHtml = row.description_html || '';
+            const generatedRaw = row.generated_description || '';
+            const generatedHtml = row.generated_description_html || '';
+            const mediainfoRaw = row.mediainfo || '';
+            const audioTracks = Array.isArray(row.audio_tracks) ? row.audio_tracks : [];
+            const subTracks = Array.isArray(row.sub_tracks) ? row.sub_tracks : [];
+            window._complianceTrackState = { audio: audioTracks, sub: subTracks };
+
+            const canRegen = audioTracks.length > 0 || subTracks.length > 0;
+            const regenHeader = canRegen ? `
+                <div style="display:flex;align-items:center;gap:0.5rem;margin:1rem 0 0.25rem">
+                    <h4 style="margin:0;flex:1">Description (fraîche, format outil)</h4>
+                    <button type="button" id="regen-desc-btn" class="btn btn-sm btn-ghost" onclick="regenerateDescription()">
+                        <i data-lucide="refresh-cw"></i> Régénérer
+                    </button>
+                    ${generatedRaw ? `<button type="button" id="generated-desc-copy" class="btn btn-ghost btn-sm accordion-copy-btn" data-copy="${escapeHtml(generatedRaw)}" title="Copy raw text"><i data-lucide="copy" style="width:14px;height:14px"></i> Copy</button>` : ''}
+                </div>
+                <div id="generated-desc-body">${generatedHtml
+                    ? `<div class="bbcode-preview">${generatedHtml}</div>`
+                    : '<p class="secondary">Description vide.</p>'}</div>
+                <details class="accordion" style="margin-top:0.75rem">
+                    <summary>
+                        <span style="display:inline-flex;align-items:center;gap:0.45rem">
+                            <i data-lucide="sliders-horizontal" style="width:16px;height:16px"></i>
+                            Éditer les pistes (langues / titres)
+                        </span>
+                    </summary>
+                    <div class="accordion-body">${renderTrackEditor(audioTracks, subTracks)}</div>
+                </details>
+            ` : renderExpandable('sparkles', 'Description (fraîche, format outil)', generatedRaw,
+                '<p class="secondary">Impossible de régénérer une description (MediaInfo manquant ou au format BDInfo).</p>');
+
+            body.innerHTML = `
+                <h4 style="margin:0 0 0.5rem">Names</h4>
+                ${renderDiff(row.current_name || '', row.proposed_name || '')}
+                <h4 style="margin:1rem 0 0.5rem">Violations</h4>
+                <ul class="violation-list">${violationsHtml}</ul>
+                ${regenHeader}
+                ${renderExpandable('file-text', 'Description actuelle (tracker)', descriptionRaw,
+                    descriptionHtml
+                        ? `<div class="bbcode-preview">${descriptionHtml}</div>`
+                        : '<p class="secondary">No description stored for this torrent.</p>')}
+                ${renderExpandable('monitor', 'MediaInfo', mediainfoRaw,
+                    mediainfoRaw
+                        ? `<pre class="pre-block">${escapeHtml(mediainfoRaw)}</pre>`
+                        : '<p class="secondary">No MediaInfo stored for this torrent.</p>')}
+                <h4 style="margin:1rem 0 0.5rem">Meta</h4>
+                <div class="secondary" style="font-size:0.85rem">
+                    torrent_id=<code>${escapeHtml(row.torrent_id)}</code>,
+                    diff=<code>${escapeHtml(row.diff_kind)}</code>,
+                    severity=<code>${escapeHtml(row.severity_max)}</code>,
+                    status=<code id="compliance-detail-status">${escapeHtml(row.ack_status)}</code>
+                </div>
+            `;
+            lucide.createIcons();
+        } catch (e) {
+            body.innerHTML = `<p style="color:var(--danger)">Failed to load: ${escapeHtml(e)}</p>`;
+        }
+    }
+
+    function closeComplianceModal() {
+        document.getElementById('compliance-detail-modal').classList.remove('open');
+        _complianceCurrentRowId = null;
+    }
+</script>
+
+<style>
+    .diff-monospace {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        background: rgba(0,0,0,0.25);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.75rem;
+        font-size: 0.8rem;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+    .diff-label { color: var(--text-secondary); margin-right: 0.5rem; }
+    .diff-current { color: #f87171; }
+    .diff-proposed { color: #34d399; }
+    .severity-pill {
+        display: inline-block;
+        padding: 0.1rem 0.45rem;
+        font-size: 0.7rem;
+        border-radius: 3px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        border: 1px solid transparent;
+    }
+    .severity-error   { background: rgba(248,113,113,0.15); color: #f87171; border-color: rgba(248,113,113,0.4); }
+    .severity-warning { background: rgba(251,191,36,0.15); color: #fbbf24; border-color: rgba(251,191,36,0.4); }
+    .severity-info    { background: rgba(96,165,250,0.15); color: #60a5fa; border-color: rgba(96,165,250,0.4); }
+    .severity-none    { background: rgba(52,211,153,0.15); color: #34d399; border-color: rgba(52,211,153,0.4); }
+    .violation-list { list-style: none; padding: 0; margin: 0; }
+    .violation-list li { padding: 0.35rem 0; border-bottom: 1px solid var(--border); }
+    .reason-chip.active { background: var(--accent); color: #fff; }
+
+    /* Copy-on-click cells (list view) */
+    .cell-copy { padding: 0; }
+    .copy-cell {
+        display: flex; align-items: center; gap: 0.4rem;
+        width: 100%;
+        background: transparent; border: 0; cursor: pointer;
+        padding: 0.55rem 0.75rem;
+        text-align: left;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.8rem;
+        color: var(--copy-color, var(--text));
+        border-radius: 0;
+        transition: background 0.12s ease;
+    }
+    .copy-cell:hover { background: rgba(255,255,255,0.04); }
+    .copy-cell:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+    .copy-cell .copy-text {
+        flex: 1;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .copy-cell .copy-icon {
+        width: 12px; height: 12px;
+        color: var(--text-secondary);
+        opacity: 0; transition: opacity 0.12s ease;
+        flex-shrink: 0;
+    }
+    .copy-cell:hover .copy-icon { opacity: 0.8; }
+    .copy-cell.copied { background: rgba(52,211,153,0.15); }
+    .copy-cell.copied .copy-icon { opacity: 1; color: #34d399; }
+
+    /* Copy-on-click buttons (detail modal diff) */
+    .diff-copy-btn {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        background: transparent; border: 0; cursor: pointer;
+        padding: 0.15rem 0.4rem;
+        margin-left: 0.25rem;
+        border-radius: 4px;
+        font-family: inherit; font-size: inherit;
+        word-break: break-all;
+        text-align: left;
+        transition: background 0.12s ease;
+    }
+    .diff-copy-btn:hover { background: rgba(255,255,255,0.06); }
+    .diff-copy-btn.diff-current  { color: #f87171; }
+    .diff-copy-btn.diff-proposed { color: #34d399; }
+    .diff-copy-btn .copy-icon {
+        width: 12px; height: 12px;
+        opacity: 0; transition: opacity 0.12s ease;
+        flex-shrink: 0;
+    }
+    .diff-copy-btn:hover .copy-icon { opacity: 0.8; }
+    .diff-copy-btn.copied { background: rgba(52,211,153,0.2); }
+    .diff-copy-btn.copied .copy-icon { opacity: 1; color: #34d399; }
+
+    /* Accordion summary with trailing copy button */
+    #compliance-detail-body .accordion summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+    #compliance-detail-body .accordion summary::before {
+        /* Keep the disclosure chevron but let the flex layout place it first */
+        order: -1;
+    }
+    .accordion-copy-btn {
+        padding: 0.25rem 0.6rem;
+        font-size: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .accordion-copy-btn.copied {
+        background: rgba(52,211,153,0.2);
+        color: #34d399;
+    }
+    #compliance-detail-body .accordion-body pre.pre-block {
+        max-height: 360px;
+        overflow: auto;
+        margin: 0;
+    }
+</style>
+
+{% endblock %}

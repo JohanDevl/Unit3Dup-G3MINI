@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import dataclasses
 import hashlib
 from datetime import datetime
 
@@ -221,7 +222,12 @@ class TmdbAPI(MyHttp):
                 else:
                     response_data = response.json().get(endpoint['results'], [])
 
-                return [endpoint['datatype'](**attribute) for attribute in response_data]
+                datatype = endpoint['datatype']
+                if dataclasses.is_dataclass(datatype):
+                    allowed = {f.name for f in dataclasses.fields(datatype)}
+                    return [datatype(**{k: v for k, v in attribute.items() if k in allowed})
+                            for attribute in response_data]
+                return [datatype(**attribute) for attribute in response_data]
             else:
                 return []
         return None

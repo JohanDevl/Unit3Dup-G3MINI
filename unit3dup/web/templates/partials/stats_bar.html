@@ -10,6 +10,17 @@
         </div>
     </div>
     {% endif %}
+    {% if stats.get('rescanning', 0) > 0 %}
+    <div class="stat-card stat-card-rescanning">
+        <div class="stat-icon rescanning">
+            <i data-lucide="refresh-cw"></i>
+        </div>
+        <div class="stat-info">
+            <h3>{{ stats.get('rescanning', 0) }}</h3>
+            <p>Rescanning</p>
+        </div>
+    </div>
+    {% endif %}
     <div class="stat-card">
         <div class="stat-icon pending">
             <i data-lucide="clock"></i>

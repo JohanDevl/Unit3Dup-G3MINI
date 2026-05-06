@@ -1,0 +1,59 @@
+{% for row in items %}
+<tr data-compliance-row-id="{{ row.id }}">
+    <td style="width:36px">
+        <input type="checkbox" class="compliance-row-cb" value="{{ row.id }}" onchange="complianceOnRowCheckChange(this)">
+    </td>
+    <td>
+        {% set sev = (row.severity_max or 'NONE') %}
+        <span class="severity-pill severity-{{ sev | lower }}">{{ sev if sev != 'NONE' else 'Clean' }}</span>
+    </td>
+    <td class="cell-copy" style="max-width:420px" title="{{ row.current_name }}">
+        <button type="button" class="copy-cell" data-copy="{{ row.current_name }}" title="Copy">
+            <span class="copy-text">{{ row.current_name }}</span>
+            <i data-lucide="copy" class="copy-icon"></i>
+        </button>
+    </td>
+    <td class="cell-copy" style="max-width:420px;{% if row.proposed_name and row.proposed_name != row.current_name %}--copy-color:#34d399{% else %}--copy-color:var(--text-secondary){% endif %}"
+        title="{{ row.proposed_name or '' }}">
+        {% if row.proposed_name and row.proposed_name != row.current_name %}
+            <button type="button" class="copy-cell" data-copy="{{ row.proposed_name }}" title="Copy">
+                <span class="copy-text">{{ row.proposed_name }}</span>
+                <i data-lucide="copy" class="copy-icon"></i>
+            </button>
+        {% else %}
+            <span style="color:var(--text-secondary)">—</span>
+        {% endif %}
+    </td>
+    <td>{{ row.category | category_label }}</td>
+    <td data-sort="{{ row.checked_at or '' }}">{{ row.checked_at | datefmt }}</td>
+    <td>
+        <span class="reason-chip" data-ack-status-chip style="font-size:0.7rem">{{ row.ack_status }}</span>
+    </td>
+    <td style="text-align:right;white-space:nowrap">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="openComplianceDetail({{ row.id }})" title="Details">
+            <i data-lucide="eye" style="width:14px;height:14px"></i>
+        </button>
+        {% if row.edit_url %}
+        <a href="{{ row.edit_url }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" title="Edit on G3mini">
+            <i data-lucide="external-link" style="width:14px;height:14px"></i>
+        </a>
+        {% endif %}
+        <span data-ack-actions {% if row.ack_status != 'unchecked' %}style="display:none"{% endif %}>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="ackRow({{ row.id }}, 'acknowledged')" title="Acknowledge">
+                <i data-lucide="check" style="width:14px;height:14px"></i>
+            </button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="ackRow({{ row.id }}, 'ignored')" title="Ignore">
+                <i data-lucide="x" style="width:14px;height:14px"></i>
+            </button>
+        </span>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="recheckRow({{ row.id }})" title="Re-check">
+            <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="deleteAndRescanRow({{ row.id }})" title="Delete row & fresh rescan">
+            <i data-lucide="trash-2" style="width:14px;height:14px"></i>
+        </button>
+    </td>
+</tr>
+{% else %}
+<tr><td colspan="8" class="secondary" style="text-align:center;padding:2rem">No compliance rows yet. Run a scan to get started.</td></tr>
+{% endfor %}

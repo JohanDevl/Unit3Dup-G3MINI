@@ -23,6 +23,8 @@ class Video:
         self.is_hd: int = 0
         self.description: str = ''
         self.mediainfo: str = ''
+        self.audio_tracks: list[dict] = []
+        self.subtitle_tracks: list[dict] = []
 
     @staticmethod
     def hash_key(key: str) -> str:
@@ -58,6 +60,8 @@ class Video:
         # media_info
         media_info = MediaFile(self.file_name)
         self.mediainfo = self._strip_mediainfo_path(media_info.info)
+        self.audio_tracks = media_info.audio_track
+        self.subtitle_tracks = media_info.subtitle_track
 
         # Generate prez BBCode description
         self.description = generate_prez(media_info)

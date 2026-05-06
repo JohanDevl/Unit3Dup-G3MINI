@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 
 from fastapi import APIRouter, Request, HTTPException
@@ -11,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 
 from unit3dup.state_db import StateDB
 from unit3dup.web.bbcode_renderer import bbcode_to_html
+from unit3dup.prez import ISO_TO_LANG_NAME, normalize_lang_code
 from common.trackers.data import trackers_api_data
 from common.trackers.gemini import gemini_data
 
@@ -22,12 +24,14 @@ templates = Jinja2Templates(directory=_templates_dir)
 # Will be set by app factory
 _state_db: StateDB | None = None
 _upload_service = None
+_compliance_service = None
 
 
-def init_views(state_db: StateDB, upload_service=None):
-    global _state_db, _upload_service
+def init_views(state_db: StateDB, upload_service=None, compliance_service=None):
+    global _state_db, _upload_service, _compliance_service
     _state_db = state_db
     _upload_service = upload_service
+    _compliance_service = compliance_service
     # Register custom filters
     templates.env.filters["bbcode"] = bbcode_to_html
     templates.env.filters["filesize"] = _format_filesize
@@ -37,14 +41,56 @@ def init_views(state_db: StateDB, upload_service=None):
     # Global context: pending + queued count for sidebar badge
     def _pending_and_queued():
         counts = state_db.count_by_status()
-        return counts.get("analyzing", 0) + counts.get("pending", 0) + counts.get("queued", 0)
+        return counts.get("analyzing", 0) + counts.get("rescanning", 0) + counts.get("pending", 0) + counts.get("queued", 0)
     templates.env.globals["get_pending_count"] = _pending_and_queued
     # Global context: queue count (queued + uploading) for sidebar badge
     def _queue_count():
         counts = state_db.count_by_status()
-        return counts.get("queued", 0) + counts.get("approved", 0)
+        return counts.get("queued", 0) + counts.get("approved", 0) + counts.get("rescanning", 0)
     templates.env.globals["get_queue_count"] = _queue_count
+    # Global context: compliance badge (unchecked WARNING + ERROR)
+    def _compliance_badge():
+        counts = state_db.count_compliance_by_severity(only_unchecked=True)
+        return counts.get("WARNING", 0) + counts.get("ERROR", 0)
+    templates.env.globals["get_compliance_badge"] = _compliance_badge
     templates.env.globals["similar_url"] = _build_similar_url
+    templates.env.globals["duplicate_url"] = _build_duplicate_url
+
+
+def _build_duplicate_url(item: dict) -> str | None:
+    """Build a link to the matched duplicate torrent on the tracker.
+
+    Prefers the direct torrent page (`/torrents/{id}`); falls back to the
+    tracker's "similar" page using TMDB/IGDB when the torrent id is missing.
+    """
+    name = item.get("tracker_name")
+    match = item.get("duplicate_match")
+    if not name or not match:
+        return None
+    if isinstance(match, str):
+        try:
+            match = json.loads(match)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    if not isinstance(match, dict):
+        return None
+    tracker = trackers_api_data.get(name.upper())
+    if not tracker:
+        return None
+    base_url = tracker["url"].rstrip("/")
+
+    # Preferred: direct torrent page
+    match_id = match.get("id")
+    if match_id:
+        return f"{base_url}/torrents/{match_id}"
+
+    # Fallback: similar-torrents page keyed by TMDB / IGDB
+    category = item.get("content_category")
+    cat_id = gemini_data["CATEGORY"].get(category) if category else None
+    meta_id = match.get("igdb_id") if category == "game" else match.get("tmdb_id")
+    if cat_id is not None and meta_id:
+        return f"{base_url}/torrents/similar/{cat_id}.{meta_id}"
+    return None
 
 
 def _build_similar_url(item: dict) -> str | None:
@@ -146,8 +192,9 @@ def dashboard(request: Request):
 
 
 def _get_pending_and_queued() -> list[dict]:
-    """Fetch analyzing + pending + queued items, sorted by discovered date descending."""
+    """Fetch analyzing + rescanning + pending + queued items, sorted by discovered date descending."""
     items = _db().list_items(status="analyzing", per_page=500)
+    items += _db().list_items(status="rescanning", per_page=500)
     items += _db().list_items(status="pending", per_page=500)
     items += _db().list_items(status="queued", per_page=500)
     items.sort(key=lambda x: x.get("discovered_at", ""), reverse=True)
@@ -162,14 +209,39 @@ def pending_list(request: Request):
     })
 
 
+def _parse_tracks(item: dict) -> tuple[list, list]:
+    """Extract audio/subtitle track lists from a DB item.
+
+    Track ``language`` fields are normalized to canonical ISO_TO_LANG_NAME
+    keys so the upload-form ``<select>`` can pre-select the detected value
+    regardless of how MediaInfo reported it (``fra``, ``French``, ``fr-CA``…).
+    """
+    audio_tracks = []
+    subtitle_tracks = []
+    if item.get("audio_tracks"):
+        audio_tracks = item["audio_tracks"] if isinstance(item["audio_tracks"], list) else json.loads(item["audio_tracks"])
+    if item.get("subtitle_tracks"):
+        subtitle_tracks = item["subtitle_tracks"] if isinstance(item["subtitle_tracks"], list) else json.loads(item["subtitle_tracks"])
+    for track in audio_tracks + subtitle_tracks:
+        if isinstance(track, dict):
+            normalized = normalize_lang_code(track.get("language", ""))
+            if normalized:
+                track["language"] = normalized
+    return audio_tracks, subtitle_tracks
+
+
 @router.get("/pending/{item_id}", response_class=HTMLResponse)
 def pending_detail(request: Request, item_id: int):
     item = _db().get_item(item_id)
     if not item:
         raise HTTPException(404, "Item not found")
+    audio_tracks, subtitle_tracks = _parse_tracks(item)
     return templates.TemplateResponse(request, "item_detail.html", {
         "item": item,
         "page_title": item.get("release_name") or item.get("display_name") or "Detail",
+        "audio_tracks": audio_tracks,
+        "subtitle_tracks": subtitle_tracks,
+        "lang_options": ISO_TO_LANG_NAME,
     })
 
 
@@ -195,9 +267,13 @@ def history_detail(request: Request, item_id: int):
     item = _db().get_item(item_id)
     if not item:
         raise HTTPException(404, "Item not found")
+    audio_tracks, subtitle_tracks = _parse_tracks(item)
     return templates.TemplateResponse(request, "item_detail.html", {
         "item": item,
         "page_title": item.get("release_name") or item.get("display_name") or "Detail",
+        "audio_tracks": audio_tracks,
+        "subtitle_tracks": subtitle_tracks,
+        "lang_options": ISO_TO_LANG_NAME,
     })
 
 
@@ -218,28 +294,74 @@ def partial_stats(request: Request):
     })
 
 
-def _get_queue_items() -> tuple[list[dict], int | None]:
-    """Fetch uploading + queued items and the currently uploading item ID."""
+def _get_queue_items() -> tuple[list[dict], int | None, int | None]:
+    """Fetch uploading + queued + rescanning items and the currently uploading/rescanning item IDs."""
     uploading = _db().list_items(status="approved", per_page=10)
     queued = _db().list_items(status="queued", per_page=100)
+    rescanning = _db().list_items(status="rescanning", per_page=100)
     uploading_id = _upload_service._current_item_id if _upload_service else None
-    return uploading + queued, uploading_id
+    rescanning_id = _upload_service._current_rescan_item_id if _upload_service else None
+    return uploading + queued + rescanning, uploading_id, rescanning_id
 
 
 @router.get("/queue", response_class=HTMLResponse)
 def queue_page(request: Request):
-    items, uploading_id = _get_queue_items()
+    items, uploading_id, rescanning_id = _get_queue_items()
     return templates.TemplateResponse(request, "queue.html", {
         "items": items,
         "uploading_id": uploading_id,
+        "rescanning_id": rescanning_id,
         "page_title": "Queue",
     })
 
 
 @router.get("/partials/queue-list", response_class=HTMLResponse)
 def partial_queue_list(request: Request):
-    items, uploading_id = _get_queue_items()
+    items, uploading_id, rescanning_id = _get_queue_items()
     return templates.TemplateResponse(request, "partials/queue_rows.html", {
         "items": items,
         "uploading_id": uploading_id,
+        "rescanning_id": rescanning_id,
+    })
+
+
+# ── Compliance ────────────────────────────────────────────────────
+
+def _compliance_scan_status() -> dict:
+    if _compliance_service is None:
+        return {"running": False, "configured": False, "queue_size": 0, "uploader": None}
+    try:
+        return _compliance_service.scan_status()
+    except Exception:
+        return {"running": False, "configured": False, "queue_size": 0, "uploader": None}
+
+
+@router.get("/compliance", response_class=HTMLResponse)
+def compliance_page(request: Request, severity: str | None = None, ack_status: str | None = None):
+    items = _db().list_compliance(severity=severity, ack_status=ack_status, per_page=500)
+    counts = _db().count_compliance_by_severity()
+    counts_unchecked = _db().count_compliance_by_severity(only_unchecked=True)
+    return templates.TemplateResponse(request, "compliance.html", {
+        "items": items,
+        "counts": counts,
+        "counts_unchecked": counts_unchecked,
+        "scan_status": _compliance_scan_status(),
+        "filter_severity": severity,
+        "filter_ack_status": ack_status,
+        "page_title": "Compliance",
+    })
+
+
+@router.get("/partials/compliance-list", response_class=HTMLResponse)
+def partial_compliance_list(request: Request, severity: str | None = None, ack_status: str | None = None):
+    items = _db().list_compliance(severity=severity, ack_status=ack_status, per_page=500)
+    return templates.TemplateResponse(request, "partials/compliance_rows.html", {
+        "items": items,
+    })
+
+
+@router.get("/partials/compliance-status", response_class=HTMLResponse)
+def partial_compliance_status(request: Request):
+    return templates.TemplateResponse(request, "partials/compliance_status.html", {
+        "scan_status": _compliance_scan_status(),
     })

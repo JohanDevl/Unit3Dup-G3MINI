@@ -337,6 +337,8 @@ class Bot:
                                         description=item.description,
                                         mediainfo=item.mediainfo,
                                         nfo_content=item.nfo_content,
+                                        audio_tracks=item.audio_tracks,
+                                        subtitle_tracks=item.subtitle_tracks,
                                         tracker_payload=item.tracker_data,
                                         tracker_name=item.tracker_name,
                                         trackers_list=item.trackers_list,
@@ -345,6 +347,7 @@ class Bot:
                                         has_errors=int(item.has_errors),
                                         has_warnings=int(item.has_warnings),
                                         skip_reason=item.skip_reason,
+                                        duplicate_match=item.duplicate_match,
                                         prepared_at=None,
                                     )
                                     if analyzing_id:
@@ -379,6 +382,8 @@ class Bot:
                                         description=item.description,
                                         mediainfo=item.mediainfo,
                                         nfo_content=item.nfo_content,
+                                        audio_tracks=item.audio_tracks,
+                                        subtitle_tracks=item.subtitle_tracks,
                                         tracker_payload=item.tracker_data,
                                         tracker_name=item.tracker_name,
                                         trackers_list=item.trackers_list,
@@ -386,6 +391,7 @@ class Bot:
                                         validation_report=item.validation_report,
                                         has_errors=int(item.has_errors),
                                         has_warnings=int(item.has_warnings),
+                                        duplicate_match=None,
                                         prepared_at=datetime.now().isoformat(),
                                     )
                                     if analyzing_id:

@@ -13,6 +13,8 @@ from datetime import datetime
 from unit3dup.state_db import StateDB
 from unit3dup.pvtTracker import Unit3d
 from unit3dup.upload import UploadBot
+from unit3dup.prez import generate_prez
+from common.mediainfo import MediaFile
 
 from view import custom_console
 
@@ -20,28 +22,39 @@ from view import custom_console
 class UploadService:
     """Handles upload execution for web-approved items."""
 
-    def __init__(self, state_db: StateDB):
+    def __init__(self, state_db: StateDB, compliance_service=None):
         self.state_db = state_db
         self._queue: queue.Queue = queue.Queue()
         self._worker_thread: threading.Thread | None = None
+        self._rescan_queue: queue.Queue = queue.Queue()
+        self._rescan_worker_thread: threading.Thread | None = None
         self._shutdown = threading.Event()
         self._current_item_id: int | None = None
+        self._current_rescan_item_id: int | None = None
+        self._compliance_service = compliance_service
 
     def start_worker(self):
-        """Start the background upload worker. Re-enqueues items left in queued/approved status from a previous crash."""
+        """Start the background upload and rescan workers. Re-enqueues items left in queued/approved/rescanning status from a previous crash."""
         for status in ("queued", "approved"):
             items = self.state_db.list_items(status=status)
             for item in items:
                 self._queue.put((item["id"], None, None))
                 custom_console.bot_log(f"[Web] Re-enqueued {status} item #{item['id']}: {item.get('release_name', '?')}")
+        for item in self.state_db.list_items(status="rescanning"):
+            self._rescan_queue.put((item["id"], False))
+            custom_console.bot_log(f"[Web] Re-enqueued rescanning item #{item['id']}: {item.get('release_name', '?')}")
         self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
         self._worker_thread.start()
+        self._rescan_worker_thread = threading.Thread(target=self._rescan_worker_loop, daemon=True)
+        self._rescan_worker_thread.start()
 
     def stop_worker(self):
-        """Signal the worker to stop and wait for it."""
+        """Signal the workers to stop and wait for them."""
         self._shutdown.set()
         if self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=5)
+        if self._rescan_worker_thread and self._rescan_worker_thread.is_alive():
+            self._rescan_worker_thread.join(timeout=5)
 
     def _worker_loop(self):
         """Background loop: pick items from queue and upload one at a time."""
@@ -55,9 +68,38 @@ class UploadService:
                 self._do_upload(item_id, name_override, desc_override)
             except Exception as e:
                 custom_console.bot_error_log(f"[Web] Worker error for item #{item_id}: {e}")
+                try:
+                    self.state_db.mark_error(item_id, f"Worker error: {e}")
+                except Exception:
+                    custom_console.bot_error_log(f"[Web] Failed to mark error for item #{item_id}")
             finally:
                 self._current_item_id = None
                 self._queue.task_done()
+
+    def _rescan_worker_loop(self):
+        """Background loop: pick items from rescan queue and re-prepare one at a time."""
+        while not self._shutdown.is_set():
+            try:
+                payload = self._rescan_queue.get(timeout=1)
+            except queue.Empty:
+                continue
+            # Backward-compat: legacy enqueues stored a bare int
+            if isinstance(payload, tuple):
+                item_id, force_no_dup = payload
+            else:
+                item_id, force_no_dup = payload, False
+            try:
+                self._current_rescan_item_id = item_id
+                self._do_rescan(item_id, force_no_dup=force_no_dup)
+            except Exception as e:
+                custom_console.bot_error_log(f"[Web] Rescan worker error for item #{item_id}: {e}")
+                try:
+                    self.state_db.mark_error(item_id, f"Rescan worker error: {e}")
+                except Exception:
+                    custom_console.bot_error_log(f"[Web] Failed to mark error for item #{item_id}")
+            finally:
+                self._current_rescan_item_id = None
+                self._rescan_queue.task_done()
 
     def approve_and_upload(
         self,
@@ -172,6 +214,14 @@ class UploadService:
                     self.state_db.mark_uploaded(item_id, tracker_response=tracker_url)
                     custom_console.bot_log(f"[Web] Uploaded → {tracker_payload.get('name', 'unknown')}")
 
+                    # Hook compliance checker (best-effort, never raises)
+                    if self._compliance_service is not None:
+                        try:
+                            refreshed = self.state_db.get_item(item_id) or item
+                            self._compliance_service.enqueue_after_upload(refreshed, tracker_url)
+                        except Exception as exc:
+                            custom_console.bot_warning_log(f"[Web] Compliance enqueue failed: {exc}")
+
                     # Optionally send to bittorrent client
                     self._send_to_client(item, torrent_archive_path, tracker_url)
 
@@ -201,7 +251,7 @@ class UploadService:
         item = self.state_db.get_item(item_id)
         if not item:
             return {"success": False, "message": "Item not found"}
-        if item["status"] in ("uploaded", "queued", "approved"):
+        if item["status"] in ("uploaded", "queued", "approved", "rescanning"):
             return {"success": False, "message": f"Cannot reject item with status '{item['status']}'"}
 
         self.state_db.mark_rejected(item_id, reason)
@@ -267,11 +317,11 @@ class UploadService:
 
         return {"success": True, "message": "Item moved back to pending"}
 
-    def rescan_item(self, item_id: int) -> dict:
-        """Re-run the full prepare pipeline on the source file.
+    def rescan_item(self, item_id: int, force_no_dup: bool = False) -> dict:
+        """Queue an item for rescan. Returns immediately.
 
-        Deletes the current item from DB, removes it from known state,
-        so the watcher re-processes it on the next cycle.
+        When ``force_no_dup`` is True, the duplicate-on-tracker check is bypassed
+        for this rescan (used to override a prior duplicate-skip).
         """
         item = self.state_db.get_item(item_id)
         if not item:
@@ -283,21 +333,48 @@ class UploadService:
         if not source_path or not os.path.exists(source_path):
             return {"success": False, "message": f"Source file not found: {source_path}"}
 
+        transitioned = self.state_db.atomic_transition(
+            item_id,
+            from_statuses=("pending", "error", "skipped", "rejected"),
+            to_status="rescanning",
+        )
+        if not transitioned:
+            return {"success": False, "message": f"Cannot rescan item with status '{item['status']}'"}
+
+        self._rescan_queue.put((item_id, force_no_dup))
+        flag = " (force, bypass duplicate)" if force_no_dup else ""
+        custom_console.bot_log(f"[Web] Rescan queued{flag} → {item.get('release_name', 'unknown')}")
+        return {"success": True, "message": "Queued for rescan"}
+
+    def force_rescan_item(self, item_id: int) -> dict:
+        """Queue an item for rescan, bypassing the duplicate-on-tracker check."""
+        return self.rescan_item(item_id, force_no_dup=True)
+
+    def _do_rescan(self, item_id: int, force_no_dup: bool = False):
+        """Execute rescan logic. Called by the background rescan worker thread."""
+        item = self.state_db.get_item(item_id)
+        if not item:
+            return
+
+        source_path = item.get("source_path", "")
+        if not source_path or not os.path.exists(source_path):
+            self.state_db.mark_error(item_id, f"Source file not found: {source_path}")
+            return
+
         try:
             import argparse
             from unit3dup.bot import Bot
             from unit3dup import config_settings
             from common.trackers.data import trackers_api_data
 
-            # Build CLI namespace matching watcher mode
             cli = argparse.Namespace(
                 mt=False, duplicate=False, watcher=False, noup=False, noseed=True,
                 reseed=False, personal=False, confirm=False, skip_validation=False,
                 notitle=None, gentitle=False, force=None, upload=None, folder=None,
                 scan=None, web=True, ftp=False, tracker=None,
+                skip_duplicate_check=force_no_dup,
             )
 
-            # Determine trackers
             trackers = item.get("trackers_list", [])
             if isinstance(trackers, str):
                 trackers = json.loads(trackers)
@@ -319,15 +396,16 @@ class UploadService:
             prepared_items = bot.prepare()
 
             if not prepared_items:
-                return {"success": False, "message": "Rescan produced no results"}
+                self.state_db.mark_error(item_id, "Rescan produced no results")
+                return
 
-            # Take the first prepared item and update the DB entry
             p = prepared_items[0]
+            new_status = "pending" if not p.skip_reason else "skipped"
 
-            from datetime import datetime
-            self.state_db.update_item(
+            transitioned = self.state_db.atomic_transition(
                 item_id,
-                status="pending" if not p.skip_reason else "skipped",
+                from_statuses=("rescanning",),
+                to_status=new_status,
                 release_name=p.release_name,
                 display_name=p.display_name,
                 source_tag=p.source_tag,
@@ -344,10 +422,13 @@ class UploadService:
                 tracker_name=p.tracker_name,
                 trackers_list=p.trackers_list,
                 torrent_archive_path=p.torrent_filepath,
+                audio_tracks=p.audio_tracks,
+                subtitle_tracks=p.subtitle_tracks,
                 validation_report=p.validation_report,
                 has_errors=int(p.has_errors),
                 has_warnings=int(p.has_warnings),
                 skip_reason=p.skip_reason,
+                duplicate_match=p.duplicate_match,
                 prepared_at=datetime.now().isoformat(),
                 upload_error=None,
                 rejection_reason=None,
@@ -355,30 +436,108 @@ class UploadService:
                 user_edited_desc=None,
             )
 
+            if not transitioned:
+                custom_console.bot_warning_log(f"[Web] Rescan skipped — item #{item_id} status changed during rescan")
+                return
+
             if p.skip_reason:
                 custom_console.bot_warning_log(f"[Web] Rescan → {p.skip_reason}: {source_path}")
-                return {"success": True, "message": f"Rescan complete — skipped: {p.skip_reason}"}
-
-            custom_console.bot_log(f"[Web] Rescan → {p.release_name}")
-            return {"success": True, "message": f"Rescan complete: {p.release_name}"}
+            else:
+                custom_console.bot_log(f"[Web] Rescan → {p.release_name}")
 
         except Exception as e:
             custom_console.bot_error_log(f"[Web] Rescan failed: {e}")
-            return {"success": False, "message": f"Rescan failed: {str(e)}"}
+            self.state_db.mark_error(item_id, f"Rescan failed: {str(e)}")
+
+    def regenerate_prez(self, item_id: int, audio_tracks: list[dict], subtitle_tracks: list[dict]) -> dict:
+        """Regenerate the prez description with modified track data."""
+        item = self.state_db.get_item(item_id)
+        if not item:
+            return {"success": False, "message": "Item not found"}
+        source_path = item.get("source_path", "")
+        if not source_path or not os.path.exists(source_path):
+            return {"success": False, "message": f"Source file not found: {source_path}"}
+        try:
+            # For folder-based items, find the actual video file
+            file_path = source_path
+            if os.path.isdir(source_path):
+                from common.utility import ManageTitles
+                video_exts = {".mkv", ".mp4", ".avi", ".ts", ".m2ts"}
+                for entry in sorted(os.listdir(source_path)):
+                    if os.path.splitext(entry)[1].lower() in video_exts:
+                        file_path = os.path.join(source_path, entry)
+                        break
+                else:
+                    return {"success": False, "message": "No video file found in folder"}
+            media_file = MediaFile(file_path)
+            new_desc = generate_prez(media_file, audio_tracks=audio_tracks, sub_tracks=subtitle_tracks)
+            self.state_db.update_item(
+                item_id,
+                description=new_desc,
+                audio_tracks=audio_tracks,
+                subtitle_tracks=subtitle_tracks,
+                user_edited_desc=None,
+            )
+            return {"success": True, "message": "Description regenerated", "description": new_desc}
+        except Exception as e:
+            return {"success": False, "message": f"Regeneration failed: {str(e)}"}
 
     def bulk_approve(self, ids: list[int]) -> dict:
-        count = 0
+        """Transition all valid items to 'queued' first, then enqueue them all at once."""
+        valid = []
         for item_id in ids:
-            result = self.approve_and_upload(item_id)
-            if result["success"]:
-                count += 1
-        return {"success": True, "message": f"{count}/{len(ids)} queued"}
+            item = self.state_db.get_item(item_id)
+            if not item:
+                continue
+            transitioned = self.state_db.atomic_transition(
+                item_id,
+                from_statuses=("pending", "error"),
+                to_status="queued",
+                decided_at=datetime.now().isoformat(),
+            )
+            if transitioned:
+                valid.append((item_id, item))
+
+        for item_id, item in valid:
+            self._queue.put((item_id, None, None))
+            custom_console.bot_log(f"[Web] Queued → {item.get('release_name', 'unknown')}")
+
+        return {"success": True, "message": f"{len(valid)}/{len(ids)} queued"}
+
+    def bulk_rescan(self, ids: list[int]) -> dict:
+        """Transition all valid items to 'rescanning' first, then enqueue them all at once."""
+        valid_ids = []
+        for item_id in ids:
+            item = self.state_db.get_item(item_id)
+            if not item:
+                continue
+            if item["status"] not in ("pending", "error", "skipped", "rejected"):
+                continue
+            source_path = item.get("source_path", "")
+            if not source_path or not os.path.exists(source_path):
+                continue
+            transitioned = self.state_db.atomic_transition(
+                item_id,
+                from_statuses=("pending", "error", "skipped", "rejected"),
+                to_status="rescanning",
+            )
+            if transitioned:
+                valid_ids.append(item_id)
+
+        for item_id in valid_ids:
+            self._rescan_queue.put((item_id, False))
+
+        if valid_ids:
+            custom_console.bot_log(f"[Web] Bulk rescan queued → {len(valid_ids)} item(s)")
+        return {"success": True, "message": f"{len(valid_ids)}/{len(ids)} queued for rescan"}
 
     def queue_status(self) -> dict:
         """Return current queue state."""
         return {
             "queue_size": self._queue.qsize(),
             "uploading_item_id": self._current_item_id,
+            "rescan_queue_size": self._rescan_queue.qsize(),
+            "rescanning_item_id": self._current_rescan_item_id,
         }
 
     def rescan_tmdb(self, item_id: int, new_tmdb_id: int) -> dict:

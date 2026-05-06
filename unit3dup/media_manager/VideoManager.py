@@ -80,9 +80,13 @@ class VideoManager:
                                                        selected_tracker=selected_tracker, this_path=torrent_filepath)
 
                 # Skip(S) if it is a duplicate or let the user choose to continue (C)
+                duplicate_match = None
                 if ((self.cli.duplicate or config_settings.user_preferences.DUPLICATE_ON)
-                        and UserContent.is_duplicate(content=content, tracker_name=selected_tracker,
-                                                     cli=self.cli)):
+                        and not getattr(self.cli, 'skip_duplicate_check', False)):
+                    duplicate_match = UserContent.check_duplicate(
+                        content=content, tracker_name=selected_tracker, cli=self.cli
+                    )
+                if duplicate_match is not None:
                     skip_reasons.append({"torrent_name": content.torrent_name, "reason": "duplicate_on_tracker",
                                          "source": content.source or ""})
                     prepared_items.append(PreparedItem(
@@ -93,7 +97,10 @@ class VideoManager:
                         content_category=content.category,
                         qbit_category=self.qbit_category,
                         source_tag=content.source or "",
+                        tracker_name=selected_tracker,
+                        trackers_list=tracker_name_list,
                         skip_reason="duplicate_on_tracker",
+                        duplicate_match=duplicate_match or None,
                     ))
                     continue
 
@@ -116,6 +123,11 @@ class VideoManager:
                         skip_reason="no_tmdb_result",
                     ))
                     continue
+
+                # Propage l'année TMDB au content pour qu'elle soit utilisée
+                # par le normalizer (notamment pour les séries dont le nom
+                # source ne contient généralement pas l'année).
+                content.tmdb_year = db.year
 
                 # Override category for animated content based on TMDB genre
                 if db.is_animation():
@@ -218,6 +230,8 @@ class VideoManager:
                     description=video_info.description,
                     mediainfo=video_info.mediainfo,
                     nfo_content=None,
+                    audio_tracks=video_info.audio_tracks,
+                    subtitle_tracks=video_info.subtitle_tracks,
                     tmdb_id=db.video_id if db else 0,
                     imdb_id=db.imdb_id if db else 0,
                     tmdb_title=db.result.get_title() if db and db.result else None,

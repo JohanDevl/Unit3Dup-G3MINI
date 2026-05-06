@@ -1,15 +1,24 @@
 {% if items %}
 <div class="queue-list">
-    {% set ns = namespace(position=0) %}
+    {% set ns = namespace(position=0, rescan_position=0) %}
     {% for item in items %}
     {% set is_uploading = item.status == 'approved' or item.id == uploading_id %}
-    {% if not is_uploading %}{% set ns.position = ns.position + 1 %}{% endif %}
-    <div class="queue-item {% if is_uploading %}queue-item-uploading{% endif %}">
+    {% set is_actively_rescanning = item.status == 'rescanning' and item.id == rescanning_id %}
+    {% set is_rescanning_queued = item.status == 'rescanning' and item.id != rescanning_id %}
+    {% if not is_uploading and not is_actively_rescanning and not is_rescanning_queued %}{% set ns.position = ns.position + 1 %}{% endif %}
+    {% if is_rescanning_queued %}{% set ns.rescan_position = ns.rescan_position + 1 %}{% endif %}
+    <div class="queue-item {% if is_uploading %}queue-item-uploading{% elif is_actively_rescanning %}queue-item-rescanning{% endif %}">
         <div class="queue-item-status">
             {% if is_uploading %}
             <span class="queue-badge queue-badge-uploading">
                 <span class="pulse-dot"></span> Uploading
             </span>
+            {% elif is_actively_rescanning %}
+            <span class="queue-badge queue-badge-rescanning">
+                <span class="pulse-dot pulse-dot-rescanning"></span> Rescanning
+            </span>
+            {% elif is_rescanning_queued %}
+            <span class="queue-badge queue-badge-waiting">Rescan #{{ ns.rescan_position }}</span>
             {% else %}
             <span class="queue-badge queue-badge-waiting">#{{ ns.position }}</span>
             {% endif %}
@@ -29,7 +38,7 @@
         <div class="queue-item-time secondary">
             {{ item.decided_at | datefmt }}
         </div>
-        {% if not is_uploading %}
+        {% if not is_uploading and not is_actively_rescanning and not is_rescanning_queued %}
         <div class="queue-item-actions">
             <button type="button" class="btn btn-sm btn-danger" onclick="cancelQueueItem({{ item.id }}, this)" title="Cancel upload">
                 <i data-lucide="x"></i>

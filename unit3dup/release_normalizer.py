@@ -26,16 +26,23 @@ def _normalize_lang(raw: str) -> str:
     if r in ("MULTI.VFQ", "MULTI-VFQ"):     return "MULTi.VFQ"
     if r in ("MULTI.VF2", "MULTI-VF2"):     return "MULTi.VF2"
     if r in ("MULTI.VFB", "MULTI-VFB"):     return "MULTi.VFB"
+    if r in ("MULTI.VOF", "MULTI-VOF"):     return "MULTi.VOF"
+    if r in ("MULTI.VOQ", "MULTI-VOQ"):     return "MULTi.VOQ"
+    if r in ("MULTI.VOB", "MULTI-VOB"):     return "MULTi.VOB"
     if r in ("MULTI", "MULTIC"):            return "MULTi"
-    if r in ("FRENCH", "VFF", "VFI"):       return "VFF"
+    if r in ("FRENCH", "VFF"):              return "VFF"
     if r == "VFQ":                          return "VFQ"
     if r == "VF2":                          return "VF2"
     if r == "VFB":                          return "VFB"
     if r == "VOF":                          return "VOF"
     if r == "VOQ":                          return "VOQ"
     if r == "VOB":                          return "VOB"
+    if r in ("FRENCH.VOF", "FRENCH-VOF"):   return "VOF"
+    if r in ("FRENCH.VOQ", "FRENCH-VOQ"):   return "VOQ"
+    if r in ("FRENCH.VOB", "FRENCH-VOB"):   return "VOB"
     if r == "VOSTFR":                       return "VOSTFR"
-    if r == "SUBFRENCH":                    return "VOSTFR"
+    if r == "SUBFRENCH":                    return "SUBFRENCH"
+    if r == "SUBFORCED":                    return "SUBFORCED"
     return raw
 
 
@@ -50,8 +57,8 @@ def _normalize_source(raw: str) -> str:
     if r in ("WEB-DL", "WEBDL", "WEB"):     return "WEB"
     if r == "HDRIP":                        return "HDRip"
     if r == "HDTV":                         return "HDTV"
-    if r in ("TVRIP", "TVHDRIP"):           return "TVRip"
-    if r in ("DVDRIP", "DVD"):              return "DVDRip"
+    if r in ("TVRIP", "TVHDRIP", "HDTVRIP"): return "TVRip"
+    if r in ("DVDRIP", "DVD", "DVD9", "DVD5"): return "DVDRip"
     if r == "REMUX":                        return "REMUX"
     return raw
 
@@ -150,24 +157,34 @@ def _get_lang_from_mediainfo(mi: str) -> str:
     VFF, VFQ, VF2, VFB, VOF, VOQ, VOB ou '' """
     if not mi:
         return ""
-    vff = vfq = vfb = vof = voq = vob = False
+    # Titres explicites (taggés par l'uploader) — priorité haute
+    vff_title = vfq_title = vfb_title = vof = voq = vob = False
+    # Codes de langue génériques (Language: French (FR)/(CA)) — fallback
+    vff_lang = vfq_lang = False
     for line in mi.splitlines():
-        if   re.search(r'Language\s*:\s*French\s*\(FR\)', line, re.IGNORECASE):                             vff = True
-        elif re.search(r'Language\s*:\s*French\s*\(CA\)', line, re.IGNORECASE):                             vfq = True
-        elif re.search(r'Title\s*:.*\b(VFF|VFI|TrueFrench|French\s*\(France\))\b', line, re.IGNORECASE):   vff = True
-        elif re.search(r'Title\s*:.*\b(VFB|French\s*\(Belgique\))\b', line, re.IGNORECASE):                vfb = True
-        elif re.search(r'Title\s*:.*\b(VOF)\b', line, re.IGNORECASE):                                      vof = True
-        elif re.search(r'Title\s*:.*\b(VFQ|French\s*\(Canadien\))\b', line, re.IGNORECASE):                vfq = True
+        if   re.search(r'Title\s*:.*\b(VOF)\b', line, re.IGNORECASE):                                      vof = True
         elif re.search(r'Title\s*:.*\b(VOQ|French\s*\(Québec\))\b', line, re.IGNORECASE):                  voq = True
         elif re.search(r'Title\s*:.*\b(VOB|French\s*\(Belgique\s*VO\))\b', line, re.IGNORECASE):           vob = True
+        elif re.search(r'Title\s*:.*\b(VFF|VFI|TrueFrench|French\s*\(France\))\b', line, re.IGNORECASE):   vff_title = True
+        elif re.search(r'Title\s*:.*\b(VFQ|French\s*\(Canadien\))\b', line, re.IGNORECASE):                vfq_title = True
+        elif re.search(r'Title\s*:.*\b(VFB|French\s*\(Belgique\))\b', line, re.IGNORECASE):                vfb_title = True
+        elif re.search(r'Language\s*:\s*French\s*\(FR\)', line, re.IGNORECASE):                            vff_lang = True
+        elif re.search(r'Language\s*:\s*French\s*\(CA\)', line, re.IGNORECASE):                            vfq_lang = True
+
+    # Les titres VO explicites dominent : "Title: VOF" + "Language: French (FR)"
+    # signifie audio FR original (pas un doublage) → VOF, pas VFF.
+    if vof: return "VOF"
+    if voq: return "VOQ"
+    if vob: return "VOB"
+
+    vff = vff_title or vff_lang
+    vfq = vfq_title or vfq_lang
+    vfb = vfb_title
 
     if vff and vfq: return "VF2"
     if vff:         return "VFF"
     if vfq:         return "VFQ"
     if vfb:         return "VFB"
-    if vof:         return "VOF"
-    if voq:         return "VOQ"
-    if vob:         return "VOB"
     return ""
 
 
@@ -222,13 +239,13 @@ def _count_audio_tracks_from_mediainfo(mi: str) -> int:
 # Séparateurs utilisés en step 5b pour décoller les tokens collés.
 # Ordre important : plus long avant plus court dans chaque famille.
 _TAGS = (
-    r'BluRay|BDRip|BRRip|WEBRip|WEB|4KLight|HDLight|HDRip|TVRip|DVDRip|HDTV|REMUX|CAM'
+    r'BluRay|BDRip|BRRip|WEBRip|WEB|4KLight|HDLight|HDRip|HDTVRip|TVRip|DVDRip|DVD9|DVD5|HDTV|REMUX|BDMV|CAM'
     r'|2160p|1080p|1080i|720p|576p|480p|4K|UHD'
     r'|HDR10P|HDR10|SDR|DV|HLG|PQ10|HDR'
     r'|x265|x264|H265|H264|HEVC|AVC|AV1|VP9|VC1'
     r'|DTS-HDMA|DTS-HDHRA|DTS-HD|DTS|AC3|DDP|TrueHD|Atmos|AAC|OPUS'
-    r'|MULTi|VFF|VFQ|VF2|VFB|VOSTFR|SUBFRENCH|VOF|VOQ|VOB|FRENCH'
-    r'|EXTENDED|PROPER|REPACK|UNRATED|UNCUT|REMASTERED|INTERNAL|NoTAG|iNTEGRALE'
+    r'|MULTi|VFF|VFQ|VF2|VFB|VOSTFR|SUBFRENCH|SUBFORCED|VOF|VOQ|VOB|FRENCH'
+    r'|EXTENDED|PROPER|REPACK|UNRATED|UNCUT|REMASTERED|INTERNAL|NoTAG|iNTEGRALE|COMPLETE'
     r'|8bit|10bit|12bit'
     r'|3D|SBS|HSBS|TAB|HTAB|MVC|CUSTOM|NoGRP'
 )
@@ -240,13 +257,16 @@ _LANG_PATTERNS = [
     r'VFB-[A-Za-z]+(?:-[A-Za-z]+)*',
     r'VF2-[A-Za-z]+(?:-[A-Za-z]+)*',
     r'MULTi\.VFF', r'MULTi\.VFQ', r'MULTi\.VF2', r'MULTi\.VFB',
+    r'MULTi\.VOF', r'MULTi\.VOQ', r'MULTi\.VOB',
+    r'FRENCH\.VOF', r'FRENCH\.VOQ', r'FRENCH\.VOB',
     r'MULTi',
-    r'FRENCH', r'VFF', r'VFQ', r'VF2', r'VFB',
     r'VOF', r'VOQ', r'VOB',
-    r'VOSTFR', r'SUBFRENCH',
+    r'FRENCH', r'VFF', r'VFQ', r'VF2', r'VFB',
+    r'VOSTFR', r'SUBFRENCH', r'SUBFORCED',
 ]
 
 _EXTRAS_MAP = {
+    '4K REMASTER':   '4K.REMASTER',
     'EXTENDED':      'EXTENDED',
     'THEATRICAL':    'THEATRICAL',
     'PROPER':        'PROPER',
@@ -256,6 +276,7 @@ _EXTRAS_MAP = {
     'REMASTERED':    'REMASTERED',
     'INTERNAL':      'INTERNAL',
     'INTEGRALE':     'iNTEGRALE',
+    'COMPLETE':      'COMPLETE',
     'LIMITED':       'LIMITED',
     'IMAX EDITION':  'IMAX.EDITION',
     'IMAX':          'IMAX',
@@ -286,8 +307,9 @@ _SOURCE_LIST = [
     "BluRay", "Blu-Ray",
     "BDRip", "BRRip",
     "WEB-DL", "WEBRip",
-    "HDTV", "HDRip", "TVRip",
-    "WEB", "DVDRip", "DVD",
+    "HDTVRip", "HDTV", "HDRip", "TVRip",
+    "WEB",
+    "DVDRip", "DVD9", "DVD5", "DVD",
 ]
 
 # Codecs connus — utilisés pour exclure les faux positifs team tag
@@ -305,8 +327,16 @@ _SOURCE_QUAL_LIST = ["4KLight", "HDLight", "mHD"]
 #  PARSER PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = False) -> str:
+def _parse_release(
+    original: str,
+    mi: Optional[str] = None,
+    is_silent: bool = False,
+    year: Optional[str] = None,
+) -> str:
     name = original
+    year_hint = str(year).strip() if year else ""
+    if year_hint and not re.fullmatch(r'[12][0-9]{3}', year_hint):
+        year_hint = ""
 
     # ── 1. Extension ─────────────────────────────────────────────────────────
     ext = ""
@@ -322,6 +352,10 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     name = re.sub(r'@\d+[kKmM]bps', '', name, flags=re.IGNORECASE)
     # Bitrates standalone (384kbps, 2Mbps…) : bruit sans valeur pour le nommage
     name = re.sub(r'-?\d+[kKmM]bps', '', name, flags=re.IGNORECASE)
+    # Codecs avec point interne (H.264, H.265) : fusionner AVANT l'extraction
+    # team et la conversion points→espaces (sinon "H" et "264" fuient dans le titre).
+    name = re.sub(r'(?<![A-Za-z0-9])H\.(26[45])(?![A-Za-z0-9])', r'H\1',
+                  name, flags=re.IGNORECASE)
     name = name.strip()
 
     # ── 2. Team ───────────────────────────────────────────────────────────────
@@ -375,6 +409,7 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     name = re.sub(r'HDR10\+',                               'HDR10P',   name, flags=re.IGNORECASE)
     name = re.sub(r'HDR10PLUS',                             'HDR10P',   name, flags=re.IGNORECASE)
     name = re.sub(r'DOLBY[\s._-]*VISION',                   'DV',       name, flags=re.IGNORECASE)
+    name = re.sub(r'(?<!\w)DoVi(?!\w)',                     'DV',       name, flags=re.IGNORECASE)
     name = re.sub(r'DD\+',                                  'DDP',      name, flags=re.IGNORECASE)
     # EAC3/E-AC3 avec canaux → DDP + canaux préservés
     name = re.sub(r'E-?AC-?3\s*(\d[.]\d)',                   r'DDP \1',  name, flags=re.IGNORECASE)
@@ -397,8 +432,9 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     # MULTi-VFF/VFQ/VF2/VFB (tiret) → MULTi.VFF etc.
     name = re.sub(r'MULTi-(VFF|VFQ|VF2|VFB)',
                   lambda mo: f'MULTi.{mo.group(1).upper()}',            name, flags=re.IGNORECASE)
-    # VFI → VFF (case-insensitive, word-boundary)
-    name = re.sub(r'(?<!\w)VFI(?!\w)',                      'VFF',      name, flags=re.IGNORECASE)
+    # VFI est ambigu (nommage.md) → FRENCH, qui sera désambiguïsé (VFF/VFQ)
+    # via MediaInfo en étape 9b2. Sans MI, _normalize_lang("FRENCH") tombe sur VFF.
+    name = re.sub(r'(?<!\w)VFI(?!\w)',                      'FRENCH',   name, flags=re.IGNORECASE)
     # FR-EN, FR-ENG-JAP, ... → MULTi.VFF (un ou plusieurs segments après FR-)
     name = re.sub(r'(^|\s)FR-[A-Za-z]+(?:-[A-Za-z]+)*(\s|$)',
                   r'\1MULTi.VFF\2',                                     name, flags=re.IGNORECASE)
@@ -435,6 +471,48 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         padded = f'S{int(snum):02d}'
         name = re.sub(rf'[Ss][Aa][Ii][Ss][Oo][Nn]\s*{re.escape(snum)}', padded, name, flags=re.IGNORECASE)
 
+    # ── 5e. Bloc série S##E## / S## (extrait pour réinsertion après l'année)
+    # Pré-normalise les variantes séparées avant l'extraction :
+    #   - "S01 E05"  (séparateur point/underscore converti en espace en step 3)
+    #   - "S01-E05"  (tiret)
+    #   - "S01E01-E05", "S01E01-05" (ranges) → "S01E01E05"
+    #   - "S01E01E02" (multi-épisodes joints) reste tel quel
+    name = re.sub(
+        r'(?<![A-Za-z0-9])(S\d{1,2})[\s_-]+(E\d{1,3})(?![A-Za-z0-9])',
+        r'\1\2', name, flags=re.IGNORECASE,
+    )
+    name = re.sub(
+        r'(?<![A-Za-z0-9])(S\d{1,2}E\d{1,3})-(E?\d{1,3})(?![A-Za-z0-9])',
+        lambda mo: f"{mo.group(1)}E{mo.group(2).lstrip('Ee')}",
+        name, flags=re.IGNORECASE,
+    )
+
+    series_info = ""
+    m_se = re.search(
+        r'(?:^|\s)(S\d{1,2}(?:E\d{1,3})*)(?:\s|$)', name, re.IGNORECASE,
+    )
+    if m_se:
+        raw_se = m_se.group(1)
+        # Zero-pad et normalise la casse : S1E2E3 → S01E02E03
+        sm = re.fullmatch(
+            r'[Ss](\d{1,2})((?:[Ee]\d{1,3})*)', raw_se,
+        )
+        if sm:
+            s_num = int(sm.group(1))
+            ep_block = sm.group(2)
+            episodes = re.findall(r'[Ee](\d{1,3})', ep_block)
+            if episodes:
+                series_info = f"S{s_num:02d}" + "".join(
+                    f"E{int(e):02d}" for e in episodes
+                )
+            else:
+                series_info = f"S{s_num:02d}"
+            name = re.sub(
+                rf'(?:^|\s){re.escape(raw_se)}(?:\s|$)', ' ',
+                name, flags=re.IGNORECASE,
+            )
+            name = _ws(name)
+
     # ── 6. Année ──────────────────────────────────────────────────────────────
     year = ""
     m = re.search(r'\(([12][0-9]{3})\)', name)
@@ -446,6 +524,10 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
         if m:
             year = m.group(1)
             name = re.sub(rf'(?:^|\s){re.escape(year)}(?:\s|$)', ' ', name)
+    # Fallback : si aucune année dans le nom mais une année a été fournie en hint
+    # (ex. issue de TMDB pour les séries), on l'utilise pour la reconstruction.
+    if not year and year_hint:
+        year = year_hint
     name = _ws(name)
 
     # ── 7. Extras ─────────────────────────────────────────────────────────────
@@ -482,6 +564,8 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     )
 
     # ── 8b. Compound "MULTi VFF" → "MULTi.VFF" etc. ──────────────────────────
+    # MULTi FRENCH VOF/VOQ/VOB → MULTi.VOF/VOQ/VOB (VO domine FRENCH)
+    name = re.sub(r'MULTi\s+FRENCH\s+(VOF|VOQ|VOB)(\s|$)', r'MULTi.\1\2', name, flags=re.IGNORECASE)
     name = re.sub(r'MULTi\s+FRENCH',                        'MULTi.VFF', name, flags=re.IGNORECASE)
     name = re.sub(r'MULTi\s+VFF-[A-Za-z]+(?:-[A-Za-z]+)*', 'MULTi.VFF', name)
     name = re.sub(r'MULTi\s+VFQ-[A-Za-z]+(?:-[A-Za-z]+)*', 'MULTi.VFQ', name)
@@ -491,6 +575,9 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     name = re.sub(r'MULTi\s+(VFQ)(\s|$)',                   r'MULTi.VFQ\2', name)
     name = re.sub(r'MULTi\s+(VF2)(\s|$)',                   r'MULTi.VF2\2', name)
     name = re.sub(r'MULTi\s+(VFB)(\s|$)',                   r'MULTi.VFB\2', name)
+    name = re.sub(r'MULTi\s+(VOF)(\s|$)',                   r'MULTi.VOF\2', name)
+    name = re.sub(r'MULTi\s+(VOQ)(\s|$)',                   r'MULTi.VOQ\2', name)
+    name = re.sub(r'MULTi\s+(VOB)(\s|$)',                   r'MULTi.VOB\2', name)
 
     # ── 9. Langue ─────────────────────────────────────────────────────────────
     lang = ""
@@ -604,9 +691,9 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     if re.search(r'(?:^|\s)FULL\s+DISC(?:\s|$)', name, re.IGNORECASE):
         full_disc = "FULL"
         name = re.sub(r'(?:^|\s)FULL\s+DISC(?:\s|$)', ' ', name, flags=re.IGNORECASE)
-    elif re.search(r'(?:^|\s)FULL(?:\s|$)', name, re.IGNORECASE):
+    elif re.search(r'(?:^|\s)(?:FULL|BDMV)(?:\s|$)', name, re.IGNORECASE):
         full_disc = "FULL"
-        name = _remove_token(name, "FULL")
+        name = re.sub(r'(?:^|\s)(?:FULL|BDMV)(?:\s|$)', ' ', name, flags=re.IGNORECASE)
 
     # Qualificatifs de source extraits en priorité : peuvent coexister avec
     # une source principale (ex: "4KLight BluRay" → "4KLight.BluRay").
@@ -823,6 +910,7 @@ def _parse_release(original: str, mi: Optional[str] = None, is_silent: bool = Fa
     # ── Reconstruction ────────────────────────────────────────────────────────
     new = title
     if year:        new += f".{year}"
+    if series_info: new += f".{series_info}"
     if is_3d:       new += ".3D"
     if type_3d:     new += f".{type_3d}"
     if extras:      new += extras        # commence déjà par '.'
@@ -850,5 +938,6 @@ def normalize_release_name(
     release_name: str,
     mediainfo_text: Optional[str] = None,
     is_silent: bool = False,
+    year: Optional[str] = None,
 ) -> str:
-    return _parse_release(release_name, mediainfo_text, is_silent)
+    return _parse_release(release_name, mediainfo_text, is_silent, year=year)

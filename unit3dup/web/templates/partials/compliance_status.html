@@ -1,0 +1,36 @@
+{% set s = scan_status or {} %}
+{% if s.running %}
+<div class="card" style="background:rgba(96,165,250,0.08);border-color:rgba(96,165,250,0.35);padding:0.75rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem">
+    <i data-lucide="loader" style="animation:spin 1.2s linear infinite;color:#60a5fa"></i>
+    <div style="flex:1;min-width:0">
+        <div><strong>Scan running…</strong>
+            {% if s.current_job %}<span class="secondary">({{ s.current_job }})</span>{% endif %}
+        </div>
+        <div class="secondary" style="font-size:0.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            {{ s.processed or 0 }} checked
+            {% if s.current_label %}— {{ s.current_label }}{% endif %}
+            {% if s.queue_size and s.queue_size > 0 %}· {{ s.queue_size }} in queue{% endif %}
+        </div>
+    </div>
+</div>
+{% elif s.last_error %}
+<div class="card" style="background:rgba(248,113,113,0.08);border-color:rgba(248,113,113,0.35);padding:0.75rem 1rem;margin-bottom:1rem">
+    <strong style="color:#f87171">Last scan errored.</strong>
+    <span class="secondary">{{ s.last_error }}</span>
+</div>
+{% elif s.last_finished_at %}
+<div class="card" style="padding:0.5rem 1rem;margin-bottom:1rem;font-size:0.8rem;color:var(--text-secondary)">
+    Last scan finished {{ s.last_finished_at | datefmt }}
+    {% if s.last_summary %}
+        — {{ s.last_summary.total or 0 }} checked,
+        {{ s.last_summary.violations or 0 }} with violations,
+        {{ s.last_summary.errors or 0 }} errors
+    {% endif %}
+    {% if s.queue_size and s.queue_size > 0 %}· <strong>{{ s.queue_size }} queued</strong>{% endif %}
+</div>
+{% elif s.queue_size and s.queue_size > 0 %}
+<div class="card" style="padding:0.5rem 1rem;margin-bottom:1rem;font-size:0.8rem;color:var(--text-secondary)">
+    {{ s.queue_size }} job(s) queued, worker starting…
+</div>
+{% endif %}
+<style>@keyframes spin { to { transform: rotate(360deg); } }</style>

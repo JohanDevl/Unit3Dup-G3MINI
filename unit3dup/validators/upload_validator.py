@@ -42,6 +42,9 @@ class UploadValidator(BaseValidator):
             # Check 4: Multi-format/multi-tag detection
             results.extend(self._check_multi_format(media))
 
+            # Check 5: Pack consistency — same team and language across files
+            results.extend(self._check_pack_consistency(media))
+
         except Exception:
             pass
 
@@ -165,6 +168,56 @@ class UploadValidator(BaseValidator):
         except Exception:
             pass
 
+        return results
+
+    # upload.md §4:
+    #   "Pas de multi-tag (plusieurs teams dans un meme pack)"
+    #   "Pas de mix de langues (FRENCH et MULTi dans un meme pack)"
+    def _check_pack_consistency(self, media) -> list[ValidationResult]:
+        results: list[ValidationResult] = []
+        if media is None or not hasattr(media, 'torrent_path'):
+            return results
+        try:
+            torrent_path = media.torrent_path
+            if not os.path.isdir(torrent_path):
+                return results
+
+            video_ext = ('.mkv', '.mp4', '.avi', '.mov', '.flv', '.wmv', '.ts', '.m2ts')
+            teams: set[str] = set()
+            lang_categories: set[str] = set()  # "MULTi" or "MONO" (FRENCH/VFF/VFQ/...)
+
+            for file in os.listdir(torrent_path):
+                if not any(file.lower().endswith(e) for e in video_ext):
+                    continue
+                stem = re.sub(r'\.[^.]+$', '', file)
+
+                team_m = re.search(r'-([A-Za-z0-9]{2,})$', stem)
+                if team_m:
+                    t = team_m.group(1).upper()
+                    if t not in ("HDMA", "HDHRA", "HD", "AC3", "NOTAG", "NOGRP"):
+                        teams.add(t)
+
+                if re.search(r'(?:^|[\s.])MULTi(?:[\s.]|$)', stem, re.IGNORECASE):
+                    lang_categories.add("MULTi")
+                elif re.search(r'(?:^|[\s.])(?:FRENCH|VFF|VFQ|VFB|VF2|VOF|VOQ|VOB|VOSTFR)(?:[\s.]|$)', stem, re.IGNORECASE):
+                    lang_categories.add("MONO")
+
+            if len(teams) > 1:
+                results.append(ValidationResult(
+                    rule="upload.multi_team_pack",
+                    severity="WARNING",
+                    message=f"Multi-team detecte dans le pack: {', '.join(sorted(teams))}",
+                    source_doc="upload",
+                ))
+            if len(lang_categories) > 1:
+                results.append(ValidationResult(
+                    rule="upload.mixed_languages_pack",
+                    severity="WARNING",
+                    message="Mix de langues detecte (MULTi + tag mono) dans le meme pack",
+                    source_doc="upload",
+                ))
+        except Exception:
+            pass
         return results
 
     def _check_multi_format(self, media) -> list[ValidationResult]:

@@ -145,7 +145,7 @@ class UserContent:
         return None
 
     @staticmethod
-    def is_duplicate(content: Media, tracker_name: str,  cli: argparse.Namespace) -> bool:
+    def check_duplicate(content: Media, tracker_name: str,  cli: argparse.Namespace) -> dict | None:
         """
            Search for a duplicate. Delta = config.SIZE_TH
 
@@ -154,7 +154,8 @@ class UserContent:
                content (Contents): The content object media
                tracker_name: The name of the tracker
            Returns:
-               my_torrent object
+               match data dict (id, name, size, resolution, info_hash, ...) when a
+               duplicate is detected and the user chose to skip; None otherwise.
         """
         duplicate = Duplicate(content=content, tracker_name=tracker_name, cli=cli)
         if duplicate.process():
@@ -162,9 +163,8 @@ class UserContent:
                 f"\n*** User chose to skip '{content.display_name}' ***\n"
             )
             custom_console.rule()
-            return True
-        else:
-            return False
+            return duplicate.match_data or {}
+        return None
 
     @staticmethod
     def can_ressed(content: Media, tracker_name: str,  cli: argparse.Namespace, tmdb_id :int) -> list[requests.Response]:

@@ -67,6 +67,9 @@
         <span id="bulk-count">0 selected</span>
         <div class="bulk-bar-actions">
             <button type="button" class="btn btn-ghost btn-sm" onclick="clearSelection()">Clear</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="openBulkRescanModal()">
+                <i data-lucide="refresh-cw"></i> Bulk Rescan
+            </button>
             <button type="button" class="btn btn-success btn-sm" onclick="openBulkApproveModal()">
                 <i data-lucide="upload"></i> Bulk Approve
             </button>
@@ -126,10 +129,11 @@
             <table id="bulk-approve-table" style="width:100%;border-collapse:collapse">
                 <thead>
                     <tr>
-                        <th style="width:45%">Release Name</th>
+                        <th style="width:40%">Release Name</th>
                         <th>Category</th>
                         <th>Resolution</th>
                         <th>Tracker</th>
+                        <th>S/E</th>
                         <th style="width:36px"></th>
                     </tr>
                 </thead>
@@ -140,6 +144,30 @@
             <button class="btn btn-ghost" onclick="closeBulkApproveModal()">Cancel</button>
             <button class="btn btn-success" id="bulk-approve-confirm-btn" onclick="confirmBulkApprove()">
                 <i data-lucide="upload"></i> Queue All (<span id="bulk-approve-count">0</span>)
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Rescan Modal -->
+<div class="modal-overlay" id="bulk-rescan-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i data-lucide="refresh-cw" style="width:20px;height:20px;color:#fbbf24"></i> Bulk Rescan</h3>
+            <button class="modal-close" onclick="closeBulkRescanModal()">
+                <i data-lucide="x" style="width:18px;height:18px"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p id="bulk-rescan-info">Rescan <strong>0</strong> item(s)? They will be queued for re-analysis.</p>
+            <p style="color:var(--text-secondary);font-size:0.85rem;margin-top:0.5rem">
+                Items will appear in the queue while being rescanned. This may take a while depending on the number of items.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeBulkRescanModal()">Cancel</button>
+            <button class="btn btn-primary" id="bulk-rescan-confirm-btn" onclick="confirmBulkRescan()">
+                <i data-lucide="refresh-cw"></i> Rescan
             </button>
         </div>
     </div>
@@ -353,6 +381,75 @@
         });
     }
 
+    // ── Bulk Rescan Modal ────────────────────────────────────
+
+    function openBulkRescanModal() {
+        if (_selectedIds.size === 0) return;
+        document.getElementById('bulk-rescan-info').innerHTML =
+            'Rescan <strong>' + _selectedIds.size + '</strong> item' +
+            (_selectedIds.size > 1 ? 's' : '') + '? They will be queued for re-analysis.';
+        const btn = document.getElementById('bulk-rescan-confirm-btn');
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="refresh-cw"></i> Rescan';
+        document.getElementById('bulk-rescan-modal').classList.add('open');
+        setTimeout(() => lucide.createIcons(), 100);
+    }
+
+    function closeBulkRescanModal() {
+        document.getElementById('bulk-rescan-modal').classList.remove('open');
+    }
+
+    function confirmBulkRescan() {
+        const btn = document.getElementById('bulk-rescan-confirm-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader"></i> Rescanning...';
+        lucide.createIcons();
+
+        fetch('/api/v1/items/bulk-rescan', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ids: Array.from(_selectedIds)})
+        })
+        .then(r => {
+            if (!r.ok) throw new Error(r.statusText || 'Server error');
+            return r.json();
+        })
+        .then(data => {
+            closeBulkRescanModal();
+            _selectedIds.clear();
+            updateBulkBar();
+            const card = document.getElementById('pending-card');
+            const alert = document.createElement('div');
+            alert.style.marginBottom = '1rem';
+            const match = (data.message || '').match(/^(\d+)\/(\d+)/);
+            const isPartial = match && parseInt(match[1]) < parseInt(match[2]);
+            if (isPartial) {
+                alert.className = 'alert alert-error';
+                alert.textContent = data.message + ' (some items could not be rescanned)';
+            } else {
+                alert.className = 'alert alert-success';
+                alert.textContent = data.message || 'Items queued for rescan';
+            }
+            card.insertBefore(alert, card.firstChild);
+            setTimeout(() => alert.remove(), 5000);
+            const container = document.getElementById('pending-container');
+            if (container) htmx.ajax('GET', '/partials/pending-list', {target: '#pending-container', swap: 'innerHTML'});
+        })
+        .catch(err => {
+            closeBulkRescanModal();
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="refresh-cw"></i> Rescan';
+            lucide.createIcons();
+            const card = document.getElementById('pending-card');
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-error';
+            alert.style.marginBottom = '1rem';
+            alert.textContent = 'Error: ' + err.message;
+            card.insertBefore(alert, card.firstChild);
+            setTimeout(() => alert.remove(), 5000);
+        });
+    }
+
     // ── Bulk Approve Modal ─────────────────────────────────────
 
     let _bulkApproveItems = [];
@@ -372,6 +469,9 @@
                 tracker: row.dataset.tracker || '—',
                 hasErrors: row.dataset.hasErrors === '1',
                 hasWarnings: row.dataset.hasWarnings === '1',
+                contentCategory: row.dataset.contentCategory || '',
+                seasonNumber: row.dataset.seasonNumber !== '' ? parseInt(row.dataset.seasonNumber) : null,
+                episodeNumber: row.dataset.episodeNumber !== '' ? parseInt(row.dataset.episodeNumber) : null,
             });
         });
         if (_bulkApproveItems.length === 0) return;
@@ -396,6 +496,18 @@
                 '<td class="secondary" style="font-size:0.85rem">' + item.category + '</td>' +
                 '<td class="secondary" style="font-size:0.85rem">' + item.resolution + '</td>' +
                 '<td class="secondary" style="font-size:0.85rem">' + item.tracker + '</td>' +
+                (item.contentCategory.includes('tv') ?
+                    '<td><div style="display:flex;gap:0.25rem;align-items:center">' +
+                    '<label style="font-size:0.75rem;color:var(--text-muted);margin:0">S</label>' +
+                    '<input type="number" class="form-input" style="width:50px;font-size:0.8rem;padding:0.2rem 0.4rem" ' +
+                        'value="' + (item.seasonNumber !== null ? item.seasonNumber : '') + '" min="0" ' +
+                        'data-bulk-idx="' + idx + '" data-field="season" onchange="updateBulkApproveSE(this)">' +
+                    '<label style="font-size:0.75rem;color:var(--text-muted);margin:0">E</label>' +
+                    '<input type="number" class="form-input" style="width:50px;font-size:0.8rem;padding:0.2rem 0.4rem" ' +
+                        'value="' + (item.episodeNumber !== null ? item.episodeNumber : '') + '" min="0" ' +
+                        'data-bulk-idx="' + idx + '" data-field="episode" onchange="updateBulkApproveSE(this)">' +
+                    '</div></td>' :
+                    '<td class="secondary" style="font-size:0.85rem">—</td>') +
                 '<td><button class="btn btn-ghost btn-sm" style="padding:0.2rem" onclick="removeBulkApproveItem(' + idx + ')" title="Remove">' +
                     '<i data-lucide="x" style="width:14px;height:14px"></i></button></td>';
             tbody.appendChild(row);
@@ -409,6 +521,14 @@
         const idx = parseInt(input.dataset.bulkIdx);
         if (_bulkApproveItems[idx]) {
             _bulkApproveItems[idx].releaseName = input.value;
+        }
+    }
+
+    function updateBulkApproveSE(input) {
+        const idx = parseInt(input.dataset.bulkIdx);
+        const field = input.dataset.field === 'season' ? 'seasonNumber' : 'episodeNumber';
+        if (_bulkApproveItems[idx]) {
+            _bulkApproveItems[idx][field] = input.value.trim() === '' ? null : parseInt(input.value);
         }
     }
 
@@ -432,14 +552,26 @@
         btn.innerHTML = '<i data-lucide="loader"></i> Queueing...';
         lucide.createIcons();
 
-        const promises = _bulkApproveItems.map(item =>
-            fetch('/api/v1/items/' + item.id + '/approve', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({release_name: item.releaseName || null, description: null})
-            }).then(r => r.json()).then(data => ({id: item.id, ...data}))
-              .catch(err => ({id: item.id, success: false, message: String(err)}))
-        );
+        const promises = _bulkApproveItems.map(item => {
+            let chain = Promise.resolve();
+            if (item.seasonNumber !== null || item.episodeNumber !== null) {
+                chain = fetch('/api/v1/items/' + item.id + '/update-season-episode', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        season_number: item.seasonNumber ?? 0,
+                        episode_number: item.episodeNumber ?? 0
+                    })
+                }).then(r => { if (!r.ok) throw new Error('S/E update failed: ' + r.status); });
+            }
+            return chain.then(() =>
+                fetch('/api/v1/items/' + item.id + '/approve', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({release_name: item.releaseName || null, description: null})
+                }).then(r => r.json()).then(data => ({id: item.id, ...data}))
+            ).catch(err => ({id: item.id, success: false, message: String(err)}));
+        });
 
         Promise.all(promises).then(results => {
             closeBulkApproveModal();
@@ -471,8 +603,11 @@
     document.getElementById('bulk-approve-modal').addEventListener('click', function(e) {
         if (e.target === this) closeBulkApproveModal();
     });
+    document.getElementById('bulk-rescan-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeBulkRescanModal();
+    });
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') { closeBulkRejectModal(); closeBulkApproveModal(); }
+        if (e.key === 'Escape') { closeBulkRejectModal(); closeBulkApproveModal(); closeBulkRescanModal(); }
     });
 </script>
 
